@@ -155,3 +155,43 @@
 - LESSON: when a metric is computed over a sample, the SAMPLE is part of the
   instrument. A single-class sample, a synthetic-label sample, and a
   domain-mismatched sample each produce a confident number that means nothing.
+
+## EN-013 · the extension's python preamble had no trailing newline (2026-09-23)
+- FINDING: every `plutus_*` tool would have failed in the TUI with
+  `SyntaxError: invalid syntax` at the first statement of its snippet.
+- ROOT CAUSE: the BOOT preamble is a TS template literal appended directly
+  before each tool's python snippet. It ended `sys.path.append(str(R))` with no
+  newline, so the preamble's last statement was concatenated with the snippet's
+  first: `sys.path.append(str(R))import json`.
+- FIX: a trailing blank line in the template literal (now documented as
+  load-bearing in the extension).
+- VERIFICATION: `pi-harness/tests/test_tools_execute.py`, which extracts every
+  snippet and runs it verbatim — 5/5 pass.
+- LESSON: an embedded-language boundary is a place where two languages' rules
+  meet, and neither language checks the seam. The seam needs its own test.
+
+## EN-014 · a model entry missing `input` broke the whole seat (2026-09-23)
+- FINDING: sending a prompt gave `Error: Cannot read properties of undefined
+  (reading 'includes')`.
+- ROOT CAUSE: pi's model resolution calls `.includes` on each model's `input`
+  array. My `registerProvider` entries declared only `id`/`name`/`reasoning`.
+  Every field — `input`, `cost`, `contextWindow`, `maxTokens` — is required.
+- FIX: complete model entries (documented in the extension).
+- VERIFICATION: the seat booted with `0.0%/131k` in the status bar.
+
+## EN-015 · the 503 was the MODEL's upstream, not the provider (2026-09-23)
+- FINDING: after the provider worked, every send retried 3x and failed with
+  `503 {"type":"server_error","message":"Upstream request failed: Endpoint is
+  unavailable."}`
+- ROOT CAUSE, established by probing each model id against the gateway:
+    muse-spark-1.3-contributor  503      deepseek-v4-flash  200
+    muse-spark-1.2-contributor  503      glm-5.1            200
+    grok-4.6                    503      kimi-k2.6          200
+  The muse family and grok-4.6 had a DOWN UPSTREAM; the gateway and the key
+  were fine. Registering a 503 model as the seat's default produced the loop.
+- ALSO FOUND: the gateway requires an `x-opencode-session` header. Without it:
+  `{"type":"error","error":{"type":"MissingSessionID"}}`. Added to the provider.
+- FIX: register the three MEASURED-working models; keep muse listed but LABELED
+  with its 503 date.
+- LESSON: a 503 from a gateway is a claim about a ROUTE. Probe the routes
+  individually before touching the key, the base URL, or the client.

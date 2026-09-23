@@ -86,3 +86,36 @@ Both are reported as measured. Neither was reframed, substituted, or deleted.
 ## THE CONTAINER SUITE (13 scenarios)
 13/13 PASS — 5 adversarial first, 8 happy path last. Artifact at
 `.trident/container-test-results.json`.
+
+## THE RUNTIME SEAT — proven live (2026-09-23)
+The pin's RUNTIME SEAT requirement is met and was observed:
+
+| # | the claim | the evidence |
+|---|---|---|
+| 1 | the pi TUI boots | status bar: `kimi-k2.6 • medium`, `3.7%/131k` |
+| 2 | the extension loads | pane banner: `Plutus V6 circuit loaded — trading tools only, no coding surface` |
+| 3 | 7 tools register, no others | `prove_zero_coding` PASS — every name is `plutus_*` |
+| 4 | the tools EXECUTE | `test_tools_execute` PASS — 5/5 payloads run verbatim |
+| 5 | the agent DRIVES them | the operator's prompt produced `plutus_probe` then `plutus_run_golden`; the pane streamed the RRR table |
+| 6 | zero coding surface | `--no-builtin-tools` removes read/bash/powershell/edit/write/grep/find/ls |
+| 7 | NOT headless | the TUI pane is the output; no `--print`, no `--mode json` |
+
+The agent's own words in the pane:
+  "All 5 adversarial probes returned their named refusal tokens."
+  "Golden week: 6/6 accepted, all canon RRRs reproduced within tolerance
+   (all_rrr_within_tol: true)."
+
+## THE W7 FINE-TUNE — a MEASURED hard blocker, not a deferral
+`decider/train.py` trains with `AdamW(model.parameters())` — FULL-parameter,
+no freezing, no LoRA path in the code. The VRAM arithmetic:
+
+    2B params  bf16 weights        4.0 GB
+               fp32 master         8.0 GB
+               AdamW m + v (fp32) 16.0 GB
+               --------------------------
+               TOTAL              28.0 GB      the card has 12.0 GB
+
+A LoRA r=16 would need ~0.14 GB and would fit, but the training code has no
+LoRA support to enable. The corpus (2,509 records with D13 provenance) is
+built and ready; the adapter cannot be trained on this hardware with this
+trainer. Reported as BLOCKED with the arithmetic, not as skipped.
