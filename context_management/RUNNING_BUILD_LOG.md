@@ -43,3 +43,6 @@ _ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` ·
     domain). The measured finding: one global temperature does NOT transfer.
 18. AUDIT ROUND 4: 0 critical / 21 high, all remediated.
     Final: HEAD bf04465, container artifact 6a3eaee694e44fcc.
+
+---
+_ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-23._

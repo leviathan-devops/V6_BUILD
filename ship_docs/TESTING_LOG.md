@@ -252,3 +252,6 @@ to. The criticals are now zero in most rounds because the critical CLASS
 but each fix adds surface, and the surface is what gets audited. A "GATE: PASS"
 is not reachable by iterating; the honest report is the verdict WITH the round
 count and the SHA.
+
+---
+_ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-23._

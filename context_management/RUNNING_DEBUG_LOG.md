@@ -36,3 +36,6 @@ _ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` ·
 - my own prove_zero_coding regex matched a PROVIDER's model name as a tool name.
 - the OMS outcomes default of "tp" was a silent WIN; making it required broke
   3 callers, which is the point — the caller must state the outcome.
+
+---
+_ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-23._

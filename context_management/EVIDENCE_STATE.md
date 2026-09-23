@@ -137,3 +137,6 @@ reliable. The circuit therefore uses the python shadow as the authority and
 reports dual_verified=False rather than fabricating a pass.
 `test_limite_dual_live` asserts the RECORD reproduces and fails if the model's
 behaviour CHANGES, so an improvement or a regression is deliberate.
+
+---
+_ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-23._
