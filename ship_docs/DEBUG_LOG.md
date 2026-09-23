@@ -536,3 +536,62 @@ _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-2
 - I DID NOT SUBSTITUTE THE MODEL — the pin reserves that decision for the operator.
 - CONSEQUENCE: STOP condition 4 (<500ms with the model in the loop) is UNMET and
   currently UNMEASURABLE. `test_golden_week_e2e` passes on the OFFLINE path.
+
+## EN-031 · the state was 4x the blueprint's spec — the cause of the VRAM + latency miss
+- THE DEFECT: `render_state` rendered EVERY feed in the dict — all 3 pairs x FOUR
+  timeframes (15m included) = 12 blocks, 9452 chars, **9242 real tokens**.
+- THE SPEC (blueprint 1.7, verbatim for CALL 1): "State: 30m/1H/4H bars + pair +
+  session + DXY ctx". The blueprint's own §1.6 limit is **8,192 tokens** — the
+  state EXCEEDED it by 13%, which is what OOM'd the server on activation growth.
+- THE FIX: the target pair's 30m/1H/4H (the spec's three timeframes) plus the DXY
+  CONTEXT the spec names. 9452 -> 2350 chars.
+- **MEASURED IMPACT:** decision latency 1259ms -> 402ms (the budget is 500ms).
+  The state size IS the latency budget.
+- ALSO FIXED: the price precision was HARDCODED at 5 decimals, so a DXY bar
+  (pip=0.01) rendered `100.93600` — three digits of noise on every number. The
+  precision now follows the instrument's own pip scale (pip decimals + 1).
+
+## EN-032 · the token guard could not see the real tokenizer (4.13x undershoot)
+- THE DEFECT: `count_tokens` counted WHITESPACE WORDS. Measured: 2238 by the
+  estimate vs **9242 by the served tokenizer** — a 4.13x undershoot. So
+  `assert_state_fits` PASSED a state 4x over the documented 8,192-token limit.
+- AN ESTIMATE THAT CANNOT SEE THE REAL TOKENIZER CANNOT ENFORCE A TOKEN LIMIT.
+- THE FIX: `count_tokens` loads the DECIDER's own tokenizer (transformers is
+  present; the model dir has tokenizer.json) and falls back to the estimate only
+  if it cannot load.
+- VERIFIED: our 2057 vs the server's ~2120 for the same state — **ratio 0.97**,
+  down from 4.13.
+
+## EN-033 · CUDA graphs were never captured (DECIDER_WARMUP=0)
+- FINDING: the server's own ready line reports `"graphs": 0` — graph capture
+  never ran, because the deployed env sets `DECIDER_WARMUP=0` while the
+  documented default is `1`.
+- I TRIED IT: `DECIDER_WARMUP=1` **OOM'd during capture** ("Application startup
+  failed") and took the server DOWN. The deployed `0` was DELIBERATE — capture
+  does not fit in this VRAM envelope alongside the other models.
+- RESTORED `WARMUP=0` immediately (the server is JevManager's local judge —
+  `JM_JUDGE_URL=http://127.0.0.1:8008/v1/systemone`; leaving it down breaks
+  another project).
+- RECORDED as a candidate lever IF the model is downgraded (the pin's report
+  recommends decider-0.8b): with ~3.5 GiB more free, capture may fit.
+- ALSO MEASURED AND REJECTED: `DECIDER_COMPILE=1` (1308ms vs 1259ms — SLOWER) and
+  `DECIDER_FP8=1` (1782ms — slower AND it shifted the probabilities: E1.Q1
+  confidence 0.5264 -> 0.4859, which would invalidate the ECE calibration).
+
+## EN-034 · the server's own config was over-provisioned 4x
+- FINDING: `DECIDER_MAX_STATE_TOKENS` was UNSET -> the module default **32768**,
+  while the blueprint documents 8192 and the real state needs ~2500. The KV cache
+  is 48 KB/token, so that over-provision reserved ~1.6 GB for a ~400 MB need.
+- THE FIX: `DECIDER_MAX_STATE_TOKENS=8192` (the documented limit) plus
+  `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` (the OOM traceback's own
+  recommendation).
+- MEASURED: the server's footprint fell 6587 -> 3827 MiB — **2.76 GB freed**, and
+  the real state now scores 17/17 where it previously OOM'd.
+- THE ENV IS RECORDED in `.trident/VRAM_BLOCKER.md` for a faithful restart.
+
+## THE LIVE-PATH COVERAGE GAP — CLOSED
+`tests/test_decider_live_pipeline.py` (new): the circuit with the model IN the
+loop — 17 answers from the PUBLISHED model, the superseded head unreachable
+(verified by AST, not string matching), the state within the real tokenizer's
+limit, and the warm latency under budget. No test previously ran
+`use_decider=True`, which is exactly how the superseded model survived.

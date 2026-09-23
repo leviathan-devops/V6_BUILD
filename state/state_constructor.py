@@ -153,13 +153,31 @@ def swing_levels(bars: list[Bar], lookback: int = 48) -> tuple[float, float]:
     return (round(max(b.high for b in w), 5), round(min(b.low for b in w), 5))
 
 
-def render_feed_block(pair: str, tf: str, bars: list[Bar], n: int = 12) -> str:
+# THE BAR COUNT IS THE LATENCY LEVER. The blueprint (1.7) fixes the state's
+# TIMEFRAMES ("30m/1H/4H bars") but NOT how many bars of each. The measured
+# latency is ~0.127 ms per request token, so the state size IS the budget:
+#   12 bars x 3 feeds -> 3047 tokens -> 505ms median  (over the 500ms budget)
+#    8 bars x 3 feeds -> ~2400 tokens -> ~400ms       (comfortable margin)
+# Eight recent bars per timeframe (24 across the three) is the context the
+# decision needs; the ATR(14) and swing levels in the header carry the longer
+# lookback. THE TRADE IS NAMED: context breadth for latency headroom.
+BARS_PER_FEED = 8
+
+
+def render_feed_block(pair: str, tf: str, bars: list[Bar], n: int = BARS_PER_FEED) -> str:
     """The compact OHLC block for one (pair, timeframe)."""
     recent = bars[-n:]
     pip = PIP.get(pair, 0.0001)
+    # DEFECT FIXED (2026-09-24): the precision was HARDCODED at 5 decimals for
+    # every pair, so a DXY bar (pip=0.01) rendered `100.93600` — three digits of
+    # pure noise, on every number, in every bar, in every block. The precision
+    # now follows the instrument's own pip scale: pip decimals + 1 (the
+    # blueprint's own example renders EUR/USD at 5). A pip of 0.01 gives 3.
+    _dec = max(2, len(str(pip).split(".")[-1]) + 1) if "." in str(pip) else 3
     lines = [f"{pair} {tf} ({len(bars)} bars, last {len(recent)} shown, pip={pip}):"]
     for b in recent:
-        lines.append(f"  t={b.ts} O={b.open:.5f} H={b.high:.5f} L={b.low:.5f} C={b.close:.5f}")
+        lines.append(f"  t={b.ts} O={b.open:.{_dec}f} H={b.high:.{_dec}f} "
+                     f"L={b.low:.{_dec}f} C={b.close:.{_dec}f}")
     return "\n".join(lines)
 
 
@@ -198,10 +216,32 @@ def render_state(pair: str, anchor_ms: int, feeds: dict[tuple[str, str], list[Ba
                 f"FUTURE_BAR_LEAK: {p} {tf} has {len(over)} bar(s) past anchor "
                 f"{anchor_ms} at RENDER time (first ts={over[0].ts})")
         feeds[(p, tf)] = bars
-    blocks = []
-    for (p, tf), bars in sorted(feeds.items()):
-        if not bars: continue
-        blocks.append(render_feed_block(p, tf, bars))
+    # THE STATE CONTRACT (blueprint 1.7, verbatim for CALL 1 / E1):
+    #     "State: 30m/1H/4H bars + pair + session + DXY ctx"
+    #
+    # DEFECT FIXED (2026-09-24): the first version rendered EVERY feed in the
+    # dict — all three pairs x FOUR timeframes (15m included) = 12 blocks, 9452
+    # chars, ~9242 REAL tokens. That is 4x the specified state, it exceeds the
+    # blueprint's own 8,192-token limit, and it is the direct cause of the
+    # measured 1259ms decision latency (the budget is 500ms).
+    #
+    # The state is now the TARGET PAIR's 30m/1H/4H (the spec's three timeframes)
+    # plus the DXY CONTEXT the spec names. A pair with no 30m/1H/4H falls back to
+    # whatever it does have, so a thinner feed is still renderable.
+    SPEC_TFS = ("30m", "1H", "4H")
+    own = [(tf, feeds[(pair, tf)]) for tf in SPEC_TFS
+           if (pair, tf) in feeds and feeds[(pair, tf)]]
+    if not own:
+        own = [(tf, b) for (p, tf), b in sorted(feeds.items())
+               if p == pair and b]
+    blocks = [render_feed_block(pair, tf, b) for tf, b in own]
+    # "+ DXY ctx": the dollar index as CONTEXT when the target is not DXY itself.
+    if pair != "DXY":
+        for tf in SPEC_TFS:
+            ctx = feeds.get(("DXY", tf))
+            if ctx:
+                blocks.append("DXY CONTEXT " + render_feed_block("DXY", tf, ctx))
+                break
     # AUDIT FIX: a state with neither 30m nor 1H raised EmptyBars from inside
     # swing_levels. The condition is NAMED here.
     main = feeds.get((pair, "30m")) or feeds.get((pair, "1H"))
@@ -220,6 +260,45 @@ def render_state(pair: str, anchor_ms: int, feeds: dict[tuple[str, str], list[Ba
     return f"{STATE_DELIM}\n{body}\n"
 
 
+_TOKENIZER = None
+_TOKENIZER_TRIED = False
+
+
+def _tokenizer():
+    """The DECIDER's real tokenizer, or None.
+
+    DEFECT FIXED (2026-09-24): the guard below counted WHITESPACE WORDS, which
+    undercounts numeric-dense text badly — the real state measured 2238 by
+    estimate and **9242 by the served tokenizer (a 4.13x undershoot)**. The guard
+    therefore PASSED a state 4x over the blueprint's documented 8,192-token
+    limit, and that oversize is what OOM'd the server and blew the latency
+    budget. An estimate that cannot see the real tokenizer cannot enforce a
+    token limit.
+    """
+    global _TOKENIZER, _TOKENIZER_TRIED
+    if _TOKENIZER_TRIED:
+        return _TOKENIZER
+    _TOKENIZER_TRIED = True
+    import glob, os
+    cands = [os.environ.get("DECIDER_TOKENIZER"),
+             *glob.glob("/home/leviathan/.cache/huggingface/hub/"
+                        "models--Mapika--decider-2b/snapshots/*"),
+             os.environ.get("DECIDER_BASE", "/home/leviathan/models/qwen3-0.6b-base")]
+    try:
+        from transformers import AutoTokenizer
+        for c in cands:
+            if not c:
+                continue
+            try:
+                _TOKENIZER = AutoTokenizer.from_pretrained(c)
+                return _TOKENIZER
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return None
+
+
 def count_tokens(text: str) -> int:
     r"""A conservative token estimate: whitespace words PLUS the punctuation
     attached to them.
@@ -229,6 +308,13 @@ def count_tokens(text: str) -> int:
     docstring promised a conservative over-count and delivered an under-count,
     so assert_state_fits could admit an oversized state.
     """
+    # THE REAL TOKENIZER FIRST; the estimate is only a fallback.
+    _t = _tokenizer()
+    if _t is not None:
+        try:
+            return len(_t.encode(text, add_special_tokens=False))
+        except Exception:
+            pass
     import re
     words = re.findall(r"\S+", text)
     punct = re.findall(r"[^\w\s]", text)
