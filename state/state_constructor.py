@@ -85,13 +85,18 @@ def parse_bars(raw: list[dict], anchor_ms: int) -> list[Bar]:
         if h < l:
             raise ValueError(f"BAR_INVERTED: bar ts={ts} high={h} < low={l}")
         bars.append(Bar(ts, o, h, l, cl, v))
-    if bad_ts:
-        raise ValueError(
-            f"BAR_MISSING_TIMESTAMP: {len(bad_ts)} bar(s) carry no usable ts/time")
+    # AUDIT FIX: the leak check ran SECOND, so a feed carrying both a bad
+    # timestamp and a future bar reported only the timestamp — the FUTURE_BAR_LEAK
+    # (the temporal law's named violation) was masked. The LEAK is reported
+    # first: it is the law, the timestamp is hygiene.
     if leaks:
         raise FutureBarLeak(
             f"FUTURE_BAR_LEAK: {len(leaks)} bar(s) past anchor {anchor_ms} "
-            f"(first leaked ts={min(leaks)})")
+            f"(first leaked ts={min(leaks)})"
+            + (f"; {len(bad_ts)} bar(s) also lacked a timestamp" if bad_ts else ""))
+    if bad_ts:
+        raise ValueError(
+            f"BAR_MISSING_TIMESTAMP: {len(bad_ts)} bar(s) carry no usable ts/time")
     return sorted(bars, key=lambda b: b.ts)
 
 
@@ -128,7 +133,19 @@ def render_feed_block(pair: str, tf: str, bars: list[Bar], n: int = 12) -> str:
 
 def render_state(pair: str, anchor_ms: int, feeds: dict[tuple[str, str], list[Bar]],
                  session_utc: str = "", extra: str = "") -> str:
-    """Render the full Decider state document."""
+    """Render the full Decider state document.
+
+    AUDIT FIX: the anchor was only INTERPOLATED into the header — no bar was
+    checked against it. A `Bar` built by any route other than parse_bars (or a
+    feed mutated after parsing) entered the document unchecked, violating the
+    module's own TEMPORAL LAW. The check is now enforced at render time too.
+    """
+    for (p, tf), bars in feeds.items():
+        over = [b for b in bars if b.ts > anchor_ms]
+        if over:
+            raise FutureBarLeak(
+                f"FUTURE_BAR_LEAK: {p} {tf} has {len(over)} bar(s) past anchor "
+                f"{anchor_ms} at RENDER time (first ts={over[0].ts})")
     blocks = []
     for (p, tf), bars in sorted(feeds.items()):
         if not bars: continue
@@ -152,9 +169,18 @@ def render_state(pair: str, anchor_ms: int, feeds: dict[tuple[str, str], list[Ba
 
 
 def count_tokens(text: str) -> int:
-    """A conservative token estimate (whitespace + punctuation split)."""
+    """A conservative token estimate: whitespace words PLUS the punctuation
+    attached to them.
+
+    AUDIT FIX: `\S+` already consumes attached punctuation, so the `|[^\w\s]`
+    branch was UNREACHABLE and the count was whitespace-tokens only — the
+    docstring promised a conservative over-count and delivered an under-count,
+    so assert_state_fits could admit an oversized state.
+    """
     import re
-    return len(re.findall(r"\S+|[^\w\s]", text))
+    words = re.findall(r"\S+", text)
+    punct = re.findall(r"[^\w\s]", text)
+    return len(words) + len(punct)
 
 
 def assert_state_fits(state: str) -> int:

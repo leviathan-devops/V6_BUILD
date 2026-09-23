@@ -28,7 +28,13 @@ class MathQuery:
     tolerance: float   # the dual-compute epsilon for this quantity
 
 
-ANSWER_RE = re.compile(r"ANSWER\s*:\s*(-?\d+(?:\.\d+)?)", re.I)
+# AUDIT FIX: the first pattern was `-?\d+(?:\.\d+)?`, which SILENTLY TRUNCATED:
+#   "ANSWER: 1.23e-4" -> 1.23     (drops the exponent: a 10000x error)
+#   "ANSWER: .618"    -> 618      (the leading-dot form matched the digits only)
+#   "ANSWER: -.5"     -> 5        (drops the sign)
+# The pattern now accepts an optional sign, a leading dot, and an exponent.
+ANSWER_RE = re.compile(
+    r"ANSWER\s*:\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)", re.I)
 
 
 def _last_number(text: str) -> float:
@@ -61,8 +67,13 @@ def _shadow_rrr(entry: float, sl: float, tp: float, pair: str) -> float:
     pip = pip_for(pair)
     sl_d = abs(entry - sl) / pip
     tp_d = abs(tp - entry) / pip
-    if sl_d == 0:
-        raise ZeroDivisionError("RRR_SL_ZERO: SL distance is 0 pips")
+    # AUDIT FIX: an exact `== 0` check missed a NEAR-ZERO denominator, which
+    # produced an RRR in the thousands that still passed dual-compute (both
+    # sides agreed on the nonsense). A sub-pip SL is economically invalid.
+    if sl_d < 0.1:
+        raise ZeroDivisionError(
+            f"RRR_SL_TOO_TIGHT: SL distance {sl_d:.6f} pips is below the 0.1-pip "
+            f"minimum (a sub-pip stop is not a trade)")
     return round(tp_d / sl_d, 4)
 
 
@@ -162,6 +173,15 @@ def pip_for(pair: str) -> float:
 
 def render(query_id: str, **kw) -> str:
     q = QUERIES[query_id]
+    # AUDIT FIX: `kw.get("pair", "EUR/USD")` silently assumed FX scale for a
+    # caller that forgot the pair, contradicting pip_for()'s loud UnknownPair.
+    # The requirement is EXACTLY the queries whose template interpolates {pip}:
+    # L2 (width + buffer, both already in pips) and L4 (a fib PRICE level) do
+    # not convert a price to pips, so they legitimately carry no pair.
+    if "pair" not in kw and "{pip}" in q.template:
+        raise UnknownPair(
+            f"MISSING_PAIR: query {query_id} needs its pair (its template "
+            f"converts a price to pips; known: {sorted(PIP)})")
     # AUDIT FIX: the pip is ALWAYS the authority's value. A caller-supplied pip
     # was kept by setdefault, so the prompt could compute with pip=999 while the
     # shadow used the real one — a silent divergence.
@@ -169,7 +189,8 @@ def render(query_id: str, **kw) -> str:
         raise ValueError(
             f"PIP_CONFLICT: caller passed pip={kw['pip']} but {kw.get('pair')} has "
             f"pip={pip_for(kw.get('pair', 'EUR/USD'))}")
-    kw["pip"] = pip_for(kw.get("pair", "EUR/USD"))
+    if "pair" in kw:
+        kw["pip"] = pip_for(kw["pair"])
     return q.template.format(**kw)
 
 
@@ -183,10 +204,18 @@ def code_truth(query_id: str, **kw) -> float:
     """
     # AUDIT FIX: an explicitly passed pip is VALIDATED against the authority
     # before it is dropped, so a divergence cannot be silently discarded.
-    if "pip" in kw and kw.get("pair") in PIP:
-        if abs(float(kw["pip"]) - pip_for(kw["pair"])) > 1e-12:
+    # AUDIT FIX: the conflict check was skipped when `pair` was absent/unknown,
+    # so a divergent pip was silently DISCARDED. Any explicit pip is now
+    # validated, and its removal is reported.
+    if "pip" in kw:
+        pair = kw.get("pair")
+        if pair is None:
+            raise UnknownPair(
+                "PIP_WITHOUT_PAIR: an explicit pip cannot be validated without "
+                "the pair it belongs to")
+        if abs(float(kw["pip"]) - pip_for(pair)) > 1e-12:
             raise ValueError(
                 f"PIP_CONFLICT: passed pip={kw['pip']} vs authority "
-                f"pip={pip_for(kw['pair'])} for {kw['pair']}")
-    kw.pop("pip", None)
+                f"pip={pip_for(pair)} for {pair}")
+        kw.pop("pip")
     return QUERIES[query_id].shadow(**kw)

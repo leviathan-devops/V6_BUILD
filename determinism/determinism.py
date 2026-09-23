@@ -58,14 +58,22 @@ class _FrozenDict(dict):
     def _no(self, *a, **k):
         raise TypeError("RunDigest.stages is IMMUTABLE — rebuild the digest instead")
 
+    # AUDIT FIX: `|=` (dict.__ior__) takes its OWN C slot and did not dispatch
+    # through __setitem__/update, so `stages |= {...}` mutated in place and left
+    # sha stale. __ior__ is blocked explicitly.
     __setitem__ = __delitem__ = clear = pop = popitem = setdefault = update = _no
+    __ior__ = _no
 
 
 def _freeze(o):
+    # AUDIT FIX: tuples were not recursed (a dict inside a tuple stayed mutable)
+    # and sets passed through (mutable AND unserializable by canonical()).
     if isinstance(o, dict):
         return _FrozenDict({k: _freeze(v) for k, v in o.items()})
-    if isinstance(o, list):
+    if isinstance(o, (list, tuple)):
         return tuple(_freeze(x) for x in o)
+    if isinstance(o, (set, frozenset)):
+        return tuple(sorted(_freeze(x) for x in o))
     return o
 
 
@@ -101,7 +109,15 @@ def compare(a: RunDigest, b: RunDigest) -> dict:
     diffs = {}
     names = (set(a.stages) | set(b.stages)) - VOLATILE
     for name in sorted(names):
-        ca, cb = canonical(a.stages.get(name)), canonical(b.stages.get(name))
+        # AUDIT FIX: `.get` conflated a MISSING stage with an explicit None, so
+        # an added/removed None-valued stage changed the sha with no recorded
+        # divergence. Membership is checked explicitly.
+        in_a, in_b = name in a.stages, name in b.stages
+        if in_a != in_b:
+            diffs[name] = {"a": "PRESENT" if in_a else "ABSENT",
+                           "b": "PRESENT" if in_b else "ABSENT"}
+            continue
+        ca, cb = canonical(a.stages[name]), canonical(b.stages[name])
         if ca != cb:
             diffs[name] = {"a": ca[:200], "b": cb[:200]}
     return {"match": a.sha == b.sha, "sha_a": a.sha, "sha_b": b.sha,

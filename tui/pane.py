@@ -57,6 +57,11 @@ def render_probabilities(decider: dict) -> list[str]:
     out = [rule("="), " DECIDER PROBABILITIES (every question, every option)", rule("=")]
     for qid in sorted(decider):
         dist = decider[qid]
+        # AUDIT FIX: a non-dict DISTRIBUTION (None/list/str/float) crashed
+        # .items() and took the seat down — the same class _num fixed for values.
+        if not isinstance(dist, dict):
+            out.append(f" {qid}: <malformed distribution {type(dist).__name__}>")
+            continue
         if not dist:
             out.append(f" {qid}: <no distribution>")
             continue
@@ -79,6 +84,10 @@ def render_probabilities(decider: dict) -> list[str]:
 def render_gates(gates: list) -> list[str]:
     out = [rule("="), " GATE DECISIONS (deterministic layer)", rule("=")]
     for g in gates:
+        # AUDIT FIX: a non-dict gate entry crashed g.get().
+        if not isinstance(g, dict):
+            out.append(f" [????  ] <malformed gate entry {type(g).__name__}>")
+            continue
         mark = "PASS  " if g.get("passed") else "REJECT"
         out.append(f" [{mark}] {g.get('gate','?'):<10} {g.get('token','')}")
         out.append(f"            {g.get('detail','')}")
@@ -90,11 +99,18 @@ def render_pnl(pnl_pips: float, open_positions: int) -> list[str]:
             f" net_pips={pnl_pips:+.2f}   open_positions={open_positions}"]
 
 
-def render_rejections(rejections: list) -> list[str]:
+def render_rejections(rejections) -> list[str]:
+    # AUDIT FIX: `len(None)` and `r.get` on a non-dict both crashed the pane.
+    if not isinstance(rejections, (list, tuple)):
+        return [rule("="), f" REJECTION LOG (malformed: {type(rejections).__name__})",
+                rule("=")]
     out = [rule("="), f" REJECTION LOG ({len(rejections)} entries)", rule("=")]
     if not rejections:
         out.append(" (none)")
     for r in rejections:
+        if not isinstance(r, dict):
+            out.append(f" <malformed entry {type(r).__name__}>")
+            continue
         out.append(f" {r.get('when','')} {r.get('token','')} — {r.get('detail','')}")
     return out
 
