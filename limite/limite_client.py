@@ -41,7 +41,11 @@ def complete(prompt: str, max_tokens: int = 512, timeout: float = 120.0) -> str:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             raw = r.read()
     except urllib.error.HTTPError as e:
-        raise LimiteUnavailable(f"LIMITE_HTTP_{e.code}: {e.read()[:400]!r}") from e
+        try:
+            body = e.read()[:400]
+        except Exception:
+            body = b"<error body unreadable>"
+        raise LimiteUnavailable(f"LIMITE_HTTP_{e.code}: {body!r}") from e
     except Exception as e:
         raise LimiteUnavailable(f"LIMITE_DOWN: {e}") from e
     # AUDIT FIX: the shape check lives INSIDE the loud-fail contract. The first
@@ -49,15 +53,32 @@ def complete(prompt: str, max_tokens: int = 512, timeout: float = 120.0) -> str:
     # raised a raw KeyError/IndexError instead of LimiteUnavailable.
     try:
         data = json.loads(raw)
-        return data["choices"][0]["text"]
+        text = data["choices"][0]["text"]
     except Exception as e:
         raise LimiteUnavailable(
             f"LIMITE_BAD_RESPONSE: {type(e).__name__} on {raw[:300]!r}") from e
+    if not isinstance(text, str):
+        # AUDIT FIX: a payload with `"text": null` passed the shape check and
+        # failed later in parse() with a raw AttributeError.
+        raise LimiteUnavailable(
+            f"LIMITE_BAD_TEXT: expected a string, got {type(text).__name__}")
+    return text
 
 
 def ask(query_id: str, **kw) -> tuple[float, str]:
-    """Render the query, ask Limite, parse the numeric answer."""
+    """Render the query, ask Limite, parse the numeric answer.
+
+    AUDIT FIX: an unknown query_id raised a raw KeyError and a model reply with
+    no ANSWER tag raised a raw ValueError, both escaping the loud-fail contract.
+    """
     from math_queries import render, QUERIES
+    if query_id not in QUERIES:
+        raise LimiteUnavailable(
+            f"LIMITE_UNKNOWN_QUERY: {query_id!r} (known: {sorted(QUERIES)})")
     prompt = render(query_id, **kw)
     raw = complete(prompt)
-    return QUERIES[query_id].parse(raw), raw
+    try:
+        return QUERIES[query_id].parse(raw), raw
+    except Exception as e:
+        raise LimiteUnavailable(
+            f"LIMITE_UNPARSEABLE: {type(e).__name__}: {e}") from e

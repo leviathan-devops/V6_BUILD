@@ -91,7 +91,10 @@ c=TradeCandidate(pair="EUR/USD",direction="long",entry=1.14110,sl=1.13925,tp=1.1
   session_utc="LONDON 02:00",limite_rrr=9.99)
 r=g_dual(c); print(r.token, r.detail)
 """],
-     "passToken": "LIMITE_CODE_DIVERGENCE", "failToken": "G-DUAL_PASS"},
+     # the token was renamed G-DUAL_REJECT in audit round 3 (it now follows the
+     # G-<NAME>_REJECT convention every other gate uses). The DIVERGENCE is
+     # still the thing being caught; only the label changed.
+     "passToken": "G-DUAL_REJECT", "failToken": "G-DUAL_PASS"},
 
     # --- THE HAPPY PATH (runs LAST) ---------------------------------------
     {"id": "HAPPY-1", "name": "golden week e2e: 6/6 Tier-A accepted, canon RRR +-0.02",

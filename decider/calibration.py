@@ -27,7 +27,17 @@ def _logit(p: float) -> float:
 
 
 def _sigmoid(x: float) -> float:
-    return 1 / (1 + math.exp(-x))
+    """A SATURATING sigmoid.
+
+    AUDIT FIX: the naive `1/(1+exp(-x))` raises OverflowError for large |x|
+    (e.g. p=0.1 with T=0.001 -> x ~ -2200). The two-branch form saturates at
+    0 and 1 instead of crashing, which is what a calibration layer must do.
+    """
+    if x >= 0:
+        z = math.exp(-x) if x < 700 else 0.0
+        return 1 / (1 + z)
+    z = math.exp(x) if x > -700 else 0.0
+    return z / (1 + z)
 
 
 def apply_T(p: float, T: float) -> float:
@@ -52,6 +62,8 @@ def ece(pairs, T: float = 1.0, n_bins: int = 10) -> float | None:
     """Expected Calibration Error of [(p_hat, correct)] under temperature T."""
     if not pairs:
         return None
+    if not isinstance(n_bins, int) or n_bins < 1:
+        raise ValueError(f"INVALID_N_BINS: {n_bins!r} (want an int >= 1)")
     bins = [[] for _ in range(n_bins)]
     for p, correct in pairs:
         q = apply_T(p, T)
@@ -72,6 +84,7 @@ class FittedTemperature:
     fit_nll: float
     baseline_nll: float
     fit_n: int
+    clipped: bool = False      # True when the minimum sits on the grid bound
 
     @property
     def improves(self) -> bool:
@@ -82,13 +95,21 @@ def fit(pairs, lo: float = 0.05, hi: float = 5.0, steps: int = 500) -> FittedTem
     """Fit T by minimising the NLL on `pairs` (the FIT set)."""
     if not pairs:
         raise ValueError("NO_FIT_DATA: cannot fit a temperature on an empty set")
+    # AUDIT FIX: a zero/negative range silently divided by zero, and a grid that
+    # CLIPS at its bounds reported an endpoint T as if it were the minimum.
+    if lo <= 0 or hi <= lo or steps < 1:
+        raise ValueError(f"INVALID_FIT_GRID: lo={lo} hi={hi} steps={steps}")
     best_T, best = 1.0, nll(pairs, 1.0)
     for i in range(steps + 1):
         T = lo + (hi - lo) * i / steps
         v = nll(pairs, T)
         if v < best:
             best_T, best = T, v
-    return FittedTemperature(best_T, best, nll(pairs, 1.0), len(pairs))
+    # AUDIT FIX: report when the minimum sits ON a bound — the fitted T is then
+    # an artefact of the grid, not the data's minimum.
+    at_bound = abs(best_T - lo) < 1e-9 or abs(best_T - hi) < 1e-9
+    return FittedTemperature(best_T, best, nll(pairs, 1.0), len(pairs),
+                             clipped=at_bound)
 
 
 def split(rows, seed: int = 20260923, fit_frac: float = 0.5):
@@ -96,5 +117,9 @@ def split(rows, seed: int = 20260923, fit_frac: float = 0.5):
     import random
     r = list(rows)
     random.Random(seed).shuffle(r)
-    k = max(1, int(len(r) * fit_frac))
+    # AUDIT FIX: a degenerate split (an empty eval partition) silently broke the
+    # fit/eval separation the module's own docstring requires.
+    if len(r) < 2:
+        raise ValueError(f"SPLIT_TOO_SMALL: need >= 2 rows, got {len(r)}")
+    k = max(1, min(len(r) - 1, int(len(r) * fit_frac)))
     return r[:k], r[k:]

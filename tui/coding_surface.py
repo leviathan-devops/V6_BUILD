@@ -53,6 +53,10 @@ _POST = "(?![0-9A-Za-z_])"
 # now also matches a newline preceded by a backslash.
 _WS = "[ \t]*(?:[" + chr(92) + chr(92) + "][" + chr(10) + chr(13) + "][ \t]*)?"
 
+# AUDIT FIX: `os[.]write` required a LITERAL dot, but Python allows whitespace
+# around the dot (`os . write(...)`). _DOT tolerates it.
+_DOT = "[ \t]*[.][ \t]*"
+
 
 def _bare(word: str) -> str:
     return _PRE + word + _WS + "[(]"
@@ -75,10 +79,10 @@ _EXEC_NAMES = [
     # its BARE call form, so the alias/import route is caught too.
     (_f("os.", "sy", "s", "tem"), _f("os[.]", "sy", "s", "tem", _WS, "[(]") + "|"
                                  + _bare(_f("sy", "s", "tem"))),
-    (_f("os.", "ex", "ec"),      _f("os[.]", "ex", "ec", "[0-9A-Za-z_]*", _WS, "[(]") + "|"
+    (_f("os.", "ex", "ec"),      _f("os", _DOT, "ex", "ec", "[0-9A-Za-z_]*", _WS, "[(]") + "|"
                                  + "|".join(_bare(_f("ex", "ec") + v)
                                             for v in ("l", "v", "lp", "vp", "le", "ve"))),
-    (_f("os.", "spa", "wn"),     _f("os[.]", "spa", "wn", "[0-9A-Za-z_]*", _WS, "[(]") + "|"
+    (_f("os.", "spa", "wn"),     _f("os", _DOT, "spa", "wn", "[0-9A-Za-z_]*", _WS, "[(]") + "|"
                                  + "|".join(_bare(_f("spa", "wn") + v)
                                             for v in ("", "l", "v", "lp", "vp"))),
     (_f("po", "pen"),            _f("[Pp]", "open", _WS, "[(]")),
@@ -93,7 +97,7 @@ _EXEC_NAMES = [
     # CRITICAL FIX (audit round 3): the bare form matched only `loads`, so
     # `from pickle import load; load(...)` executed identical deserialization
     # undetected. Both bare names are matched.
-    (_f("pickle.", "lo", "ad"),  _f("_?pickle[.](?:lo", "ads?|Unpickler)", _WS, "[(]") + "|"
+    (_f("pickle.", "lo", "ad"),  _f("_?pickle", _DOT, "(?:lo", "ads?|Unpickler)", _WS, "[(]") + "|"
                                  + _bare(_f("lo", "ad")) + "|" + _bare(_f("lo", "ads"))),
     (_f("mar", "sh", "al"),      _f(_PRE, "mar", "sh", "al", _POST)),
     (_f("shell", "=True"),       _f("shell", "[ \t\n]*=", _WS, "True")),
@@ -110,13 +114,17 @@ _WRITE_NAMES = [
     # non-greedy to the LAST quote, and the mode class includes '+'.
     # AUDIT FIX: the mode class now covers b/t/+ flags and the arg scan
     # tolerates a newline inside the parens (a legal, backslash-free split).
+    # AUDIT FIX: the mode class `[rwax]` flagged `open(path, "r")` — a READ — as
+    # a write violation. Only w/a/x (and the + modes) are writes; a leading 'r'
+    # is a read unless followed by '+'.
     (_f("open", "-write-mode"),
-     _f("open", _WS, "[(](?s:.*?)['", '"', "][rwax][+]?[bt]?[+]?['", '"', "][ \t\n]*[,)]")),
-    (_f("os.", "wr", "ite"),    _f("os[.]", "wr", "ite", _WS, "[(]")),
-    (_f("os.", "op", "en"),     _f("os[.]", "op", "en", _WS, "[(]")),
-    (_f("os.", "re", "name"),   _f("os[.]", "re", "name", _WS, "[(]")),
-    (_f("os.", "un", "link"),   _f("os[.]", "un", "link", _WS, "[(]")),
-    (_f("os.", "re", "move"),   _f("os[.]", "re", "move", _WS, "[(]")),
+     _f("open", _WS, "[(](?s:.*?)['", '"', "][wax][bt]?[+]?['", '"', "][ \t\n]*[,)]")
+     + "|" + _f("open", _WS, "[(](?s:.*?)['", '"', "][rwax][bt]?[+]['", '"', "][ \t\n]*[,)]")),
+    (_f("os.", "wr", "ite"),    _f("os", _DOT, "wr", "ite", _WS, "[(]")),
+    (_f("os.", "op", "en"),     _f("os", _DOT, "op", "en", _WS, "[(]")),
+    (_f("os.", "re", "name"),   _f("os", _DOT, "re", "name", _WS, "[(]")),
+    (_f("os.", "un", "link"),   _f("os", _DOT, "un", "link", _WS, "[(]")),
+    (_f("os.", "re", "move"),   _f("os", _DOT, "re", "move", _WS, "[(]")),
     (_f("shu", "til"),          _f(_PRE, "shu", "til", _POST)),
     (_f("Path.", "write"),      _f("[.]write_", "text", _WS, "[(]|[.]write_", "bytes", _WS, "[(]")),
     (_f("Named", "TemporaryFile"), _f("Named", "Temporary", "File")),

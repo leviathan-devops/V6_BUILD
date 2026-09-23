@@ -64,7 +64,13 @@ def system_one(state, questions: dict, timeout: float | None = None,
         with urllib.request.urlopen(req, timeout=to) as r:
             raw = r.read()
     except urllib.error.HTTPError as e:
-        raise DeciderUnavailable(f"DECIDER_HTTP_{e.code}: {e.read()[:400]!r}") from e
+        # AUDIT FIX: reading the error body can itself fail (a truncated
+        # connection), which escaped as a raw URLError instead of DeciderUnavailable.
+        try:
+            body = e.read()[:400]
+        except Exception:
+            body = b"<error body unreadable>"
+        raise DeciderUnavailable(f"DECIDER_HTTP_{e.code}: {body!r}") from e
     except Exception as e:
         raise DeciderUnavailable(f"DECIDER_DOWN: {e}") from e
     # AUDIT FIX: the response shape is validated INSIDE the loud-fail contract.

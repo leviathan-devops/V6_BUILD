@@ -52,6 +52,23 @@ def digest(stages: dict) -> str:
     return h.hexdigest()
 
 
+class _FrozenDict(dict):
+    """A dict that refuses mutation after construction."""
+
+    def _no(self, *a, **k):
+        raise TypeError("RunDigest.stages is IMMUTABLE — rebuild the digest instead")
+
+    __setitem__ = __delitem__ = clear = pop = popitem = setdefault = update = _no
+
+
+def _freeze(o):
+    if isinstance(o, dict):
+        return _FrozenDict({k: _freeze(v) for k, v in o.items()})
+    if isinstance(o, list):
+        return tuple(_freeze(x) for x in o)
+    return o
+
+
 @dataclass(frozen=True)
 class RunDigest:
     """A FROZEN snapshot of the run.
@@ -65,11 +82,11 @@ class RunDigest:
     sha: str = ""
 
     def __post_init__(self):
-        # AUDIT FIX: a DEEP copy (a shallow one left nested dicts aliased, so a
-        # caller could mutate stages['s']['k'] and leave sha stale), and the sha
-        # is ALWAYS recomputed — a caller-supplied sha was trusted, letting
-        # compare() report a false match.
-        object.__setattr__(self, "stages", copy.deepcopy(self.stages))
+        # AUDIT FIX (round 4): frozen=True blocks REBINDING but not IN-PLACE
+        # mutation, so `run.stages[k] = v` still left sha stale while compare()
+        # trusted it. The stored value is now a DEEP-FROZEN mapping — a
+        # MutationAttempt raises instead of silently diverging from the sha.
+        object.__setattr__(self, "stages", _freeze(copy.deepcopy(self.stages)))
         object.__setattr__(self, "sha", digest(self.stages))
 
 

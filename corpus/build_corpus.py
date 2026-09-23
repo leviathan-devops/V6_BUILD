@@ -242,7 +242,16 @@ def negative_records(cards: list[Record]) -> list[Record]:
         opts = list(r.options)
         if len(opts) < 2:
             continue
-        neg_answer = opts[-1]
+        # AUDIT FIX: opts[-1] is "golden" for a 4-way KIND record, so an altered
+        # MECHANISM card was taught as GOLDEN — altering the quote does not
+        # change its kind. The negative label is chosen from the QUESTION's own
+        # semantics: a VERIFY question's refusal is "no"; a KIND question's
+        # refusal is any OTHER kind (the record keeps its true kind as the
+        # distractor, never as the answer).
+        if r.question.startswith("Does the state satisfy"):
+            neg_answer = "no"
+        else:
+            neg_answer = next((o for o in opts if o != r.answer), opts[-1])
         out.append(Record(
             id=r.id + "-neg", source=r.source, quote=broken,
             state=f"DOCTRINE (altered) {broken}",
@@ -259,7 +268,10 @@ def build(out_path: Path) -> dict:
     golden += harvest_golden_cascade(MASTER)
     golden += harvest_gap_analysis(MASTER)
     forensic = harvest_forensic_laws(MASTER)
-    negatives = negative_records(cards)
+    # AUDIT FIX: negatives covered only the card records, so the forensic and
+    # golden/gap yes-no questions had ZERO refusal supervision (a yes-sayer
+    # bias). Every harvested kind now contributes negatives.
+    negatives = negative_records(cards + golden + forensic)
     all_recs = cards + negatives + golden + forensic
     seen, uniq = set(), []
     for r in all_recs:

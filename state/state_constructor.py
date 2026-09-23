@@ -68,9 +68,23 @@ def parse_bars(raw: list[dict], anchor_ms: int) -> list[Bar]:
         if ts > anchor_ms:
             leaks.append(ts)
             continue
-        bars.append(Bar(ts, float(r["open"]), float(r["high"]),
-                        float(r["low"]), float(r["close"]),
-                        float(r.get("volume", 0.0))))
+        # AUDIT FIX: a missing OHLC key raised a bare KeyError and a None/non-
+        # numeric value a bare TypeError/ValueError, bypassing this module's
+        # named loud-fail contract (which ts already had).
+        try:
+            o = float(r["open"]); h = float(r["high"])
+            l = float(r["low"]);  cl = float(r["close"])
+            v = float(r.get("volume") or 0.0)
+        except KeyError as e:
+            raise ValueError(f"BAR_MISSING_FIELD: bar ts={ts} has no {e}") from e
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"BAR_BAD_FIELD: bar ts={ts} has a non-numeric OHLC — {e}") from e
+        for nm, val in (("open", o), ("high", h), ("low", l), ("close", cl)):
+            if not (val == val and abs(val) != float("inf")):
+                raise ValueError(f"BAR_NON_FINITE: bar ts={ts} {nm}={val!r}")
+        if h < l:
+            raise ValueError(f"BAR_INVERTED: bar ts={ts} high={h} < low={l}")
+        bars.append(Bar(ts, o, h, l, cl, v))
     if bad_ts:
         raise ValueError(
             f"BAR_MISSING_TIMESTAMP: {len(bad_ts)} bar(s) carry no usable ts/time")
@@ -153,9 +167,24 @@ def assert_state_fits(state: str) -> int:
 # ---- session detection (the London window) ---------------------------------
 def et_offset_hours(ts_ms: int) -> int:
     """US Eastern offset: -4 (EDT) Mar-Nov, -5 (EST) otherwise."""
+    # AUDIT FIX: the coarse `3 <= month <= 11` treated ALL of March and November
+    # as EDT, but US DST runs 2nd-Sun-March to 1st-Sun-November. Bars in early
+    # March and early November were shifted by an hour and mislabelled.
     import datetime as dt
     d = dt.datetime.fromtimestamp(ts_ms / 1000, dt.timezone.utc)
-    return -4 if 3 <= d.month <= 11 else -5
+    if d.month < 3 or d.month > 11:
+        return -5
+    if d.month == 3:                      # 2nd Sunday of March, 07:00 UTC
+        first = dt.datetime(d.year, 3, 1, tzinfo=dt.timezone.utc)
+        second_sun = 1 + (6 - first.weekday()) % 7 + 7
+        start = dt.datetime(d.year, 3, second_sun, 7, tzinfo=dt.timezone.utc)
+        return -4 if d >= start else -5
+    if d.month == 11:                     # 1st Sunday of November, 06:00 UTC
+        first = dt.datetime(d.year, 11, 1, tzinfo=dt.timezone.utc)
+        first_sun = 1 + (6 - first.weekday()) % 7
+        end = dt.datetime(d.year, 11, first_sun, 6, tzinfo=dt.timezone.utc)
+        return -4 if d < end else -5
+    return -4
 
 
 def session_label(ts_ms: int) -> str:

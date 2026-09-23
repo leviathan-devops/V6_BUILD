@@ -76,7 +76,14 @@ def main() -> int:
     src = EXT.read_text() if EXT.exists() else ""
     if not src:
         violations.append("plutus-circuit.ts is missing")
-    names = re.findall(r'name:\s*"([^"]+)"', src)
+    # PROBE FIX: the first version scanned every `name: "..."` in the file, so
+    # a PROVIDER's model name ("Muse Spark 1.3 (Go)") was read as a tool name.
+    # Only the `name` inside a registerTool block counts.
+    tool_blocks = re.split(r"pi\.registerTool\(\{", src)[1:]
+    names = []
+    for b in tool_blocks:
+        m = re.search(r'name:\s*"([^"]+)"', b)
+        if m: names.append(m.group(1))
     for n in names:
         if not n.startswith("plutus_"):
             violations.append(f"the extension registers a non-plutus tool {n!r}")

@@ -3,9 +3,12 @@ from oms import commission_sensitivity, TradeDecision
 from golden_decisions import ALL_GOLDEN, DXY_TIER_A, fx_golden_week
 
 # MEASURE at the three canon levels (0% / 0.1% / 0.2% round trip)
-dxy = commission_sensitivity(DXY_TIER_A, rate if False else None) if False else commission_sensitivity(DXY_TIER_A)
-fx  = commission_sensitivity(fx_golden_week())
-allg = commission_sensitivity(ALL_GOLDEN)
+from golden_decisions import GOLDEN_OUTCOMES
+DXY_OUT = {d.zone_id: "tp" for d in DXY_TIER_A}
+FX_OUT  = {d.zone_id: "tp" for d in fx_golden_week()}
+dxy  = commission_sensitivity(DXY_TIER_A, outcomes=DXY_OUT)
+fx   = commission_sensitivity(fx_golden_week(), outcomes=FX_OUT)
+allg = commission_sensitivity(ALL_GOLDEN, outcomes=GOLDEN_OUTCOMES)
 
 print("[DETAIL] === DXY TIER-A (6 documented-exact trades) ===")
 for r, row in sorted(dxy.items()):

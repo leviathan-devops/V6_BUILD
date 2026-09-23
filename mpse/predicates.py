@@ -16,6 +16,11 @@ from dataclasses import dataclass
 from typing import Callable
 
 TRUSTED, DIVERGENT, INCONCLUSIVE = "TRUSTED", "DIVERGENT", "INCONCLUSIVE"
+# AUDIT FIX: TRUSTED_REJECT was used as a status but never exported, so a
+# consumer matching on the constants mishandled it. It is now part of the
+# vocabulary: a unanimous FAIL is a TRUSTED rejection (the witnesses AGREE).
+TRUSTED_REJECT = "TRUSTED_REJECT"
+ALL_STATUSES = (TRUSTED, TRUSTED_REJECT, DIVERGENT, INCONCLUSIVE)
 
 PIP = {"EUR/USD": 0.0001, "GBP/USD": 0.0001, "DXY": 0.01}
 RRR_FLOOR = 2.5
@@ -117,7 +122,12 @@ def at_07_pip_scale(c) -> Verdict:
     a DXY level treated as FX destroys every downstream pip count."""
     pair, entry = c["pair"], c["entry"]
     expect = 0.01 if entry > 10 else 0.0001
-    ok = PIP.get(pair, 0.0001) == expect
+    # AUDIT FIX: PIP.get(pair, 0.0001) FAILED OPEN — an unconfigured pair was
+    # assumed to be FX scale and could pass. An unknown pair is now a failure.
+    if pair not in PIP:
+        return _v("AT-07", False, "AT07_UNKNOWN_PAIR",
+                  f"pair {pair!r} has no declared pip scale")
+    ok = PIP[pair] == expect
     return _v("AT-07", ok, "AT07_PASS" if ok else "AT07_PIP_SCALE_MISMATCH",
               f"{pair} entry={entry} expects pip {expect}")
 
@@ -134,7 +144,10 @@ def at_09_rrr_recompute(c) -> Verdict:
     if g: return g
     """The stated RRR must equal the geometry's RRR — a stated/derived mismatch
     is the single most dangerous silent-arithmetic defect."""
-    pip = PIP.get(c["pair"], 0.0001)
+    if c["pair"] not in PIP:
+        return _v("AT-09", False, "AT09_UNKNOWN_PAIR",
+                  f"pair {c['pair']!r} has no declared pip scale")
+    pip = PIP[c["pair"]]
     sl_d, tp_d = abs(c["entry"]-c["sl"])/pip, abs(c["tp"]-c["entry"])/pip
     if sl_d == 0:
         return _v("AT-09", False, "AT09_ZERO_SL", "SL distance 0 -> RRR undefined")
@@ -234,7 +247,7 @@ def trust(predicate: Callable, c: dict) -> TrustVerdict:
         # unanimous FAIL: the witnesses AGREE that the predicate fails. That is
         # a TRUSTED rejection, not an inconclusive one (audit fix: the first
         # version classified it INCONCLUSIVE, losing the distinction).
-        status = "TRUSTED_REJECT"
+        status = TRUSTED_REJECT
     else:
         status = DIVERGENT
     return TrustVerdict(status, v.name, votes, v.detail)

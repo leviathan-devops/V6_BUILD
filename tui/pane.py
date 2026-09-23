@@ -37,6 +37,22 @@ class PaneModel:
         if self.rejections is None: self.rejections = []
 
 
+def _num(v):
+    """A probability, or None when the value is not usable.
+
+    AUDIT FIX: the pane assumed every value was numeric, so a None/str in a
+    distribution raised TypeError out of max()/sorted()/format and CRASHED the
+    seat. A malformed entry now renders as a placeholder.
+    """
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if f != f or f in (float("inf"), float("-inf")):
+        return None
+    return f
+
+
 def render_probabilities(decider: dict) -> list[str]:
     out = [rule("="), " DECIDER PROBABILITIES (every question, every option)", rule("=")]
     for qid in sorted(decider):
@@ -44,6 +60,15 @@ def render_probabilities(decider: dict) -> list[str]:
         if not dist:
             out.append(f" {qid}: <no distribution>")
             continue
+        clean = {k: _num(v) for k, v in dist.items()}
+        bad = [k for k, v in clean.items() if v is None]
+        clean = {k: v for k, v in clean.items() if v is not None}
+        if not clean:
+            out.append(f" {qid}: <no numeric distribution> (unusable: {bad})")
+            continue
+        if bad:
+            out.append(f" {qid}: WARNING non-numeric entries {bad} rendered as omitted")
+        dist = clean
         top = max(dist, key=dist.get)
         out.append(f" {qid}  argmax={top} p={dist[top]:.3f}")
         for opt, p in sorted(dist.items(), key=lambda kv: -kv[1]):

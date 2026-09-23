@@ -16,7 +16,7 @@ Three primitives (blueprint §1.4):
   TOTAL: 17 questions
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 STATE_DELIM = "<|fim_prefix|>"
 QUESTION_DELIM = "<|fim_middle|>"
@@ -104,11 +104,28 @@ SCORE_LEVELS = {"E3.Q2": ("F", "C", "B", "A", "Aplus"),
                 "PVE.Q1": ("very_low", "low", "medium", "high", "very_high"),
                 "PVE.Q3": ("F", "C", "B", "A", "Aplus")}
 
+import math
+
 
 def render_call(call: str, state: str) -> str:
-    """Pack the state + one call's questions into a single Decider input."""
+    """Pack the state + one call's questions into a single Decider input.
+
+    AUDIT FIX: the documented grammar is
+        <|fim_prefix|> STATE  <|fim_middle|> Q ... <|box_start|> OPT ... <|box_end|>
+    with ONE <|fim_suffix|> (the DECIDE anchor) closing the whole packing.
+    The first version emitted no STATE_DELIM and one DECIDE per question, so the
+    packing did not match the grammar the model was trained on (and that
+    corpus/build_corpus.py:to_triple emits).
+    """
     qs = CALLS[call]
-    return state + "".join(q.render() for q in qs)
+    # the state carries its own delimiter if the caller already added it
+    body = state if state.startswith(STATE_DELIM) else f"{STATE_DELIM}{state}"
+    # questions render WITHOUT their trailing DECIDE; one closes the packing
+    parts = []
+    for q in qs:
+        opts = "".join(f"{OPTION_OPEN}{o}{OPTION_CLOSE}" for o in q.options)
+        parts.append(f"{QUESTION_DELIM}{q.text}{opts}")
+    return body + "".join(parts) + DECIDE
 
 
 def expected_level(probs: dict[str, float], levels: tuple[str, ...]) -> float:
@@ -123,16 +140,29 @@ def expected_level(probs: dict[str, float], levels: tuple[str, ...]) -> float:
     return round(sum((i + 1) * probs.get(lv, 0.0) for i, lv in enumerate(levels)), 4)
 
 
-def grade_from_probs(probs: dict[str, float]) -> tuple[str, float]:
-    """Map an E3.Q2/PVE.Q3 distribution to (grade, confidence value).
+def grade_from_probs(probs: dict[str, float], qid: str = "PVE.Q3") -> tuple[str, float]:
+    """Map a SCORE distribution to (grade, confidence value).
 
-    The expected level is 1-indexed, so index = round(expected) - 1.
+    AUDIT FIX: the question id was hardcoded to PVE.Q3, so a PVE.Q1
+    distribution (a different scale: very_low..very_high) scored all-zero mass
+    and silently returned "F". The scale now comes from the caller's question,
+    the distribution must carry mass, and the boundary rounding is HALF-UP
+    (int(round()) is half-even, so 2.5 rounded down a grade).
     """
-    lv = SCORE_LEVELS["PVE.Q3"]
+    if qid not in SCORE_LEVELS:
+        raise ValueError(f"NOT_A_SCORE_QUESTION: {qid!r} (known: {sorted(SCORE_LEVELS)})")
+    lv = SCORE_LEVELS[qid]
+    total = sum(v for v in probs.values() if isinstance(v, (int, float)))
+    if total <= 0:
+        raise ValueError(
+            f"EMPTY_DISTRIBUTION: {qid} carries no probability mass "
+            f"(keys={sorted(probs)}) — refusing to invent a grade")
     exp = expected_level(probs, lv)
-    idx = max(0, min(len(lv) - 1, int(round(exp)) - 1))
+    idx = max(0, min(len(lv) - 1, int(math.floor(exp + 0.5)) - 1))
     grade = lv[idx]
-    return grade, GRADE_VALUE[grade]
+    # GRADE_VALUE only covers the confidence scale; a non-confidence question
+    # returns its own level with the expected position as the value.
+    return grade, GRADE_VALUE.get(grade, round(exp, 4))
 
 
 assert len(ALL_QUESTIONS) == 17, f"expected 17 questions, got {len(ALL_QUESTIONS)}"

@@ -51,12 +51,18 @@ def verify(query_id: str, model_value, raw: str = "", **kw) -> DualResult:
     """
     if query_id not in QUERIES:
         raise DualComputeDivergence(query_id, float("nan"), float("nan"), 0.0)
+    # AUDIT FIX: OverflowError was not caught (float(10**1000)), and the SHADOW's
+    # own failures (TypeError for bad kwargs, UnknownPair, ZeroDivisionError for
+    # a zero SL) escaped as raw exceptions instead of the named token.
     try:
         model_value = float(model_value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         raise DualComputeDivergence(query_id, float("nan"), float("nan"), 0.0)
     q = QUERIES[query_id]
-    truth = code_truth(query_id, **kw)
+    try:
+        truth = code_truth(query_id, **kw)
+    except Exception as e:
+        raise DualComputeDivergence(query_id, model_value, float("nan"), q.tolerance) from e
     delta = abs(model_value - truth)
     return DualResult(query_id, model_value, truth, delta, q.tolerance, raw, delta <= q.tolerance)
 

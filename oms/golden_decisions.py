@@ -51,3 +51,9 @@ def fx_golden_week() -> list[TradeDecision]:
 
 
 ALL_GOLDEN = DXY_TIER_A + fx_golden_week()
+
+
+# THE CANON OUTCOMES. The golden week's documented record is that every one of
+# these trades won (the operator's own tier-A table lists them as TP-first).
+# Stating it here — rather than letting the OMS assume "tp" — is the point.
+GOLDEN_OUTCOMES = {d.zone_id: "tp" for d in ALL_GOLDEN}

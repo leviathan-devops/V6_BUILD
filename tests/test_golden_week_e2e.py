@@ -89,7 +89,11 @@ ok_latency = mean_ms < 500
 # ---- PHASE 4: the OMS execution on the accepted Tier-A set
 decs = [TradeDecision(r.pair, r.direction, r.entry, r.sl, r.tp, r.rrr,
                       r.confidence, zone_id=r.zone_id) for r,_ in ta_results if r.accepted]
-sens = commission_sensitivity(decs, rates=(0.0, 0.001, 0.002)) if decs else {0.0:{"net_pips":0},0.001:{"net_pips":0},0.002:{"net_pips":0}}
+# the canon record: the operator's Tier-A table lists these as TP-first, so the
+# outcome is STATED here rather than left to an OMS default.
+_tier_out = {r.zone_id: "tp" for r, _ in ta_results if r.accepted}
+sens = (commission_sensitivity(decs, rates=(0.0, 0.001, 0.002), outcomes=_tier_out)
+        if decs else {0.0:{"net_pips":0},0.001:{"net_pips":0},0.002:{"net_pips":0}})
 ok_comm = sens[0.001]["net_pips"] > 0
 
 # ---- PHASE 5: determinism of the whole run

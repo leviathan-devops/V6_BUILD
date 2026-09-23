@@ -72,6 +72,12 @@ class Fill:
     @property
     def cost_pips(self) -> float:
         """The same cost expressed in pips: (units*rate*2) / (units*pip)."""
+        # AUDIT FIX: units=0 divided by zero, and a negative rate turned the cost
+        # into a rebate that inflated P&L.
+        if self.units <= 0:
+            raise ValueError(f"INVALID_UNITS: {self.units} (must be positive)")
+        if self.commission_rate < 0:
+            raise ValueError(f"INVALID_COMMISSION: {self.commission_rate} (must be >= 0)")
         return round(self.commission_cost / (self.units * self.pip), 4)
 
     @property
@@ -118,9 +124,15 @@ class Portfolio:
         return round(sum(1 for t in self.trades if t.net_pips > 0) / len(self.trades), 4)
 
     def _equity_per_pip(self, t) -> float:
-        """AUDIT FIX: $/pip is a property of the PAIR, not a global 10.0.
-        DXY's pip is 0.01, so a flat 10.0 overstated its swings ~10x."""
-        return PIP_VALUE_PER_UNIT.get(t.fill.pair, 10.0)
+        """$/pip is a property of the PAIR, not a global 10.0 (DXY's pip is 0.01).
+        AUDIT FIX: the `.get(pair, 10.0)` fallback was inconsistent with
+        Fill.pip, which RAISES on an unknown pair. Fail the same way."""
+        pair = t.fill.pair
+        if pair not in PIP_VALUE_PER_UNIT:
+            raise ValueError(
+                f"UNKNOWN_PIP_VALUE: {pair!r} has no PIP_VALUE_PER_UNIT entry "
+                f"(known: {sorted(PIP_VALUE_PER_UNIT)})")
+        return PIP_VALUE_PER_UNIT[pair]
 
     @property
     def max_drawdown(self) -> float:
@@ -134,16 +146,30 @@ class Portfolio:
 
 
 def simulate(decisions: list[TradeDecision], commission_rate: float,
-             outcomes: dict[str, str] | None = None) -> Portfolio:
+             outcomes: dict[str, str]) -> Portfolio:
     """Execute every decision at the given round-trip commission rate.
 
-    `outcomes` maps zone_id -> "tp" | "sl"; the default is "tp" (the golden
-    week's measured behaviour). Long: TP > entry, SL < entry.
+    `outcomes` maps zone_id -> "tp" | "sl" and is REQUIRED. AUDIT FIX: it used
+    to default to "tp" (a WIN), so a missing or typo'd zone silently inflated
+    P&L. The caller states each outcome; the OMS never assumes one.
     """
-    outcomes = outcomes or {}
+    if not isinstance(outcomes, dict):
+        raise ValueError(
+            f"OUTCOMES_REQUIRED: pass {{zone_id: 'tp'|'sl'}} — got {type(outcomes).__name__}")
     pf = Portfolio()
     for d in decisions:
-        outcome = outcomes.get(d.zone_id, "tp")
+        # AUDIT FIX: a missing zone_id defaulted to "tp" (a WIN), so a typo or an
+        # unlabelled trade silently inflated P&L. An unlabelled decision is now
+        # a named refusal; an explicitly supplied outcome is required.
+        if not d.zone_id:
+            raise ValueError(
+                f"UNLABELLED_TRADE: {d.pair} {d.direction} has no zone_id, so its "
+                f"outcome cannot be resolved (pass a zone_id or an explicit outcome)")
+        if d.zone_id not in outcomes:
+            raise ValueError(
+                f"NO_OUTCOME_FOR_ZONE: {d.zone_id!r} is absent from the outcomes map "
+                f"(known: {sorted(outcomes)}) — refusing to assume a win")
+        outcome = outcomes[d.zone_id]
         # AUDIT FIX: any typo was silently treated as an SL exit, flipping a
         # winner into a loser. Validate the outcome.
         if outcome not in ("tp", "sl"):
@@ -159,7 +185,15 @@ def simulate(decisions: list[TradeDecision], commission_rate: float,
 def commission_sensitivity(decisions: list[TradeDecision],
                            rates=(0.0, 0.001, 0.002),
                            outcomes: dict[str, str] | None = None) -> dict[float, dict]:
-    """The key analysis: P&L at 0% / 0.1% / 0.2% round-trip commission."""
+    """The key analysis: P&L at 0% / 0.1% / 0.2% round-trip commission.
+
+    `outcomes` is REQUIRED (see simulate). It defaults to None only so the
+    signature is explicit about the caller having to supply it.
+    """
+    if outcomes is None:
+        raise ValueError(
+            "OUTCOMES_REQUIRED: state each trade's outcome — the golden week's "
+            "canon record is 'tp' for all, and that must be written down, not assumed")
     out = {}
     for r in rates:
         pf = simulate(decisions, r, outcomes)
