@@ -165,3 +165,28 @@ THE FOUR DEFECTS THE HOST WAS HIDING (this is why the container test exists):
 THE EXCLUSION, STATED: six tests are excluded BY NAME because they call the LIVE
 host services (the Decider on :8008, Limite on :8100) and are not hermetic by
 construction. The exclusion is recorded in the artifact, not hidden.
+
+
+## THE VRAM BLOCKER + THE SUPERSEDED-MODEL FIX (HEAD 2a21fa8, 2026-09-24)
+### FOUND AND FIXED: the circuit scored with a superseded model
+`integration/circuit.py::_run_decider` imported `model.Decider`, of which
+`decider/SUPERSEDED.md:1-12` says verbatim: "IT IS SUPERSEDED AND MUST NOT BE
+USED FOR DECISIONS" (measured ECE 0.3858 vs the 0.05 gate). It also OOM'd.
+NOW: `integration/circuit.py:248` calls the PUBLISHED decider over its wire
+format; `decider/question_templates.py` gains `to_wire_spec()`/`wire_questions()`.
+EVIDENCE: `grep -c "from model import Decider" integration/circuit.py` = 0;
+battery 28/28; `test_pass_e1_questions` PASS against the live model.
+WHY IT WAS INVISIBLE: no test anywhere runs `use_decider=True`.
+
+### BLOCKED: VRAM overflow (the pin's hard stop)
+`.trident/VRAM_BLOCKER.md` (76 lines) carries the measured report.
+- server traceback: `/tmp/decider-serve.log` -> `torch.OutOfMemoryError` in
+  `repeat_kv`, "GPU 0 has a total capacity of 11.60 GiB of which 11.38 MiB is free"
+- nvidia-smi: 12282 MiB total, 11871 used, **6 MiB free**
+- the pin budgets **Decider-0.6B**; **Mapika/decider-2b** is deployed (6582 MiB,
+  the largest consumer — 3.3x the budgeted size)
+- THE REPORT: downgrade to `Mapika/decider-0.8b` (1.4 GB bf16, smallest published
+  family member) to free ~3.5-4 GiB; two non-stack llama-servers hold 1144 MiB
+- I did NOT substitute the model — the pin reserves that for the operator
+- CONSEQUENCE: STOP 4 (<500ms with the model in the loop) is UNMET and
+  UNMEASURABLE. `test_golden_week_e2e` passes on the OFFLINE path.
