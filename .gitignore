@@ -4,3 +4,6 @@ __pycache__/
 *.gguf
 models/
 .trident/*.log
+WORKER_SPEC.md
+WORKER_GOAL.md
+gate.sh
