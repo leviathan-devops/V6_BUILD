@@ -59,7 +59,10 @@ self_src = (R/"tui/coding_surface.py").read_text()
 # The lexicon block itself necessarily contains the fragments; strip from the
 # start of the lexicon to the end of the WRITE_ALLOWED_PATHS block, then scan
 # the REMAINING code — the part that actually runs.
-_lo = self_src.find("_EXEC_NAMES")
+# the strip starts at the FIRST lexicon declaration, not _EXEC_NAMES — the
+# aliased-pattern block sits above it and its comments name the triggers.
+_lo = self_src.find("# The receiver must be an ALIAS-shaped name")
+if _lo < 0: _lo = self_src.find("_EXEC_NAMES")
 _hi = self_src.find("def _scan(")
 logic = self_src[:_lo] + self_src[_hi:] if _lo > 0 and _hi > _lo else self_src
 self_v = []

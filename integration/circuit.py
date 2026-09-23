@@ -63,6 +63,7 @@ class CircuitResult:
     stage_latency: dict = field(default_factory=dict)
     rejections: list = field(default_factory=list)
     dual_verified: bool = False     # True only when an INDEPENDENT Limite value was checked
+    dual_passed: bool = False       # True only when that check ALSO agreed (delta <= eps)
 
     def to_dict(self):
         d = asdict(self)
@@ -189,6 +190,7 @@ class Circuit:
                            {"model": None, "code": rrr_code, "delta": None,
                             "pass": None, "note": "NO_INDEPENDENT_LIMITE_VALUE"})},
             latency_ms=total, stage_latency=stage, dual_verified=limite_verified,
+            dual_passed=(limite_verified and abs(limite_rrr - rrr_code) <= 0.02),
             rejections=[{"token": r.token, "detail": r.detail} for r in verdict.rejections])
 
     def _run_decider(self, state: str) -> dict:
@@ -205,8 +207,13 @@ class Circuit:
     # ---- stage 12-13: execute + measure ------------------------------------
     @staticmethod
     def execute(result: CircuitResult, commission_rate: float = 0.001,
-                outcome: str = "tp"):
+                outcome: str | None = None):
         from oms import simulate, TradeDecision
+        # AUDIT FIX (round 7): `outcome="tp"` was the SAME fail-open default the
+        # OMS removed — a caller omitting it measured every trade as a win.
+        if outcome is None:
+            raise ValueError(
+                "OUTCOME_REQUIRED: state 'tp' or 'sl' — the OMS will not assume a win")
         if not result.accepted:
             return None
         d = TradeDecision(result.pair, result.direction, result.entry,

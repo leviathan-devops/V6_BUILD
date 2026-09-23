@@ -68,11 +68,38 @@ def _qualified(word: str) -> str:
     # qualified spellings are now matched.
     # split the "builtins" literal so this source never contains it whole
     bi = _f("buil", "t", "ins")
-    return (_f(bi, "[.]", word, _WS, "[(]") + "|"
-            + _f("__", bi, "__[.]", word, _WS, "[(]"))
+    return (_f(bi, _DOT, word, _WS, "[(]") + "|"
+            + _f("__", bi, "__", _DOT, word, _WS, "[(]"))
 
 
-_EXEC_NAMES = [
+# CRITICAL FIX (audit round 7): importing a module UNDER AN ALIAS and calling
+# its spawn/deserialize method evaded BOTH branches — the dotted form needs the
+# literal module name and the bare form is dot-guarded. A SECOND probe found the
+# first fix far too broad (a bare `.loads(` / `.execute(` is an ordinary method
+# call). The sound predicate is an ALIAS-SHAPED receiver (one to three chars)
+# followed by the method name.
+# The receiver must be an ALIAS-shaped name (1-3 chars) AND not a known-safe
+# object. A database handle's `.execute(` is SQL, not os.exec. _ALIAS already
+# carries its own trailing whitespace class, so the method part must NOT repeat
+# it (the first version did, and the doubled class never matched).
+_SAFE_RECEIVERS = "db|cursor|conn|connection|session|client|resp|response|sock|srv"
+# NOTE: there is NO leading dot requirement — the alias is a BARE name, not an
+# attribute of something. The first version required a preceding dot and so
+# matched nothing at all.
+_ALIAS = _f("(?<![", "0-9A-Za-z_.", "])",
+            "(?!(?:", _SAFE_RECEIVERS, ")[.])",
+            "[A-Za-z_][A-Za-z0-9_]{0,2}", _WS)
+
+_ALIASED = [
+    (_f("os.system", "-aliased"),   _f(_ALIAS, "[.]sys", "tem", _WS, "[(]")),
+    (_f("os.exec", "-aliased"),     _f(_ALIAS, "[.]ex", "ec", "[0-9A-Za-z_]*", _WS, "[(]")),
+    (_f("os.spawn", "-aliased"),    _f(_ALIAS, "[.]spa", "wn", "[0-9A-Za-z_]*", _WS, "[(]")),
+    (_f("pickle.load", "-aliased"), _f(_ALIAS, "[.]lo", "ads?", _WS, "[(]")),
+    (_f("importlib", "-aliased"),   _f(_ALIAS, "[.]import_module", _WS, "[(]")),
+    (_f("builtins.eval", "-aliased"), _f(_ALIAS, "[.]ev", "al", _WS, "[(]")),
+]
+
+_EXEC_NAMES = _ALIASED + [
     (_f("sub", "pro", "cess"),   _f(_PRE, "sub", "pro", "cess", _POST)),
     # AUDIT FIX: the dotted-only forms were bypassed by a from-import
     # (importing the name directly and calling it). Each name now also matches
@@ -135,6 +162,24 @@ _WRITE_NAMES = [
     (_f("shu", "til"),          _f(_PRE, "shu", "til", _POST)),
     (_f("Path.", "write"),      _f(_DOT, "write_", "text", _WS, "[(]|", _DOT, "write_", "bytes", _WS, "[(]")),
     (_f("Named", "TemporaryFile"), _f("Named", "Temporary", "File")),
+    # AUDIT FIX (round 7): the lexicon covered only NamedTemporaryFile, so
+    # TemporaryFile / mkstemp / mkdtemp / mkdir / touch / unlink / replace /
+    # symlink / truncate all created files undetected.
+    (_f("tempfile", "-creators"),
+     _f("[.]", "Temporary", "File", _WS, "[(]")
+     + "|" + _f("[.]mk", "stemp", _WS, "[(]")
+     + "|" + _f("[.]mk", "dtemp", _WS, "[(]")),
+    (_f("os.", "fs-creators"),
+     _f("os", _DOT, "mk", "dir", _WS, "[(]")
+     + "|" + _f("os", _DOT, "make", "dirs", _WS, "[(]")
+     + "|" + _f("os", _DOT, "re", "place", _WS, "[(]")
+     + "|" + _f("os", _DOT, "sym", "link", _WS, "[(]")
+     + "|" + _f("os", _DOT, "trun", "cate", _WS, "[(]")),
+    (_f("Path.", "fs-creators"),
+     _f(_DOT, "mk", "dir", _WS, "[(]")
+     + "|" + _f(_DOT, "touch", _WS, "[(]")
+     + "|" + _f(_DOT, "un", "link", _WS, "[(]")
+     + "|" + _f(_DOT, "re", "name", _WS, "[(]")),
 ]
 WRITE_FORBIDDEN = {n: p for n, p in _WRITE_NAMES}
 
@@ -189,7 +234,11 @@ def scan_tree(root: str, include_tests: bool = True) -> list:
                                "in_test": is_test})
             continue
         violations += _scan(f, root_p, src, EXEC_FORBIDDEN, "exec")
-        if rel not in WRITE_ALLOWED_PATHS and not is_test:
+        # AUDIT FIX (round 7): a file matching TEST_PATH_RE skipped the WRITE
+        # lexicon entirely, so a writer placed at tests/payload.py evaded the
+        # audit. The exemption is now limited to the DECLARED artifact paths —
+        # a test file is not a licence to write.
+        if rel not in WRITE_ALLOWED_PATHS:
             violations += _scan(f, root_p, src, WRITE_FORBIDDEN, "write")
     return violations
 

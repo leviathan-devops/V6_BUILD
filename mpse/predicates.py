@@ -52,31 +52,39 @@ def _missing(c: dict) -> list:
 
 
 def _guard(c: dict, name: str):
+    """Return a MISSING-FIELDS verdict, or None when the candidate is complete.
+
+    CRITICAL FIX (audit round 7): `_guard` returned `Verdict(passed=False)`, and
+    `Verdict.__bool__` returns `passed` — so the guard's own return value was
+    FALSY and every `if g: return g` never fired. The guard was dead code and
+    direct predicate calls still raised KeyError. The guard's verdict is now
+    returned as a TUPLE so truthiness cannot swallow it.
+    """
     miss = _missing(c)
     if miss:
-        return _v(name, False, f"{name.replace('-','')}_MISSING_FIELDS",
-                  f"candidate is missing {miss}")
+        return (_v(name, False, f"{name.replace('-','')}_MISSING_FIELDS",
+                   f"candidate is missing {miss}"),)
     return None
 
 
 # ---- AT-01 .. AT-10 ---------------------------------------------------------
 def at_01_rrr_floor(c) -> Verdict:
     g = _guard(c, 'AT-01')
-    if g: return g
+    if g: return g[0]
     ok = c["rrr"] >= RRR_FLOOR
     return _v("AT-01", ok, "AT01_PASS" if ok else "AT01_RRR_BELOW_FLOOR",
               f"rrr {c['rrr']:.3f} vs floor {RRR_FLOOR}")
 
 def at_02_sl_envelope(c) -> Verdict:
     g = _guard(c, 'AT-02')
-    if g: return g
+    if g: return g[0]
     ok = c["sl_distance_pips"] <= SL_MAX_PIPS
     return _v("AT-02", ok, "AT02_PASS" if ok else "AT02_SL_OUTSIDE_ENVELOPE",
               f"sl {c['sl_distance_pips']:.2f}p vs max {SL_MAX_PIPS}p")
 
 def at_03_direction_sign(c) -> Verdict:
     g = _guard(c, 'AT-03')
-    if g: return g
+    if g: return g[0]
     """Long: TP above entry, SL below. Short: the mirror. A wrong-signed
     geometry is a SIDE INVERSION — the V5 class the mutants target."""
     d, e, sl, tp = c["direction"], c["entry"], c["sl"], c["tp"]
@@ -91,21 +99,21 @@ def at_03_direction_sign(c) -> Verdict:
 
 def at_04_zone_positive(c) -> Verdict:
     g = _guard(c, 'AT-04')
-    if g: return g
+    if g: return g[0]
     ok = c["zone_width_pips"] > 0
     return _v("AT-04", ok, "AT04_PASS" if ok else "AT04_ZERO_ZONE",
               f"zone width {c['zone_width_pips']}")
 
 def at_05_confidence_in_range(c) -> Verdict:
     g = _guard(c, 'AT-05')
-    if g: return g
+    if g: return g[0]
     ok = 0.0 <= c["confidence"] <= 1.0
     return _v("AT-05", ok, "AT05_PASS" if ok else "AT05_CONF_OUT_OF_RANGE",
               f"confidence {c['confidence']}")
 
 def at_06_dual_consistency(c) -> Verdict:
     g = _guard(c, 'AT-06')
-    if g: return g
+    if g: return g[0]
     """|model - code| <= eps on the RRR path."""
     m, k = c.get("limite_rrr"), c["rrr"]
     if m is None:
@@ -117,7 +125,7 @@ def at_06_dual_consistency(c) -> Verdict:
 
 def at_07_pip_scale(c) -> Verdict:
     g = _guard(c, 'AT-07')
-    if g: return g
+    if g: return g[0]
     """The pair's pip scale must be the one its price magnitude implies —
     a DXY level treated as FX destroys every downstream pip count."""
     pair, entry = c["pair"], c["entry"]
@@ -133,7 +141,7 @@ def at_07_pip_scale(c) -> Verdict:
 
 def at_08_monotone_levels(c) -> Verdict:
     g = _guard(c, 'AT-08')
-    if g: return g
+    if g: return g[0]
     """All three levels must be distinct (a collapsed level is a degenerate trade)."""
     ok = len({c["entry"], c["sl"], c["tp"]}) == 3
     return _v("AT-08", ok, "AT08_PASS" if ok else "AT08_COLLAPSED_LEVELS",
@@ -141,7 +149,7 @@ def at_08_monotone_levels(c) -> Verdict:
 
 def at_09_rrr_recompute(c) -> Verdict:
     g = _guard(c, 'AT-09')
-    if g: return g
+    if g: return g[0]
     """The stated RRR must equal the geometry's RRR — a stated/derived mismatch
     is the single most dangerous silent-arithmetic defect."""
     if c["pair"] not in PIP:
@@ -158,7 +166,7 @@ def at_09_rrr_recompute(c) -> Verdict:
 
 def at_10_session_valid(c) -> Verdict:
     g = _guard(c, 'AT-10')
-    if g: return g
+    if g: return g[0]
     s = c.get("session_utc", "")
     ok = bool(s) and "02:00" <= s[-5:] <= "05:00"
     return _v("AT-10", ok, "AT10_PASS" if ok else "AT10_SESSION_INVALID",

@@ -111,15 +111,32 @@ class Decider:
     whichever was constructed last.
     """
 
-    def __init__(self, url: str | None = None):
+    # AUDIT FIX (round 7): any server returning {} was accepted as the published
+    # decider. The identity is now pinned: /health must name a decider model.
+    EXPECTED_MODEL_SUBSTR = "decider"
+
+    def __init__(self, url: str | None = None, require_model: bool = True):
         self.url = url or os.environ.get("DECIDER_URL", DEFAULT_BASE)
         h = health(self.url)
-        self.model = h.get("model", "?")
+        self.model = h.get("model") or ""
         self.device = h.get("device", "?")
+        if require_model and self.EXPECTED_MODEL_SUBSTR not in self.model.lower():
+            raise DeciderUnavailable(
+                f"DECIDER_WRONG_MODEL: {self.url} reports model={self.model!r}; "
+                f"expected a name containing {self.EXPECTED_MODEL_SUBSTR!r}. "
+                f"Refusing to treat a substitute server as the published decider.")
 
     def decide(self, state, questions: dict) -> dict:
         # no fallback: system_one raises DeciderUnavailable on a bad payload
-        return system_one(state, questions, url=self.url)["answers"]
+        answers = system_one(state, questions, url=self.url)["answers"]
+        # AUDIT FIX (round 7): a partial payload surfaced later as a distant
+        # KeyError. The coverage is checked here, inside the contract.
+        missing = [k for k in questions if k not in answers]
+        if missing:
+            raise DeciderUnavailable(
+                f"DECIDER_INCOMPLETE_ANSWERS: {len(missing)} of {len(questions)} "
+                f"questions unanswered ({missing[:5]})")
+        return answers
 
     def info(self) -> dict:
         return {"url": self.url, "model": self.model, "device": self.device,

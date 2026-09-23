@@ -46,7 +46,9 @@ def _num(v):
     """
     try:
         f = float(v)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
+        # AUDIT FIX (round 7): float(10**1000) raises OverflowError, which
+        # (TypeError, ValueError) does not catch — the seat still crashed.
         return None
     if f != f or f in (float("inf"), float("-inf")):
         return None
@@ -94,9 +96,15 @@ def render_gates(gates: list) -> list[str]:
     return out
 
 
-def render_pnl(pnl_pips: float, open_positions: int) -> list[str]:
+def render_pnl(pnl_pips, open_positions) -> list[str]:
+    """AUDIT FIX (round 7): `:+.2f` raised on None/str, so a malformed P&L feed
+    took the seat down. The same _num guard the probabilities use."""
+    p = _num(pnl_pips)
+    o = _num(open_positions)
+    p_s = f"{p:+.2f}" if p is not None else f"<malformed {type(pnl_pips).__name__}>"
+    o_s = f"{int(o)}" if o is not None else f"<malformed {type(open_positions).__name__}>"
     return [rule("="), " LIVE P&L", rule("="),
-            f" net_pips={pnl_pips:+.2f}   open_positions={open_positions}"]
+            f" net_pips={p_s}   open_positions={o_s}"]
 
 
 def render_rejections(rejections) -> list[str]:

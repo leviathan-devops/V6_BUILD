@@ -22,6 +22,20 @@ from dataclasses import dataclass
 
 
 def _logit(p: float) -> float:
+    """The log-odds of a probability.
+
+    AUDIT FIX (round 7): out-of-range and NaN values were silently CLIPPED, so
+    p=2.0, p=-1.0 and p=nan all produced plausible-looking metrics. A
+    calibration input outside [0,1] is a caller error, not a value to clip.
+    """
+    try:
+        p = float(p)
+    except (TypeError, ValueError, OverflowError) as e:
+        raise ValueError(f"INVALID_PROBABILITY: {p!r} is not a number") from e
+    if p != p or p in (float("inf"), float("-inf")):
+        raise ValueError(f"INVALID_PROBABILITY: {p!r} is not finite")
+    if not (0.0 <= p <= 1.0):
+        raise ValueError(f"INVALID_PROBABILITY: {p} is outside [0, 1]")
     p = min(max(p, 1e-6), 1 - 1e-6)
     return math.log(p / (1 - p))
 
@@ -42,8 +56,10 @@ def _sigmoid(x: float) -> float:
 
 def apply_T(p: float, T: float) -> float:
     """Calibrate one stated probability with temperature T."""
-    if T <= 0:
-        raise ValueError(f"INVALID_TEMPERATURE: {T}")
+    # AUDIT FIX (round 7): `T <= 0` is False for NaN, so apply_T(p, nan) silently
+    # returned 0.0 and apply_T(p, inf) returned 0.5. Both are validated now.
+    if T != T or T in (float("inf"), float("-inf")) or T <= 0:
+        raise ValueError(f"INVALID_TEMPERATURE: {T!r} (want a finite T > 0)")
     return _sigmoid(_logit(p) / T)
 
 
@@ -124,5 +140,9 @@ def split(rows, seed: int = 20260923, fit_frac: float = 0.5):
     # fit/eval separation the module's own docstring requires.
     if len(r) < 2:
         raise ValueError(f"SPLIT_TOO_SMALL: need >= 2 rows, got {len(r)}")
+    # AUDIT FIX (round 7): fit_frac outside (0,1) was silently clamped, hiding
+    # a caller error and breaking the fit/eval separation this module promises.
+    if not (0.0 < fit_frac < 1.0):
+        raise ValueError(f"INVALID_FIT_FRAC: {fit_frac} (want 0 < f < 1)")
     k = max(1, min(len(r) - 1, int(len(r) * fit_frac)))
     return r[:k], r[k:]
