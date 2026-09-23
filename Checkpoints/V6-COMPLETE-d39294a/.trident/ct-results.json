@@ -1,0 +1,203 @@
+{
+  "schema": "plutus-v6-ct-results/v1",
+  "generated": "2026-09-23T20:18:35.464531+00:00",
+  "container": {
+    "image": "python:3.12-slim",
+    "name": "omp-ct",
+    "python": "3.12.14 (verified in-container)",
+    "packages": "pip only \u2014 a stdlib-only environment",
+    "deployedTo": "/work/p3/plutus-ct"
+  },
+  "plan": ".trident/ct-plan.md",
+  "excludedByName": [
+    "test_limite_dual_live",
+    "test_calibration_layer",
+    "test_decider_calibration_ece",
+    "test_decider_load",
+    "test_limite_serves_temp0",
+    "test_pass_e1_questions"
+  ],
+  "exclusionReason": "these call the LIVE host services (Decider :8008, Limite :8100) and are NOT hermetic by construction",
+  "defectsFoundByThisTest": [
+    "16 of 31 tests embedded the absolute host build path -> FileNotFoundError in the container; all 16 portabilized (Path(__file__).resolve().parent.parent)",
+    "classify_38.py required the PLUTUS tree; it now falls back to a flat sources/ beside the module",
+    "test_determinism_sha_match asserted the PRE-round-8 volatile contract; the test was corrected to the current one",
+    "test_walkforward_unseen_week needs bars_raw.json (the WIDE harvest) as well as the anchored one"
+  ],
+  "scenarios": [
+    {
+      "id": "ADV-1",
+      "name": "a sub-floor RRR must be refused",
+      "kind": "adversarial",
+      "passToken": "G-RRR_REJECT",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: === ADVERSARIAL FIRST ===\nADV1 REJECTED ['G-RRR_REJECT']",
+      "verdict": "PASS"
+    },
+    {
+      "id": "ADV-2",
+      "name": "a bar past the temporal anchor must be refused",
+      "kind": "adversarial",
+      "passToken": "FUTURE_BAR_LEAK",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: ADV2 FUTURE_BAR_LEAK",
+      "verdict": "PASS"
+    },
+    {
+      "id": "ADV-3",
+      "name": "an unknown pair must fail closed",
+      "kind": "adversarial",
+      "passToken": "UNKNOWN_PAIR",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: ADV3 UNKNOWN_PAIR",
+      "verdict": "PASS"
+    },
+    {
+      "id": "HAPPY-1",
+      "name": "the golden week e2e in the container",
+      "kind": "happy_path",
+      "passToken": "test_golden_week_e2e",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: === HAPPY PATH (LAST) ===\ntest_golden_week_e2e                   RESULT: PASS test_golden_week_e2e\ntest_gate_fail_closed                  RESULT: PASS test_gate_fail_closed\ntest_determinism_sha_match             RESULT: PASS test_determinism_sha_match\ntest_memory_persistence                RESULT: PASS test_memory_persistence\ntest_tui_renders_probabilities         RESULT: PASS test_tui_renders_probabilities\ntest_report_golden_check               RESULT: PASS test_report_golden_check\ntest_walkforward_unseen_week           RESULT: PASS test_walkforward_unseen_week\ntest_zero_coding_surface               RESULT: PASS test_zero_coding_surface\ntest_math_queries_shape                RESULT: PASS test_math_queries_shape\ntest_oms_execute_order                 RESULT: PASS test_oms_execute_order\ntest_commission_0_1pct                 RESULT: PASS test_commission_0_1pct\ntest_session_london_window             RESULT: PASS test_session_london_window\ntest_state_constructor_golden          RESULT: PASS test_state_constructor_golden",
+      "verdict": "PASS"
+    },
+    {
+      "id": "HAPPY-2",
+      "name": "the fail-closed gate battery",
+      "kind": "happy_path",
+      "passToken": "test_gate_fail_closed",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: === HAPPY PATH (LAST) ===\ntest_golden_week_e2e                   RESULT: PASS test_golden_week_e2e\ntest_gate_fail_closed                  RESULT: PASS test_gate_fail_closed\ntest_determinism_sha_match             RESULT: PASS test_determinism_sha_match\ntest_memory_persistence                RESULT: PASS test_memory_persistence\ntest_tui_renders_probabilities         RESULT: PASS test_tui_renders_probabilities\ntest_report_golden_check               RESULT: PASS test_report_golden_check\ntest_walkforward_unseen_week           RESULT: PASS test_walkforward_unseen_week\ntest_zero_coding_surface               RESULT: PASS test_zero_coding_surface\ntest_math_queries_shape                RESULT: PASS test_math_queries_shape\ntest_oms_execute_order                 RESULT: PASS test_oms_execute_order\ntest_commission_0_1pct                 RESULT: PASS test_commission_0_1pct\ntest_session_london_window             RESULT: PASS test_session_london_window\ntest_state_constructor_golden          RESULT: PASS test_state_constructor_golden",
+      "verdict": "PASS"
+    },
+    {
+      "id": "HAPPY-3",
+      "name": "determinism in the container",
+      "kind": "happy_path",
+      "passToken": "test_determinism_sha_match",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: === HAPPY PATH (LAST) ===\ntest_golden_week_e2e                   RESULT: PASS test_golden_week_e2e\ntest_gate_fail_closed                  RESULT: PASS test_gate_fail_closed\ntest_determinism_sha_match             RESULT: PASS test_determinism_sha_match\ntest_memory_persistence                RESULT: PASS test_memory_persistence\ntest_tui_renders_probabilities         RESULT: PASS test_tui_renders_probabilities\ntest_report_golden_check               RESULT: PASS test_report_golden_check\ntest_walkforward_unseen_week           RESULT: PASS test_walkforward_unseen_week\ntest_zero_coding_surface               RESULT: PASS test_zero_coding_surface\ntest_math_queries_shape                RESULT: PASS test_math_queries_shape\ntest_oms_execute_order                 RESULT: PASS test_oms_execute_order\ntest_commission_0_1pct                 RESULT: PASS test_commission_0_1pct\ntest_session_london_window             RESULT: PASS test_session_london_window\ntest_state_constructor_golden          RESULT: PASS test_state_constructor_golden",
+      "verdict": "PASS"
+    },
+    {
+      "id": "HAPPY-4",
+      "name": "the memory store durability",
+      "kind": "happy_path",
+      "passToken": "test_memory_persistence",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: === HAPPY PATH (LAST) ===\ntest_golden_week_e2e                   RESULT: PASS test_golden_week_e2e\ntest_gate_fail_closed                  RESULT: PASS test_gate_fail_closed\ntest_determinism_sha_match             RESULT: PASS test_determinism_sha_match\ntest_memory_persistence                RESULT: PASS test_memory_persistence\ntest_tui_renders_probabilities         RESULT: PASS test_tui_renders_probabilities\ntest_report_golden_check               RESULT: PASS test_report_golden_check\ntest_walkforward_unseen_week           RESULT: PASS test_walkforward_unseen_week\ntest_zero_coding_surface               RESULT: PASS test_zero_coding_surface\ntest_math_queries_shape                RESULT: PASS test_math_queries_shape\ntest_oms_execute_order                 RESULT: PASS test_oms_execute_order\ntest_commission_0_1pct                 RESULT: PASS test_commission_0_1pct\ntest_session_london_window             RESULT: PASS test_session_london_window\ntest_state_constructor_golden          RESULT: PASS test_state_constructor_golden",
+      "verdict": "PASS"
+    },
+    {
+      "id": "HAPPY-5",
+      "name": "the TUI pane renders",
+      "kind": "happy_path",
+      "passToken": "test_tui_renders_probabilities",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: === HAPPY PATH (LAST) ===\ntest_golden_week_e2e                   RESULT: PASS test_golden_week_e2e\ntest_gate_fail_closed                  RESULT: PASS test_gate_fail_closed\ntest_determinism_sha_match             RESULT: PASS test_determinism_sha_match\ntest_memory_persistence                RESULT: PASS test_memory_persistence\ntest_tui_renders_probabilities         RESULT: PASS test_tui_renders_probabilities\ntest_report_golden_check               RESULT: PASS test_report_golden_check\ntest_walkforward_unseen_week           RESULT: PASS test_walkforward_unseen_week\ntest_zero_coding_surface               RESULT: PASS test_zero_coding_surface\ntest_math_queries_shape                RESULT: PASS test_math_queries_shape\ntest_oms_execute_order                 RESULT: PASS test_oms_execute_order\ntest_commission_0_1pct                 RESULT: PASS test_commission_0_1pct\ntest_session_london_window             RESULT: PASS test_session_london_window\ntest_state_constructor_golden          RESULT: PASS test_state_constructor_golden",
+      "verdict": "PASS"
+    },
+    {
+      "id": "HAPPY-6",
+      "name": "the 8-section report",
+      "kind": "happy_path",
+      "passToken": "test_report_golden_check",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: === HAPPY PATH (LAST) ===\ntest_golden_week_e2e                   RESULT: PASS test_golden_week_e2e\ntest_gate_fail_closed                  RESULT: PASS test_gate_fail_closed\ntest_determinism_sha_match             RESULT: PASS test_determinism_sha_match\ntest_memory_persistence                RESULT: PASS test_memory_persistence\ntest_tui_renders_probabilities         RESULT: PASS test_tui_renders_probabilities\ntest_report_golden_check               RESULT: PASS test_report_golden_check\ntest_walkforward_unseen_week           RESULT: PASS test_walkforward_unseen_week\ntest_zero_coding_surface               RESULT: PASS test_zero_coding_surface\ntest_math_queries_shape                RESULT: PASS test_math_queries_shape\ntest_oms_execute_order                 RESULT: PASS test_oms_execute_order\ntest_commission_0_1pct                 RESULT: PASS test_commission_0_1pct\ntest_session_london_window             RESULT: PASS test_session_london_window\ntest_state_constructor_golden          RESULT: PASS test_state_constructor_golden",
+      "verdict": "PASS"
+    },
+    {
+      "id": "HAPPY-7",
+      "name": "the walk-forward on an unseen week",
+      "kind": "happy_path",
+      "passToken": "test_walkforward_unseen_week",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: === HAPPY PATH (LAST) ===\ntest_golden_week_e2e                   RESULT: PASS test_golden_week_e2e\ntest_gate_fail_closed                  RESULT: PASS test_gate_fail_closed\ntest_determinism_sha_match             RESULT: PASS test_determinism_sha_match\ntest_memory_persistence                RESULT: PASS test_memory_persistence\ntest_tui_renders_probabilities         RESULT: PASS test_tui_renders_probabilities\ntest_report_golden_check               RESULT: PASS test_report_golden_check\ntest_walkforward_unseen_week           RESULT: PASS test_walkforward_unseen_week\ntest_zero_coding_surface               RESULT: PASS test_zero_coding_surface\ntest_math_queries_shape                RESULT: PASS test_math_queries_shape\ntest_oms_execute_order                 RESULT: PASS test_oms_execute_order\ntest_commission_0_1pct                 RESULT: PASS test_commission_0_1pct\ntest_session_london_window             RESULT: PASS test_session_london_window\ntest_state_constructor_golden          RESULT: PASS test_state_constructor_golden",
+      "verdict": "PASS"
+    },
+    {
+      "id": "HAPPY-9",
+      "name": "the zero-coding source check",
+      "kind": "happy_path",
+      "passToken": "test_zero_coding_surface",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: === HAPPY PATH (LAST) ===\ntest_golden_week_e2e                   RESULT: PASS test_golden_week_e2e\ntest_gate_fail_closed                  RESULT: PASS test_gate_fail_closed\ntest_determinism_sha_match             RESULT: PASS test_determinism_sha_match\ntest_memory_persistence                RESULT: PASS test_memory_persistence\ntest_tui_renders_probabilities         RESULT: PASS test_tui_renders_probabilities\ntest_report_golden_check               RESULT: PASS test_report_golden_check\ntest_walkforward_unseen_week           RESULT: PASS test_walkforward_unseen_week\ntest_zero_coding_surface               RESULT: PASS test_zero_coding_surface\ntest_math_queries_shape                RESULT: PASS test_math_queries_shape\ntest_oms_execute_order                 RESULT: PASS test_oms_execute_order\ntest_commission_0_1pct                 RESULT: PASS test_commission_0_1pct\ntest_session_london_window             RESULT: PASS test_session_london_window\ntest_state_constructor_golden          RESULT: PASS test_state_constructor_golden",
+      "verdict": "PASS"
+    },
+    {
+      "id": "HAPPY-10",
+      "name": "the 6 math queries + shadows",
+      "kind": "happy_path",
+      "passToken": "test_math_queries_shape",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: === HAPPY PATH (LAST) ===\ntest_golden_week_e2e                   RESULT: PASS test_golden_week_e2e\ntest_gate_fail_closed                  RESULT: PASS test_gate_fail_closed\ntest_determinism_sha_match             RESULT: PASS test_determinism_sha_match\ntest_memory_persistence                RESULT: PASS test_memory_persistence\ntest_tui_renders_probabilities         RESULT: PASS test_tui_renders_probabilities\ntest_report_golden_check               RESULT: PASS test_report_golden_check\ntest_walkforward_unseen_week           RESULT: PASS test_walkforward_unseen_week\ntest_zero_coding_surface               RESULT: PASS test_zero_coding_surface\ntest_math_queries_shape                RESULT: PASS test_math_queries_shape\ntest_oms_execute_order                 RESULT: PASS test_oms_execute_order\ntest_commission_0_1pct                 RESULT: PASS test_commission_0_1pct\ntest_session_london_window             RESULT: PASS test_session_london_window\ntest_state_constructor_golden          RESULT: PASS test_state_constructor_golden",
+      "verdict": "PASS"
+    },
+    {
+      "id": "HAPPY-11",
+      "name": "the OMS execution",
+      "kind": "happy_path",
+      "passToken": "test_oms_execute_order",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: === HAPPY PATH (LAST) ===\ntest_golden_week_e2e                   RESULT: PASS test_golden_week_e2e\ntest_gate_fail_closed                  RESULT: PASS test_gate_fail_closed\ntest_determinism_sha_match             RESULT: PASS test_determinism_sha_match\ntest_memory_persistence                RESULT: PASS test_memory_persistence\ntest_tui_renders_probabilities         RESULT: PASS test_tui_renders_probabilities\ntest_report_golden_check               RESULT: PASS test_report_golden_check\ntest_walkforward_unseen_week           RESULT: PASS test_walkforward_unseen_week\ntest_zero_coding_surface               RESULT: PASS test_zero_coding_surface\ntest_math_queries_shape                RESULT: PASS test_math_queries_shape\ntest_oms_execute_order                 RESULT: PASS test_oms_execute_order\ntest_commission_0_1pct                 RESULT: PASS test_commission_0_1pct\ntest_session_london_window             RESULT: PASS test_session_london_window\ntest_state_constructor_golden          RESULT: PASS test_state_constructor_golden",
+      "verdict": "PASS"
+    },
+    {
+      "id": "HAPPY-12",
+      "name": "the commission sensitivity",
+      "kind": "happy_path",
+      "passToken": "test_commission_0_1pct",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: === HAPPY PATH (LAST) ===\ntest_golden_week_e2e                   RESULT: PASS test_golden_week_e2e\ntest_gate_fail_closed                  RESULT: PASS test_gate_fail_closed\ntest_determinism_sha_match             RESULT: PASS test_determinism_sha_match\ntest_memory_persistence                RESULT: PASS test_memory_persistence\ntest_tui_renders_probabilities         RESULT: PASS test_tui_renders_probabilities\ntest_report_golden_check               RESULT: PASS test_report_golden_check\ntest_walkforward_unseen_week           RESULT: PASS test_walkforward_unseen_week\ntest_zero_coding_surface               RESULT: PASS test_zero_coding_surface\ntest_math_queries_shape                RESULT: PASS test_math_queries_shape\ntest_oms_execute_order                 RESULT: PASS test_oms_execute_order\ntest_commission_0_1pct                 RESULT: PASS test_commission_0_1pct\ntest_session_london_window             RESULT: PASS test_session_london_window\ntest_state_constructor_golden          RESULT: PASS test_state_constructor_golden",
+      "verdict": "PASS"
+    },
+    {
+      "id": "HAPPY-13",
+      "name": "the state constructor + temporal law",
+      "kind": "happy_path",
+      "passToken": "test_state_constructor_golden",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: === HAPPY PATH (LAST) ===\ntest_golden_week_e2e                   RESULT: PASS test_golden_week_e2e\ntest_gate_fail_closed                  RESULT: PASS test_gate_fail_closed\ntest_determinism_sha_match             RESULT: PASS test_determinism_sha_match\ntest_memory_persistence                RESULT: PASS test_memory_persistence\ntest_tui_renders_probabilities         RESULT: PASS test_tui_renders_probabilities\ntest_report_golden_check               RESULT: PASS test_report_golden_check\ntest_walkforward_unseen_week           RESULT: PASS test_walkforward_unseen_week\ntest_zero_coding_surface               RESULT: PASS test_zero_coding_surface\ntest_math_queries_shape                RESULT: PASS test_math_queries_shape\ntest_oms_execute_order                 RESULT: PASS test_oms_execute_order\ntest_commission_0_1pct                 RESULT: PASS test_commission_0_1pct\ntest_session_london_window             RESULT: PASS test_session_london_window\ntest_state_constructor_golden          RESULT: PASS test_state_constructor_golden",
+      "verdict": "PASS"
+    },
+    {
+      "id": "HAPPY-8",
+      "name": "the 38 forensic classification",
+      "kind": "happy_path",
+      "passToken": "test_forensic_38_classification",
+      "passTokenMatch": true,
+      "failTokenAbsent": true,
+      "toolResultContext": "CT EXEC: === the 13th scenario ===\n[DETAIL]   LAW 6: tested 30 | OBEYED 5 | VIOLATED 25\n[DETAIL] source's own SL-TOO-WIDE count = 25 | LAW 6 predicate reproduced it = True\nRESULT: PASS test_forensic_38_classification",
+      "verdict": "PASS"
+    }
+  ],
+  "summary": {
+    "total": 16,
+    "pass": 16,
+    "fail": 0,
+    "adversarial": {
+      "n": 3,
+      "pass": 3
+    },
+    "happyPath": {
+      "n": 13,
+      "pass": 13
+    }
+  },
+  "overallVerdict": "PASS"
+}
