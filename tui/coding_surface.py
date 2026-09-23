@@ -76,10 +76,11 @@ _EXEC_NAMES = [
     (_f("os.", "sy", "s", "tem"), _f("os[.]", "sy", "s", "tem", _WS, "[(]") + "|"
                                  + _bare(_f("sy", "s", "tem"))),
     (_f("os.", "ex", "ec"),      _f("os[.]", "ex", "ec", "[0-9A-Za-z_]*", _WS, "[(]") + "|"
-                                 + _bare(_f("ex", "ec", "l")) + "|" + _bare(_f("ex", "ec", "v"))
-                                 + "|" + _bare(_f("ex", "ec", "l", "p"))),
+                                 + "|".join(_bare(_f("ex", "ec") + v)
+                                            for v in ("l", "v", "lp", "vp", "le", "ve"))),
     (_f("os.", "spa", "wn"),     _f("os[.]", "spa", "wn", "[0-9A-Za-z_]*", _WS, "[(]") + "|"
-                                 + _bare(_f("spa", "wn")) + "|" + _bare(_f("spa", "wn", "l"))),
+                                 + "|".join(_bare(_f("spa", "wn") + v)
+                                            for v in ("", "l", "v", "lp", "vp"))),
     (_f("po", "pen"),            _f("[Pp]", "open", _WS, "[(]")),
     (_f("ev", "al"),             _bare("eval") + "|" + _qualified("eval")),
     (_f("ex", "ec"),             _bare("exec") + "|" + _qualified("exec")),
@@ -89,12 +90,16 @@ _EXEC_NAMES = [
     (_f("c", "ty", "pes"),       _f(_PRE, "c", "ty", "pes", _POST)),
     # AUDIT FIX: only load/loads were covered; Unpickler(...).load() and the
     # _pickle alias execute identical deserialization.
+    # CRITICAL FIX (audit round 3): the bare form matched only `loads`, so
+    # `from pickle import load; load(...)` executed identical deserialization
+    # undetected. Both bare names are matched.
     (_f("pickle.", "lo", "ad"),  _f("_?pickle[.](?:lo", "ads?|Unpickler)", _WS, "[(]") + "|"
-                                 + _bare(_f("lo", "ads"))),
+                                 + _bare(_f("lo", "ad")) + "|" + _bare(_f("lo", "ads"))),
     (_f("mar", "sh", "al"),      _f(_PRE, "mar", "sh", "al", _POST)),
-    (_f("shell", "=True"),       _f("shell", _WS, "=", _WS, "True")),
+    (_f("shell", "=True"),       _f("shell", "[ \t\n]*=", _WS, "True")),
     (_f("run", "py"),            _f(_PRE, "run", "py", _POST)),
-    (_f("importlib.", "import_module"), _f("importlib[.]import_module", _WS, "[(]")),
+    (_f("importlib.", "import_module"),
+     _f("importlib[.]import_module", _WS, "[(]") + "|" + _bare(_f("import_module"))),
 ]
 EXEC_FORBIDDEN = {n: p for n, p in _EXEC_NAMES}
 
@@ -103,8 +108,10 @@ _WRITE_NAMES = [
     # AUDIT FIX: `[^)]*` could not cross the first ')' so open(get(), "w") was
     # invisible; and r+/w+/a+/x+ were not covered. The arg scan is now
     # non-greedy to the LAST quote, and the mode class includes '+'.
+    # AUDIT FIX: the mode class now covers b/t/+ flags and the arg scan
+    # tolerates a newline inside the parens (a legal, backslash-free split).
     (_f("open", "-write-mode"),
-     _f("open", _WS, "[(].*?['", '"', "][rwax][+]?['", '"', "][ \t]*[,)]")),
+     _f("open", _WS, "[(](?s:.*?)['", '"', "][rwax][+]?[bt]?[+]?['", '"', "][ \t\n]*[,)]")),
     (_f("os.", "wr", "ite"),    _f("os[.]", "wr", "ite", _WS, "[(]")),
     (_f("os.", "op", "en"),     _f("os[.]", "op", "en", _WS, "[(]")),
     (_f("os.", "re", "name"),   _f("os[.]", "re", "name", _WS, "[(]")),

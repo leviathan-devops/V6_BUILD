@@ -37,9 +37,22 @@ Build HEAD: `ff5eb6a`
 - zero coding surface: 0 violations / 8 roots
 - corpus: 1,267 records, zero provenance violations
 
-## OPEN (NOT PASSED)
-1. **ECE = 0.2139** measured (gate < 0.05) — the published Decider is accurate
-   (0.967) but under-confident (mean stated 0.753). See EVIDENCE_STATE.
-2. **No fine-tune** (W7-D2). Corpus built; no LoRA trained.
-3. `test_walkforward_unseen_week` not written (needs a second harvested week).
-4. No container isolation — the suite ran on the host.
+## THE GATE LAYER (9 gates, all fail-closed)
+G-GEOMETRY · G-RRR · G-SESSION · G-SL · G-CONF · G-CASCADE · G-CHAIN ·
+G-DEDUP · G-DUAL. Every threshold gate rejects NaN / non-finite / out-of-range
+input (audit round 1: they all passed NaN). G-GEOMETRY reads direction and the
+price geometry, which NO gate read before the audit. G-DUAL reports
+G-DUAL_UNVERIFIED when no independent Limite value is supplied — never a
+tautological pass.
+
+## OPEN (NOT PASSED — reported as measured)
+1. **ECE = 0.2139** (gate < 0.05). The published Decider is accurate (0.967) but
+   under-confident (mean stated 0.753).
+2. **Limite RRR reliability**: 5 of 6 Tier-A RRRs returned `None` or a wrong
+   value. The dual-compute MECHANISM works; the MODEL's arithmetic on this task
+   does not.
+3. **No fine-tune** (W7-D2). Corpus built (1,267 records); no LoRA trained.
+4. `test_walkforward_unseen_week` not written (needs a second harvested week).
+5. No container isolation — the suite ran on the host.
+6. The audit gate's rounds 1-3 were remediated but the tree has not been
+   re-audited since the round-3 fixes.

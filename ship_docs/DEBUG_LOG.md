@@ -74,3 +74,51 @@
   of the pass.
 - SUPERSEDED: the hand-built head was replaced by the published `Mapika/decider-2b`
   (see decider/SUPERSEDED.md). The defect is retained as a record of the wrong path.
+
+## EN-009 · the circuit imported the STALE worktree modules after the merge (2026-09-23)
+- FINDING: the integrated tree's fixes had no effect; the golden week still
+  reported 0/6 accepted while the gate chain in the master tree had 9 gates.
+- ROOT CAUSE: `integration/circuit.py` resolved its siblings through HARDCODED
+  `.wt/wb-limite/gates`-style paths. Those are the PRE-MERGE copies, and
+  `sys.path.insert(0, ...)` put them ahead of the integrated tree, so the
+  circuit imported the worktree's older `gates.py`. Every fix applied after the
+  merge was silently shadowed.
+- FIX: resolve the siblings relative to THIS file's own location (`_HERE.parent`)
+  and `append` (never prepend) so stdlib cannot be shadowed.
+- VERIFICATION: `circuit.py` now reports `gates.__file__` = the master tree,
+  chain size 9, `G-DUAL_UNVERIFIED` present.
+- LESSON: a hardcoded path to a sibling module is a time bomb that detonates at
+  the moment the layout changes. Resolve relative to `__file__`.
+
+## EN-010 · the harness fixture had NO usable timestamps (2026-09-23)
+- FINDING: after the timestamp validation was added, every feed raised
+  BAR_MISSING_TIMESTAMP.
+- ROOT CAUSE: the harvester writes the key `timestamp`; `parse_bars` looked for
+  `ts` then `time`. Every bar therefore resolved to `ts = 0`, which PASSED the
+  `ts > anchor` check and sorted to the front — **the temporal filter had never
+  actually run on this fixture.** The fixture also genuinely spans ~5 days past
+  the anchor, so a correct filter must drop 1,000+ bars.
+- FIX: accept `ts | time | timestamp`; build `shared/fixtures/bars_anchored.json`
+  (every bar <= the anchor) as the canonical fixture and keep `bars_raw.json` as
+  the wide harvest used to PROVE the leak fires.
+- VERIFICATION: `test_state_constructor_golden` asserts the wide harvest is
+  REFUSED (404 bars past the anchor) and no retained bar has ts == 0.
+- LESSON: a silent `or 0` default turned a strict filter into a no-op. The
+  fixture was never actually filtered, and every downstream result inherited it.
+
+## EN-011 · the audit gate's first two rounds (2026-09-23)
+- ROUND 1: GATE FAIL (1 critical, 35 high). The critical: the zero-coding
+  scanner's write-allowlist was keyed on BASENAME, so any file named `report.py`
+  anywhere was skipped for ALL capabilities — a spawn primitive hidden in
+  `evil/report.py` passed the scan.
+- ROUND 2: GATE FAIL (0 critical, 20 high). The remaining highs were NaN
+  fail-open in every threshold gate, a missing geometry gate, a tautological
+  dual-compute, predicate-independent trust witnesses, unvalidated
+  pair/direction/outcome, and several scanner evasions.
+- ROUND 3: GATE FAIL (2 critical, 17 high). The criticals: a bare `pickle.load`
+  bypass (only `loads` was matched) and a negative-supervision label that was
+  never a selectable option.
+- THE PATTERN: each round the auditor found the NEXT layer — first the bypass,
+  then the fail-open semantics, then the evasion corners. Fixing a class
+  (fail-closed validation, path-keyed exemptions) removed many findings at once;
+  patching a site moved the finding one line.

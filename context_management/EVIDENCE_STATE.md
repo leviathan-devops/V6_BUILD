@@ -33,3 +33,27 @@
 - the fine-tuned adapter — no fine-tune
 - true container isolation
 - the 8 DXY Tier-A trades' SL/TP under a live broker simulation
+
+
+## THE AUDIT GATE — three rounds (a verdict is about a SPECIFIC tree)
+| round | tree | critical | high | action |
+|---|---|---|---|---|
+| 1 | 49c68b2 | 1 | 35 | remediated (NaN fail-closed, G-GEOMETRY, path-keyed scanner) |
+| 2 | 0b447e4 | 0 | 20 | remediated (honest G-DUAL, circuit path fix, scanner evasions) |
+| 3 | 135bf6e | 2 | 17 | remediated (pickle bare-load, negative label, zone-width, HH:MM range) |
+
+An audit PASS is a claim about a tree at a SHA. The final tree's verdict is
+recorded with that SHA; an earlier PASS does not carry forward.
+
+## THE TWO HONEST FAILURES (measured, not reframed)
+1. **ECE 0.2139** (gate < 0.05). n=60 corpus decisions; accuracy 0.967; mean
+   stated confidence 0.753. The published Decider is under-confident.
+2. **Limite RRR reliability**: 5 of 6 Tier-A RRRs returned `None` or a wrong
+   value. Limite is not a reliable arithmetic engine at this prompt design.
+   The DUAL-COMPUTE MECHANISM works (it caught a deliberately wrong value in
+   ADV-5 and test_dual_compute_catches_divergence); the MODEL's arithmetic on
+   this task does not.
+
+## THE CONTAINER ARTIFACT
+`.trident/container-test-results.json` — 13 scenarios, overallVerdict PASS
+(5 adversarial + 8 happy path).

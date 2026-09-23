@@ -96,14 +96,19 @@ def harvest_golden_trades(v5_root: Path) -> list[Record]:
                 mm = re.search(r"(#[0-9]+\s+\w+\s+\w+\s+\w+)\s+([\d.]+)/([\d.]+)/([\d.]+)\s+([\d.]+)", c)
                 if mm:
                     name, e, sl, tp, rrr = mm.groups()
+                    # AUDIT FIX: the correct RRR was ALWAYS options[0], so a
+                    # model could learn a positional shortcut. Rotate so the
+                    # correct answer's index varies deterministically.
+                    opts = [rrr, "below_floor", "no_trade"]
+                    rot = len(recs) % len(opts)
+                    opts = opts[rot:] + opts[:rot]
                     recs.append(Record(
                         id=f"golden-{len(recs)+1}",
                         source=f"{injector}:{ln}",
                         quote=c,
                         state=f"GOLDEN TRADE {name}: entry={e} SL={sl} TP={tp} RRR={rrr}",
                         question="What is the risk-reward ratio of this setup?",
-                        options=[rrr, "below_floor", "no_trade"],
-                        answer=rrr, kind="golden"))
+                        options=opts, answer=rrr, kind="golden"))
     return recs
 
 
@@ -228,10 +233,20 @@ def negative_records(cards: list[Record]) -> list[Record]:
         broken = _re.sub(r"\b(\d+(?:\.\d+)?)\b", "0", r.quote, count=1)
         if broken == r.quote:
             broken = r.quote[:-6] + " [TRUNCATED]"
+        # CRITICAL FIX (audit round 3): the negative answer must be a SELECTABLE
+        # option. The first version emitted answer="fail" while reusing the
+        # parent's options (["yes","no"]), so the label was out of vocabulary and
+        # the record was unusable for option-grounded training. The option set is
+        # now derived from the parent's own options: the FIRST option is the
+        # "affirmative" one, so the negative answer is the LAST option.
+        opts = list(r.options)
+        if len(opts) < 2:
+            continue
+        neg_answer = opts[-1]
         out.append(Record(
             id=r.id + "-neg", source=r.source, quote=broken,
             state=f"DOCTRINE (altered) {broken}",
-            question=r.question, options=r.options, answer="fail", kind=r.kind))
+            question=r.question, options=opts, answer=neg_answer, kind=r.kind))
     return out
 
 

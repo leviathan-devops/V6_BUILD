@@ -17,10 +17,14 @@ from math_queries import QUERIES, code_truth
 class DualComputeDivergence(RuntimeError):
     def __init__(self, query_id: str, model: float, code: float, eps: float):
         self.query_id, self.model, self.code, self.eps = query_id, model, code, eps
-        self.delta = abs(model - code)
-        super().__init__(
-            f"LIMITE_CODE_DIVERGENCE [{query_id}]: |limite {model:.6f} - code {code:.6f}| "
-            f"= {self.delta:.6f} > eps {eps}")
+        try:
+            self.delta = abs(model - code)
+            detail = (f"|limite {model:.6f} - code {code:.6f}| = {self.delta:.6f} "
+                      f"> eps {eps}")
+        except (TypeError, ValueError):
+            self.delta = float("nan")
+            detail = f"non-numeric comparison: limite={model!r} code={code!r}"
+        super().__init__(f"LIMITE_CODE_DIVERGENCE [{query_id}]: {detail}")
 
 
 @dataclass(frozen=True)
@@ -38,8 +42,19 @@ class DualResult:
         return "G-DUAL_PASS" if self.passed else "LIMITE_CODE_DIVERGENCE"
 
 
-def verify(query_id: str, model_value: float, raw: str = "", **kw) -> DualResult:
-    """Verify ONE already-computed answer against the code shadow."""
+def verify(query_id: str, model_value, raw: str = "", **kw) -> DualResult:
+    """Verify ONE already-computed answer against the code shadow.
+
+    AUDIT FIX: an unknown query_id raised a raw KeyError and a non-numeric
+    model_value raised a raw TypeError, both escaping callers that catch only
+    DualComputeDivergence. Both now produce the named divergence token.
+    """
+    if query_id not in QUERIES:
+        raise DualComputeDivergence(query_id, float("nan"), float("nan"), 0.0)
+    try:
+        model_value = float(model_value)
+    except (TypeError, ValueError):
+        raise DualComputeDivergence(query_id, float("nan"), float("nan"), 0.0)
     q = QUERIES[query_id]
     truth = code_truth(query_id, **kw)
     delta = abs(model_value - truth)

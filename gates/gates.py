@@ -1,4 +1,4 @@
-"""gates/gates.py — the 8 deterministic gates.
+"""gates/gates.py — the 9 deterministic gates.
 
 THE LAW (pin LAWS): DECIDER SCORES, NEVER EDITS. Model outputs are INPUTS;
 only this layer — pure Python if/else — accepts or rejects. No model call
@@ -60,7 +60,9 @@ def _finite(x) -> bool:
     """A value is usable only if it is a real, finite number."""
     try:
         return math.isfinite(float(x))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
+        # AUDIT FIX: a huge int (10**1000) raised OverflowError out of _finite,
+        # crashing evaluate() instead of failing closed.
         return False
 
 
@@ -84,6 +86,11 @@ def _geometry_ok(t: TradeCandidate) -> tuple[bool, str]:
         return False, f"short geometry violated: need sl > entry > tp, got {t.sl} {t.entry} {t.tp}"
     if len({t.entry, t.sl, t.tp}) != 3:
         return False, f"collapsed levels: {t.entry} {t.sl} {t.tp}"
+    # AUDIT FIX: zone_width_pips was stored but NO gate read it, so a 0 /
+    # negative / NaN zone width passed. mpse/predicates.py checks it, proving
+    # the invariant matters — the gate layer must enforce it too.
+    if not _finite(t.zone_width_pips) or t.zone_width_pips <= 0:
+        return False, f"zone_width_pips={t.zone_width_pips!r} must be a positive finite number"
     return True, "geometry coherent"
 
 
@@ -135,13 +142,19 @@ def _local_hhmm(session_utc: str) -> str | None:
         after_t = session_utc.split("T", 1)[1]
         hhmm = after_t[:5]
         if len(hhmm) == 5 and hhmm[2] == ":" and hhmm[:2].isdigit() and hhmm[3:].isdigit():
-            return hhmm
+            # AUDIT FIX: the shape check accepted impossible times like 02:99,
+            # which compared lexicographically INSIDE the London window.
+            h, m = int(hhmm[:2]), int(hhmm[3:])
+            if 0 <= h <= 23 and 0 <= m <= 59:
+                return hhmm
         return None                          # malformed ISO -> refuse, no guess
     # FORM 1: the state constructor's label, e.g. "LONDON 02:00". Only a label
     # that STARTS with a session word is accepted (no arbitrary HH:MM scrape).
     m = re.match(r"^[A-Z_]+\s+(\d{2}:\d{2})$", session_utc.strip())
     if m:
-        return m.group(1)
+        h, mi = int(m.group(1)[:2]), int(m.group(1)[3:])
+        if 0 <= h <= 23 and 0 <= mi <= 59:
+            return m.group(1)
     return None
 
 
@@ -222,11 +235,11 @@ def g_dual(t: TradeCandidate) -> GateResult:
                    "G-DUAL")
     # FAIL-CLOSED (audit fix): NaN on either side made `delta > eps` False.
     if not _finite(t.limite_rrr) or not _finite(t.rrr):
-        return _no("LIMITE_CODE_DIVERGENCE",
+        return _no("G-DUAL_REJECT",
                    f"non-finite pair: limite={t.limite_rrr!r} code={t.rrr!r}", "G-DUAL")
     delta = abs(t.limite_rrr - t.rrr)
     if delta > DUAL_EPS:
-        return _no("LIMITE_CODE_DIVERGENCE",
+        return _no("G-DUAL_REJECT",
                    f"|limite {t.limite_rrr:.4f} - code {t.rrr:.4f}| = {delta:.4f} > eps {DUAL_EPS}", "G-DUAL")
     return _ok("G-DUAL_PASS", f"|limite - code| = {delta:.4f} <= eps {DUAL_EPS}", "G-DUAL")
 
@@ -260,6 +273,9 @@ class GateVerdict:
 
 
 def evaluate(t: TradeCandidate) -> GateVerdict:
-    """Run all 8 gates. ALL must pass — a single named rejection blocks the trade."""
+    """Run all 9 gates. ALL must pass — a single named rejection blocks the trade.
+
+    (G-GEOMETRY leads the chain; it was added by the audit and the count in the
+    earlier docstring said 8.)"""
     results = [g(t) for g in GATES]
     return GateVerdict(all(r.passed for r in results), results)

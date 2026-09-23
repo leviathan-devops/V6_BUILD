@@ -23,7 +23,7 @@ for name, over, gate, tok in [
     ("NaN confidence",    dict(confidence=NAN),           g_conf, "G-CONF_REJECT"),
     ("confidence > 1",    dict(confidence=5.0),           g_conf, "G-CONF_REJECT"),
     ("inf confidence",    dict(confidence=INF),           g_conf, "G-CONF_REJECT"),
-    ("NaN limite_rrr",    dict(limite_rrr=NAN),           g_dual, "LIMITE_CODE_DIVERGENCE"),
+    ("NaN limite_rrr",    dict(limite_rrr=NAN),           g_dual, "G-DUAL_REJECT"),
 ]:
     r = gate(cand(**over))
     if r.passed or r.token != tok:

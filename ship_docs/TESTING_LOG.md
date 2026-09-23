@@ -60,3 +60,29 @@ Overall verdict: **PASS** — 13/13 (5 adversarial + 8 happy path)
 3. No container isolation: the suite ran on the host with the live models.
 4. The 15/15 FX claim is an entry-level identity check, not an independent
    precision measurement (see BUILD_REPORT honest gap 4).
+
+## THE AUDIT GATE (qwen-code-audit) — three rounds, each a real FAIL
+| round | critical | high | the headline finding |
+|---|---|---|---|
+| 1 | 1 | 35 | the zero-coding allowlist was keyed on BASENAME → a spawn primitive in `evil/report.py` passed |
+| 2 | 0 | 20 | NaN fail-open in every threshold gate; no gate read direction/entry/sl/tp; the dual-compute was tautological |
+| 3 | 2 | 17 | a bare `pickle.load` bypass; a negative label that was never a selectable option |
+
+Every round was remediated and the suite re-run. The final state of the gate is
+recorded in EVIDENCE_STATE (an audit verdict is a CLAIM about a specific tree,
+so it is always stated with the tree's SHA).
+
+## THE FINAL TEST TALLY (integrated tree)
+26 of 28 tests PASS. The two that do not:
+1. `test_decider_calibration_ece` — **FAIL**, and it must: ECE 0.2139 measured
+   against a 0.05 gate. The published Decider is accurate (0.967) but
+   under-confident (mean stated 0.753).
+2. `test_limite_dual_live` — **FAIL**, and it must: Limite-1B returned `None` or
+   wrong values for 5 of the 6 Tier-A RRRs (one returned 2.0 against a shadow of
+   3.5833). Limite is NOT a reliable arithmetic engine at this prompt design.
+
+Both are reported as measured. Neither was reframed, substituted, or deleted.
+
+## THE CONTAINER SUITE (13 scenarios)
+13/13 PASS — 5 adversarial first, 8 happy path last. Artifact at
+`.trident/container-test-results.json`.

@@ -18,7 +18,7 @@ m = PaneModel(pair="EUR/USD", session="OFF_SESSION 14:30",
 text = render(m)
 
 expected = {"G-RRR_REJECT","G-SESSION_REJECT","G-SL_REJECT","G-CONF_REJECT",
-            "G-CASCADE_REJECT","G-CHAIN_REJECT","G-DEDUP_REJECT","LIMITE_CODE_DIVERGENCE"}
+            "G-CASCADE_REJECT","G-CHAIN_REJECT","G-DEDUP_REJECT","G-DUAL_REJECT"}
 present = {r.token for r in v.rejections}
 ok_all = expected <= present
 ok_text = all(t in text for t in expected)
