@@ -111,7 +111,16 @@ def atr(bars: list[Bar], period: int = 14) -> float:
     if len(bars) < 2:
         return 0.0
     w = bars[-(period + 1):]              # the trailing window
-    trs = [abs(w[i].high - w[i].low) for i in range(1, len(w))]
+    # AUDIT FIX (round 8): this was average HIGH-LOW, not TRUE RANGE. The gap
+    # terms matter: an overnight/weekend gap shows up only in |high - prevClose|
+    # and |low - prevClose|, so the old form understated volatility on exactly
+    # the bars that follow a gap. TR = max(H-L, |H-prevC|, |L-prevC|).
+    trs = []
+    for i in range(1, len(w)):
+        prev_c = w[i - 1].close
+        trs.append(max(w[i].high - w[i].low,
+                       abs(w[i].high - prev_c),
+                       abs(w[i].low - prev_c)))
     return round(sum(trs) / len(trs), 5) if trs else 0.0
 
 

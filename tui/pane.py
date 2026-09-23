@@ -55,7 +55,11 @@ def _num(v):
     return f
 
 
-def render_probabilities(decider: dict) -> list[str]:
+def render_probabilities(decider) -> list[str]:
+    # AUDIT FIX: a None/non-dict TOP-LEVEL decider crashed sorted().
+    if not isinstance(decider, dict):
+        return [rule("="), f" DECIDER PROBABILITIES (malformed: {type(decider).__name__})",
+                rule("=")]
     out = [rule("="), " DECIDER PROBABILITIES (every question, every option)", rule("=")]
     for qid in sorted(decider):
         dist = decider[qid]
@@ -83,7 +87,10 @@ def render_probabilities(decider: dict) -> list[str]:
     return out
 
 
-def render_gates(gates: list) -> list[str]:
+def render_gates(gates) -> list[str]:
+    # AUDIT FIX: a None/non-list gates argument crashed the iteration.
+    if not isinstance(gates, (list, tuple)):
+        return [rule("="), f" GATE DECISIONS (malformed: {type(gates).__name__})", rule("=")]
     out = [rule("="), " GATE DECISIONS (deterministic layer)", rule("=")]
     for g in gates:
         # AUDIT FIX: a non-dict gate entry crashed g.get().

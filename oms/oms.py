@@ -19,7 +19,9 @@ from dataclasses import dataclass, field
 PIP = {"EUR/USD": 0.0001, "GBP/USD": 0.0001, "DXY": 0.01}
 PIP_VALUE_PER_UNIT = {"EUR/USD": 10.0, "GBP/USD": 10.0, "DXY": 1.0}
 DEFAULT_UNITS = 100_000
-EQUITY_PER_PIP = 10.0    # $ per pip at 1 standard lot on a 5-digit FX pair
+# NOTE: no flat EQUITY_PER_PIP constant. $/pip is per-pair AND per-size; a flat
+# value is the DXY 1000x error waiting to happen. Portfolio._equity_per_pip
+# derives it.
 
 
 @dataclass

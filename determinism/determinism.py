@@ -53,7 +53,11 @@ def digest(stages: dict) -> str:
     must apply at EVERY depth, including depth 0.
     """
     h = hashlib.sha256()
-    for name in sorted(k for k in stages if k not in VOLATILE):
+    # AUDIT FIX (round 8): filtering STAGE NAMES by VOLATILE silently dropped a
+    # real stage that happened to be named `ts`/`timing`. Volatile filtering
+    # belongs INSIDE payloads (canonical does that); a stage name is a label the
+    # caller chose and must be hashed.
+    for name in sorted(stages):
         h.update(name.encode()); h.update(b"\x00")
         h.update(canonical(stages[name]).encode()); h.update(b"\x1e")
     return h.hexdigest()
@@ -119,7 +123,7 @@ def compare(a: RunDigest, b: RunDigest) -> dict:
     loop now skips the same names digest() skips.
     """
     diffs = {}
-    names = (set(a.stages) | set(b.stages)) - VOLATILE
+    names = set(a.stages) | set(b.stages)
     for name in sorted(names):
         # AUDIT FIX: `.get` conflated a MISSING stage with an explicit None, so
         # an added/removed None-valued stage changed the sha with no recorded
@@ -137,5 +141,13 @@ def compare(a: RunDigest, b: RunDigest) -> dict:
 
 
 def assert_deterministic(fn, *args, **kw) -> dict:
-    """Run `fn` twice and return the comparison."""
-    return compare(RunDigest(fn(*args, **kw)), RunDigest(fn(*args, **kw)))
+    """Run `fn` twice and return the comparison.
+
+    AUDIT FIX (round 8): both runs shared the SAME args/kw objects, so an
+    in-place mutation by the first call polluted the second — a false
+    divergence for deterministic code, or masked nondeterminism. Each run gets
+    its own deep copy.
+    """
+    a = RunDigest(fn(*copy.deepcopy(args), **copy.deepcopy(kw)))
+    b = RunDigest(fn(*copy.deepcopy(args), **copy.deepcopy(kw)))
+    return compare(a, b)

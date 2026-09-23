@@ -15,7 +15,8 @@ RRR_FLOOR = 2.5
 SL_MAX_PIPS = 55.0
 CONF_FLOOR = 0.50          # grade F
 LONDON_SESSIONS = ("02:00", "05:00")   # ET, per the pin ADVERSARIAL LOOP item 4
-SL_BUFFER_PIPS = 3.0
+# NOTE: no SL_BUFFER_PIPS constant — the buffer is not a gate; the zone width
+# IS the SL distance (LAW 2), so a separate buffer would be a second authority.
 DEDUP_WINDOW_MINUTES = 60
 DUAL_EPS = 0.02            # |limite - code| epsilon on the RRR path
 
@@ -120,9 +121,6 @@ def g_rrr(t: TradeCandidate) -> GateResult:
     return _ok("G-RRR_PASS", f"rrr {t.rrr:.2f} >= {RRR_FLOOR}", "G-RRR")
 
 
-SESSION_LABEL_RE = None   # set below (compiled once)
-
-
 def _local_hhmm(session_utc: str) -> str | None:
     """Extract the LOCAL wall-clock HH:MM from an ISO timestamp.
 
@@ -133,6 +131,11 @@ def _local_hhmm(session_utc: str) -> str | None:
     silently passed the London window. The local time is the component
     AFTER the 'T' and BEFORE the offset, and nothing else.
     """
+    # AUDIT FIX: a non-str session (an int/list from a corrupt candidate) raised
+    # TypeError from `"T" in session_utc` and crashed evaluate(), breaking this
+    # module's fail-closed law.
+    if not isinstance(session_utc, str):
+        return None
     if not session_utc:
         return None
     # FORM 1: the state constructor's human label, e.g. "LONDON 02:00".
