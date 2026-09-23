@@ -65,7 +65,20 @@ def main() -> int:
     results = []
     # THE ADVERSARIAL SCENARIOS RUN FIRST (the pin's ADVERSARIAL LOOP).
     for sid, name, cmd_tpl, pass_tok, fail_tok in ADV:
-        rc, out, ms = run(cmd_tpl % CT_DIR)
+        # AUDIT FIX (round 13): the % substitution sat OUTSIDE error handling, so
+        # a stray '%' in a future heredoc would abort main() before the atomic
+        # capture write — discarding every prior scenario AND leaving no capture.
+        try:
+            cmd = cmd_tpl % CT_DIR
+        except (TypeError, ValueError) as e:
+            results.append({
+                "id": sid, "name": name, "kind": "adversarial", "exitCode": -1,
+                "passToken": pass_tok, "passTokenMatch": False,
+                "failToken": fail_tok, "failTokenAbsent": False,
+                "toolResultContext": f"EXEC_ERROR: template formatting: {e}",
+                "durationMs": 0.0, "verdict": "FAIL"})
+            continue
+        rc, out, ms = run(cmd)
         pm, fa = pass_tok in out, fail_tok not in out
         results.append({
             "id": sid, "name": name, "kind": "adversarial",

@@ -1,6 +1,6 @@
 import _boot, sys
 from predicates import (trust, trust_all, geometry_witness, at_01_rrr_floor,
-                        at_03_direction_sign, at_04_zone_positive, PREDICATE_SUBJECT)
+                        at_03_direction_sign, at_04_zone_positive, PREDICATE_WITNESSES)
 
 BASE = dict(pair="EUR/USD", direction="long", entry=1.14110, sl=1.13925, tp=1.14395,
             rrr=4.25, zone_width_pips=18.5, sl_distance_pips=18.5, confidence=0.72,
@@ -25,9 +25,16 @@ ok4 = t_inv.status == "TRUSTED_REJECT"
 t_zone = trust(at_04_zone_positive, {**BASE, "zone_width_pips": 0.0})
 ok5 = t_zone.status == "TRUSTED_REJECT" and "LIMITE" not in t_zone.witnesses
 
-# 5) the witness map is predicate-aware (the audit fix)
-subj = PREDICATE_SUBJECT
-ok6 = subj.get("AT-03") == "GEOMETRY" and subj.get("AT-01") == "LIMITE"
+# 5) the witness PANEL is predicate-aware (audit rounds 8 and 13)
+#    AUDIT ROUND 13: the map became a PANEL (a tuple of witnesses) because the
+#    old single-subject form made the documented 3-way panel unreachable — every
+#    predicate had a subject, so the "draw all three" branch never fired.
+w = PREDICATE_WITNESSES
+ok6 = (w.get("AT-03") == ("GEOMETRY",)            # side inversion IS geometry
+       and w.get("AT-01") == ("LIMITE",)           # the floor is ABOUT the model
+       and "GEOMETRY" in w.get("AT-09", ())        # the RRR recompute is BOTH
+       and w.get("AT-04") == ()                    # zone width: no witness BEARS
+       and w.get("AT-05") == () and w.get("AT-10") == ())
 
 # 6) trust_all returns one verdict per predicate
 allv = trust_all(BASE)

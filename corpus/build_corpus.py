@@ -110,6 +110,15 @@ def harvest_golden_trades(v5_root: Path) -> list[Record]:
                 mm = re.search(r"(#[0-9]+\s+\w+\s+\w+\s+\w+)\s+([\d.]+)/([\d.]+)/([\d.]+)\s+([\d.]+)", c)
                 if mm:
                     name, e, sl, tp, rrr = mm.groups()
+                    # AUDIT FIX (round 13): `[\d.]+` matches a bare `.`, so a
+                    # malformed cell produced answer=rrr='.' taught as the correct
+                    # RRR. Every capture is now float-validated.
+                    try:
+                        _vals = [float(x) for x in (e, sl, tp, rrr)]
+                    except ValueError:
+                        continue
+                    if not all(v == v and abs(v) != float("inf") for v in _vals):
+                        continue
                     # AUDIT FIX: the correct RRR was ALWAYS options[0], so a
                     # model could learn a positional shortcut. Rotate so the
                     # correct answer's index varies deterministically.
@@ -236,7 +245,8 @@ def harvest_gap_analysis(master: Path) -> list[Record]:
                 # AUDIT FIX: `[\d.]+` can match a bare "." (an ellipsis in prose)
                 # and float(".") aborted the whole harvest.
                 _rrr = None
-            if _rrr is not None and _rrr >= 3.5 and re.search(r"\bRRR\b", line):
+            if _rrr is not None and _rrr == _rrr and abs(_rrr) != float("inf") \
+                    and _rrr >= 3.5 and re.search(r"\bRRR\b", line):
                 recs.append(Record(
                     id=f"gap-{f.stem}-{ln}", source=f"{f}:{ln}", quote=line.strip(),
                     state=f"DOCUMENTED TRADE ROW: {line.strip()[:300]}",
@@ -290,6 +300,17 @@ def _negative_variant(r, opts):
                     r"\g<1>2.0", r.state)
         if ns == r.state:
             return None
+        # AUDIT FIX (round 13): the corruption was never VERIFIED to have hit the
+        # RRR. If the row spells it elsewhere (`RRR 4.5`) the incidental number
+        # was zeroed while the RRR stayed above the floor — a false refusal. The
+        # result is parsed back, exactly as branch (1) does.
+        m2 = re.search(r"\d+\.\d+/\d+\.\d+/\d+\.\d+\s+([\d.]+)", ns)
+        try:
+            shown = float(m2.group(1)) if m2 else None
+        except ValueError:
+            shown = None
+        if shown is None or shown >= floor:
+            return None
         return ns, ns, "no"
 
     # --- (3) a VERIFY question: the rule's own numeric token is broken, and the
@@ -304,9 +325,23 @@ def _negative_variant(r, opts):
         # PROVE it is the rule's threshold, so these negatives rest on the
         # assumption that a mechanism card's numeric token IS its threshold —
         # true for the mechanisms corpus, unverifiable without parsing the rule.
-        if not re.search(r"\b\d+(?:\.\d+)?\b", r.quote):
-            return None                      # no numeric token -> no negative
-        broken = re.sub(r"\b(\d+(?:\.\d+)?)\b", "0", r.quote, count=1)
+        # AUDIT FIX (round 13): the audit showed that zeroing the FIRST number
+        # only contradicts the rule when that number IS the rule's threshold. The
+        # negative is now restricted to a number that sits beside a threshold
+        # word (pips/percent/ratio/RRR/buffer/atr/trades) — the mechanisms
+        # corpus spells its bounds that way. Anything else is SKIPPED, which
+        # costs coverage and never emits wrong supervision.
+        _thresh = re.search(
+            r"\b(\d+(?:\.\d+)?)\s*(?:pips?|%|percent|ratio|RRR|buffer|ATR|trades?|bars?)\b"
+            r"|\b(?:pips?|%|percent|ratio|RRR|buffer|ATR|trades?|bars?)\s*(\d+(?:\.\d+)?)\b",
+            r.quote, re.I)
+        if not _thresh:
+            return None                      # no THRESHOLD token -> no negative
+        _tok = _thresh.group(1) or _thresh.group(2)
+        if _tok is None:
+            return None
+        # zero the VERIFIED threshold token, not merely the first number
+        broken = r.quote.replace(_tok, "0", 1)
         ns = r.state.replace(r.quote, broken)
         if ns == r.state:
             return None

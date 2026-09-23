@@ -12,6 +12,7 @@ independent witnesses agree:
 When all three agree -> TRUSTED. When they disagree -> DIVERGENT (named).
 """
 from __future__ import annotations
+import re
 from dataclasses import dataclass
 from typing import Callable
 
@@ -199,6 +200,19 @@ def at_09_rrr_recompute(c) -> Verdict:
     return _v("AT-09", ok, "AT09_PASS" if ok else "AT09_RRR_MISMATCH",
               f"stated {c['rrr']:.4f} vs recomputed {recomputed:.4f}")
 
+def _session_hhmm(s: str):
+    """(hour, minute) from a session stamp, or None. Handles a bare `HH:MM`, a
+    label carrying one (`LONDON 02:00`), an ISO stamp (`...T02:30:00-04:00`) and
+    an unpadded hour (`3:00`) — compared NUMERICALLY, never as strings."""
+    m = re.search(r"(\d{1,2}):(\d{2})(?::\d{2})?", s)
+    if not m:
+        return None
+    h, mi = int(m.group(1)), int(m.group(2))
+    if not (0 <= h <= 23 and 0 <= mi <= 59):
+        return None
+    return (h, mi)
+
+
 def at_10_session_valid(c) -> Verdict:
     g = _guard(c, 'AT-10')
     if g: return g[0]
@@ -210,9 +224,17 @@ def at_10_session_valid(c) -> Verdict:
     if not isinstance(s, str):
         return _v("AT-10", False, "AT10_SESSION_INVALID",
                   f"session_utc is not a string: {type(s).__name__}")
-    ok = bool(s) and "02:00" <= s[-5:] <= "05:00"
+    hhmm = _session_hhmm(s)
+    # AUDIT FIX (round 13): `s[-5:]` assumed exactly a zero-padded `HH:MM` tail.
+    # `02:00:00` sliced to `00:00` (a wrong FAIL), `3:00` compared
+    # LEXICOGRAPHICALLY ('3:00' > '05:00'), and an ISO stamp with a zone sliced
+    # to garbage. The time is now PARSED and compared NUMERICALLY.
+    if hhmm is None:
+        return _v("AT-10", False, "AT10_SESSION_INVALID",
+                  f"session {s!r} carries no HH:MM")
+    ok = (2, 0) <= hhmm <= (5, 0)
     return _v("AT-10", ok, "AT10_PASS" if ok else "AT10_SESSION_INVALID",
-              f"session {s[-5:] if s else '<none>'}")
+              f"session {hhmm[0]:02d}:{hhmm[1]:02d}")
 
 PREDICATES = (at_01_rrr_floor, at_02_sl_envelope, at_03_direction_sign,
               at_04_zone_positive, at_05_confidence_in_range, at_06_dual_consistency,
@@ -250,21 +272,35 @@ def geometry_witness(c) -> bool:
     return bool(sign_ok and dist_ok and scale_ok)
 
 
-# Which witness a predicate's own subject implicates. A witness that does not
-# bear on the predicate's subject abstains (None) rather than voting.
-# A predicate with NO entry here draws all three witnesses (the conservative
-# default). A predicate whose subject is a single layer names it explicitly.
-PREDICATE_SUBJECT = {
-    "AT-01": "LIMITE",    # the RRR floor is a numeric claim
-    "AT-02": "CODE",      # the SL envelope is a structural claim
-    "AT-03": "GEOMETRY",  # side inversion is pure geometry
-    "AT-04": "CODE",      # zone width is a structural claim
-    "AT-05": "CODE",      # the confidence range is a structural claim
-    "AT-06": "LIMITE",    # dual consistency is the model-vs-code claim
-    "AT-07": "GEOMETRY",  # the pip scale is a geometry claim
-    "AT-08": "GEOMETRY",  # collapsed levels are geometry
-    "AT-09": "LIMITE",    # the stated/derived RRR is arithmetic
-    "AT-10": "CODE",      # the session window is a structural claim
+# THE WITNESS PANEL — which INDEPENDENT witnesses corroborate each predicate.
+#
+# AUDIT FIX (round 13): the previous single-subject map made the documented
+# "three-witness panel" UNREACHABLE. Every predicate had a subject, so the
+# `subject is None` branch (which drew all three) never fired; a CODE-subject
+# predicate drew ONE vote and a LIMITE/GEOMETRY one drew TWO. The docstring
+# described a panel the code could not build.
+#
+# The panel is now the predicate's own CODE verdict PLUS every witness that
+# BEARS on its subject — 2 or 3 votes, and the two 1-witness predicates are
+# named as such rather than implied. The CODE vote is always present; the
+# LIMITE vote is the independent model RRR; the GEOMETRY vote is the
+# sign/scale witness.
+# A witness is listed ONLY when it BEARS ON THE PREDICATE'S OWN QUANTITY.
+# The geometry witness tests the sign/scale of entry/sl/tp — it says nothing
+# about the zone width, the SL envelope, or the confidence range, so it ABSTAINS
+# there. Listing it anyway would manufacture a disagreement (measured: AT-04
+# flipped from TRUSTED_REJECT to DIVERGENT purely from an irrelevant vote).
+PREDICATE_WITNESSES = {
+    "AT-01": ("LIMITE",),              # the floor is a claim ABOUT the model RRR
+    "AT-02": (),                       # the SL envelope has no second source
+    "AT-03": ("GEOMETRY",),            # side inversion IS the geometry sign
+    "AT-04": (),                       # zone width has no second source
+    "AT-05": (),                       # the confidence range has no second source
+    "AT-06": ("LIMITE",),              # dual consistency IS the model-vs-code
+    "AT-07": ("GEOMETRY",),            # the pip scale IS the geometry scale
+    "AT-08": ("GEOMETRY",),            # monotone levels IS the geometry sign
+    "AT-09": ("LIMITE", "GEOMETRY"),   # the RRR recompute is BOTH
+    "AT-10": (),                       # the session window has no second source
 }
 
 
@@ -286,16 +322,16 @@ def trust(predicate: Callable, c: dict) -> TrustVerdict:
     """
     v = predicate(c)
     code_ok = v.passed
-    subject = PREDICATE_SUBJECT.get(v.name)
+    witnesses = PREDICATE_WITNESSES.get(v.name, ("LIMITE", "GEOMETRY"))
     votes = {"CODE": code_ok}
-    if subject == "LIMITE" or subject is None:
+    if "LIMITE" in witnesses:
         # AUDIT FIX (round 11): `limite_rrr` bypassed _missing's type guard (it is
         # not a REQUIRED_KEY), so a string/bool raised TypeError out of `abs()`.
         _m = c.get("limite_rrr")
         votes["LIMITE"] = (abs(_m - c["rrr"]) <= 0.02
                            if isinstance(_m, (int, float)) and not isinstance(_m, bool)
                            and _m == _m and abs(_m) != float("inf") else None)
-    if subject == "GEOMETRY" or subject is None:
+    if "GEOMETRY" in witnesses:
         votes["GEOMETRY"] = geometry_witness(c)
     voting = [x for x in votes.values() if x is not None]
     # AUDIT FIX (round 6): the PASS path required a FULL panel while the FAIL

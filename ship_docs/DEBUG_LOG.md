@@ -383,3 +383,33 @@ _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-2
   cross-record builder that does not exist yet. Recorded as a residual.
 - LESSON: an audit finding is a CLAIM. Measure it before fixing, or you fix the
   wrong thing — and measure it before AGREEING, or you ship a false rationale.
+
+## EN-025 · the witness panel was unreachable, and four more round-13 fixes (2026-09-24)
+- FINDING: `PREDICATE_SUBJECT` documented a THREE-witness panel, but every
+  predicate had a subject, so the `subject is None` branch that drew all three
+  NEVER FIRED. A CODE-subject predicate drew ONE vote; a LIMITE/GEOMETRY one drew
+  TWO. The docstring described a panel the code could not build.
+- FIX: the map is now `PREDICATE_WITNESSES`, a TUPLE per predicate, and a witness
+  is listed ONLY when it BEARS ON THE PREDICATE'S OWN QUANTITY. The first attempt
+  listed GEOMETRY for AT-04 (zone width) — measured, that flipped AT-04 from
+  TRUSTED_REJECT to DIVERGENT purely from an IRRELEVANT vote, because the geometry
+  witness tests the sign/scale of entry/sl/tp and says nothing about zone width.
+  An irrelevant witness manufactures disagreement. The panel is now 1, 2 or 3
+  witnesses, and the 1-witness predicates are named as such.
+- ALSO FIXED (all measured):
+  - `_num(True)` returned 1.0 (bool is an int subclass) — a boolean feed rendered
+    as an authoritative probability. Bools are rejected.
+  - the render-time temporal re-check was NARROWER than the parse-time one (it
+    tested only the anchor), so a `Bar(ts=0)` built directly bypassed it and
+    sorted to the FRONT — the epoch pollution parse_bars refuses.
+  - AT-10 sliced `s[-5:]` and compared LEXICOGRAPHICALLY: `02:00:00` became
+    `00:00`, `3:00` compared wrong, and an ISO zone sliced to garbage. The time is
+    now PARSED and compared numerically (5 shapes verified).
+  - the corpus VERIFY negative zeroed the FIRST number, which only contradicts the
+    rule when that number IS its threshold. It now requires a number beside a
+    threshold word (pips/%/ratio/RRR/buffer/ATR/trades) and SKIPS otherwise — the
+    negative count fell to 354 verified (1196 skipped) and 0 are mislabelled.
+  - the CT driver's `%` substitution sat outside error handling, so one stray `%`
+    would abort before the capture write and discard every prior result.
+- LESSON: a documented invariant that the code cannot reach is a FALSE CLAIM
+  inside the source. Test the panel, not the docstring.

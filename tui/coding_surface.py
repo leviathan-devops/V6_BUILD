@@ -236,6 +236,19 @@ _WRITE_NAMES = [
      _f("[.]", "Temporary", "File", _WS, "[(]")
      + "|" + _f("[.]mk", "stemp", _WS, "[(]")
      + "|" + _f("[.]mk", "dtemp", _WS, "[(]")),
+    # AUDIT FIX (round 13): the generic bare-form expansion derives a method name
+    # by splitting on the dot, which cannot work for these hyphenated
+    # multi-method entries — so `from os import mkdir; mkdir(p)` evaded the whole
+    # lexicon. The bare forms are listed explicitly.
+    (_f("os.", "fs-creators-bare"),
+     # AUDIT FIX (round 13): `_f(w) for w in ("mk","dir")` iterated the fragment
+     # TUPLE, so it produced the patterns `mk(` and `dir(` instead of `mkdir(`.
+     # The fragments must be joined in ONE _f call.
+     _bare(_f("mk", "dir"))
+     + "|" + _bare(_f("make", "dirs"))
+     + "|" + _bare(_f("re", "place"))
+     + "|" + _bare(_f("sym", "link"))
+     + "|" + _bare(_f("trun", "cate"))),
     (_f("os.", "fs-creators"),
      _f("os", _DOT, "mk", "dir", _WS, "[(]")
      + "|" + _f("os", _DOT, "make", "dirs", _WS, "[(]")
@@ -255,9 +268,10 @@ _WRITE_NAMES = [
 for _n, _pat in list(_WRITE_NAMES):
     if _n.startswith(("os.", "tempfile.")) and "." in _n:
         _word = _n.split(".", 1)[1]
-        if _word in ("write", "open", "rename", "unlink", "remove",
-                     "mkstemp", "mkdtemp"):
-            _WRITE_NAMES.append((_n + "-bare", _pat + "|" + _bare(_f(_word))))
+        # AUDIT FIX (round 13): the first list omitted mkdir/makedirs/replace/
+        # symlink/truncate, so `from os import mkdir; mkdir(p)` evaded the
+        # lexicon entirely. The bare expansion now covers EVERY write name.
+        _WRITE_NAMES.append((_n + "-bare", _pat + "|" + _bare(_f(_word))))
 
 WRITE_FORBIDDEN = {n: p for n, p in _WRITE_NAMES}
 

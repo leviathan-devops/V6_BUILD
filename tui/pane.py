@@ -44,6 +44,11 @@ def _num(v):
     distribution raised TypeError out of max()/sorted()/format and CRASHED the
     seat. A malformed entry now renders as a placeholder.
     """
+    # AUDIT FIX (round 13): `bool` is a subclass of `int`, so `float(True)` is
+    # 1.0 and `float(False)` is 0.0 — a boolean feed rendered as an authoritative
+    # probability ("1.000") and as a position count. A bool is not a number here.
+    if isinstance(v, bool):
+        return None
     try:
         f = float(v)
     except (TypeError, ValueError, OverflowError):
