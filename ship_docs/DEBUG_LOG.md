@@ -195,3 +195,6 @@
   with its 503 date.
 - LESSON: a 503 from a gateway is a claim about a ROUTE. Probe the routes
   individually before touching the key, the base URL, or the client.
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._

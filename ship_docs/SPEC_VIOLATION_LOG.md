@@ -15,3 +15,6 @@
 
 | SV-11 | pin LAWS: "LIMITE COMPUTES, CODE VERIFIES" | the model is the authority, code verifies | **MEASURED FINDING**: Limite-1B returned `None` or wrong values for 5 of 6 Tier-A RRRs (one returned 2.0 against a shadow of 3.5833). The dual-compute mechanism itself works (it CAUGHT the divergence), but Limite is not a reliable arithmetic engine at this prompt design. The circuit therefore runs the python shadow as the authority and reports `dual_verified=False` when no independent value is supplied — never a fabricated pass. | OPEN — a finding about the model, not the code |
 | SV-12 | pin W10 gate: ">=14/15 entries <=3p" | the golden week reproduced | **6/6 documented-exact Tier-A accepted, RRR +-0.02; 15/15 FX canon entries at 0.000 pips.** The 14/15 threshold cannot be evaluated against 15 because only 6 rows are documented-exact (the other 9 are Tier D, pixel-inferred, and excluded from acceptance). | MET on the available oracle; the threshold's denominator is the Tier-D set |
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._

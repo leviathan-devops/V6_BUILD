@@ -20,3 +20,6 @@
 - W1 pi-harness/Decider · W2 Limite/gates · W3 state/bars · W4 OMS · W5 TUI
 - W6 report · W8 MPSE predicates · W9 determinism/memory · W10 integration
 - the container results artifact · 6 ship docs · 8 canon docs · 8 defect fixes
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._

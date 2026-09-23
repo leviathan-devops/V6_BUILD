@@ -119,3 +119,6 @@ A LoRA r=16 would need ~0.14 GB and would fit, but the training code has no
 LoRA support to enable. The corpus (2,509 records with D13 provenance) is
 built and ready; the adapter cannot be trained on this hardware with this
 trainer. Reported as BLOCKED with the arithmetic, not as skipped.
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._

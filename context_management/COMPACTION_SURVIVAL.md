@@ -35,3 +35,6 @@ curl -s http://127.0.0.1:8008/health
 curl -s http://127.0.0.1:8100/v1/models
 bash ~/.omp/agent/managed-skills/hydra-workers/scripts/check.sh PLUTUS/V6_BUILD
 ```
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._

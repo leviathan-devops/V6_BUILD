@@ -54,3 +54,6 @@ entries are recorded too — the point is the count, not the credit.
   of 13/13 container scenarios is exactly the theatrical move this log exists to
   name. The two open items are recorded in SPEC_VIOLATION_LOG SV-7 and SV-8.
 - CORRECTION: none needed — the items are reported OPEN, not passed.
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._

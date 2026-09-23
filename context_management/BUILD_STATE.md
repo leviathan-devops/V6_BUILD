@@ -2,7 +2,7 @@
 
 ## GIT
 - build root: `PLUTUS/V6_BUILD` (its own repo)
-- HEAD: `ff5eb6a`
+- HEAD: `bf04465`
 - worktrees: 7 (worker/wa-decider … worker/wg-integ) + master
 - `.gitignore` excludes `.wt/` (worktrees are separate repos), `logs/`, `models/`
 
@@ -44,3 +44,6 @@
 - the Limite server needs `VLLM_PLUGINS=limite` or it cannot resolve
   `LimiteForCausalLM`
 - the Decider server is a long-running process started outside this build
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._

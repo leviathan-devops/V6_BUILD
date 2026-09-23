@@ -49,3 +49,6 @@
 - REASON: the state constructor emits a label; the gate originally parsed only
   ISO, so every candidate was rejected (defect EN-003). Two modules must share
   a contract.
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._

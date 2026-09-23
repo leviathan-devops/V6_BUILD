@@ -82,3 +82,6 @@ caught a deliberately wrong value in ADV-5 and in
 ## THE CONTAINER ARTIFACT
 `.trident/container-test-results.json` — 13 scenarios, overallVerdict PASS
 (5 adversarial + 8 happy path).
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._

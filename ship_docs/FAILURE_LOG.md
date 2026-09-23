@@ -37,3 +37,6 @@
   whose answers are known independently of the model.
 - THE LAW THIS VIOLATED: a measurement whose ground truth is supplied by the
   thing being measured is not a measurement.
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._

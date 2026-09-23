@@ -22,3 +22,24 @@
     RESULT: 13/13 PASS. Artifact sha 71016e6a2813bebd.
 12. Wrote the 6 ship docs + the 11 canon docs.
 13. Dispatched the independent zero-context verifier (VerifyGoldenWeek).
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._
+
+## 2026-09-23 · the harness + audit rounds 3-4
+14. BUILT the pi TUI harness (W1's core deliverable, previously empty):
+    - plutus-circuit.ts: 7 plutus_* tools registered via pi's own API
+    - launch.sh: --no-builtin-tools (removes all 8 of pi's tools)
+    - the trading system prompt
+    - prove_zero_coding PASS · test_tools_execute PASS (5/5)
+15. RUNTIME SEAT PROVEN LIVE: the pi TUI booted, loaded the extension, and the
+    agent drove plutus_probe -> 5 named tokens and plutus_run_golden -> 6/6
+    accepted, streaming the RRR table in the pane.
+16. FOUND + FIXED the provider chain: the go gateway requires an
+    x-opencode-session header; and muse-spark-1.3/1.2 + grok-4.6 return 503
+    (upstream down) while deepseek-v4-flash / glm-5.1 / kimi-k2.6 return 200.
+17. BUILT decider/calibration.py and CORRECTED the ECE probe across THREE
+    generations (single-class sample -> synthetic-label sample -> the trading
+    domain). The measured finding: one global temperature does NOT transfer.
+18. AUDIT ROUND 4: 0 critical / 21 high, all remediated.
+    Final: HEAD bf04465, container artifact 6a3eaee694e44fcc.

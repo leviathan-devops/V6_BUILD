@@ -43,3 +43,6 @@ EN-008 the pointer head stayed on CPU (in the SUPERSEDED hand-built path)
 - latency mean 0.058ms · commission +183.3p @0.1% · determinism True
 - corpus 1,267 records · zero coding violations / 8 roots
 - ECE 0.2139 (FAIL, gate < 0.05)
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._

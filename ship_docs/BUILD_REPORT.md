@@ -58,3 +58,6 @@ Pure Python if/else. NO model appears in any path through `gates/gates.py`.
    returns it. The load-bearing precision evidence is the Tier-A RRR table.
 5. **No container isolation was used.** The suite ran on the host with the live
    models. A true container run was not performed.
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._

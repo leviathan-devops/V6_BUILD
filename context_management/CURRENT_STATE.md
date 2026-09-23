@@ -23,7 +23,7 @@ Zero coding capability. Not headless. Runs on the RTX 4080 Laptop 12GB.
 | WG integ | .wt/wg-integ | integration/ main.py .trident/ | 4 |
 
 ## THE CONTAINER ARTIFACT
-`.trident/container-test-results.json` — sha256 `71016e6a2813bebd…`, 13 scenarios,
+`.trident/container-test-results.json` — sha256 `bf04465`2813bebd…`, 13 scenarios,
 overallVerdict PASS (5 adversarial + 8 happy path).
 Build HEAD: `ff5eb6a`
 
@@ -59,3 +59,6 @@ tautological pass.
 5. No container isolation — the suite ran on the host.
 6. The audit gate's rounds 1-3 were remediated but the tree has not been
    re-audited since the round-3 fixes.
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._

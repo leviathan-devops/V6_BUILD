@@ -27,3 +27,6 @@ scenarios with two open gates. The comparison is in BUILD_REPORT.
 - ship docs: \`ship_docs/\` (6) · canon docs: \`context_management/\` (11)
 - the two live engines: :8008 (Decider) · :8100 (Limite)
 - the canon oracle: MASTER_CONTEXT/PLUTUS_GOLDEN_CASCADE_23.md lines 19-24
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._

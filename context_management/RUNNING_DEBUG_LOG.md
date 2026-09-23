@@ -20,3 +20,19 @@
   accepted → the entry-level check was an identity, not a measurement (T-004).
 - `test_decider_calibration_ece` first used a circular fixture (T-003) → then
   measured the live model: 0.2139, a real FAIL.
+
+---
+_ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._
+
+## 2026-09-23 · the harness defects
+- the extension's python preamble had NO trailing newline -> every tool's first
+  statement concatenated onto it -> SyntaxError. Caught by test_tools_execute.
+- a pi model entry missing  -> "Cannot read properties of undefined
+  (reading 'includes')" at send time. Every field is required.
+- the 503 was the MODEL's upstream, not the gateway: probed 6 model ids, 3 up
+  and 3 down. Registering a down model as the default produced a retry loop.
+-  needs the session header or the gateway refuses with
+  {"type":"error","error":{"type":"MissingSessionID"}}.
+- my own prove_zero_coding regex matched a PROVIDER's model name as a tool name.
+- the OMS  default of "tp" was a silent WIN; making it required broke
+  3 callers, which is the point — the caller must state the outcome.
