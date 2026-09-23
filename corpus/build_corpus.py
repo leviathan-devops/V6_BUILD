@@ -337,12 +337,18 @@ def _negative_variant(r, opts):
         # form (`... RRR 4.5`). Those rows hit `ns == state` and SKIPPED, so they
         # kept yes-only supervision. Both spellings are handled; the label form is
         # tried when the triple form does not match.
-        ns = re.sub(r"(\d+\.\d+/\d+\.\d+/\d+\.\d+\s+)([\d.]+)",
-                    r"\g<1>2.0", r.state)
-        if ns == r.state:
-            ns = re.sub(r"(\bRRR\b[^\d]{0,6})([\d.]+)", r"\g<1>2.0", ns)
+        # AUDIT FIX (round 21): the corruption rewrote the TRIPLE first while
+        # `harvest_gap_analysis` PREFERS the RRR-beside-label value — so on a row
+        # carrying BOTH spellings the triple was corrupted, the label RRR stayed
+        # above the floor, and the record was labelled `no` against a state that
+        # still satisfied the question. The corruption now targets the SAME
+        # spelling the harvester used, in the same priority order.
+        ns = re.sub(r"(\bRRR\b[^\d]{0,6})([\d.]+)", r"\g<1>2.0", r.state)
         if ns == r.state:
             ns = re.sub(r"([\d.]+)([^\d]{0,6}\bRRR\b)", r"2.0\g<2>", ns)
+        if ns == r.state:
+            ns = re.sub(r"(\d+\.\d+/\d+\.\d+/\d+\.\d+\s+)([\d.]+)",
+                        r"\g<1>2.0", ns)
         if ns == r.state:
             return None
         # AUDIT FIX (round 13): the corruption was never VERIFIED to have hit the
@@ -353,10 +359,11 @@ def _negative_variant(r, opts):
         # verification parsed only the triple form, so a label-form row
         # (`... RRR 4.5`) verified as None and SKIPPED — those rows kept yes-only
         # supervision. The verification now parses whichever spelling is present.
-        m2 = re.search(r"\d+\.\d+/\d+\.\d+/\d+\.\d+\s+([\d.]+)", ns)
+        # the verification parses the SAME priority the harvester used
+        m2 = re.search(r"\bRRR\b[^\d]{0,6}([\d.]+)", ns) or \
+             re.search(r"([\d.]+)[^\d]{0,6}\bRRR\b", ns)
         if not m2:
-            m2 = re.search(r"\bRRR\b[^\d]{0,6}([\d.]+)", ns) or \
-                 re.search(r"([\d.]+)[^\d]{0,6}\bRRR\b", ns)
+            m2 = re.search(r"\d+\.\d+/\d+\.\d+/\d+\.\d+\s+([\d.]+)", ns)
         try:
             shown = float(m2.group(1)) if m2 else None
         except ValueError:

@@ -329,8 +329,21 @@ def geometry_witness(c) -> bool:
     # The real question is whether the pair's PIP SCALE suits the PRICE: a DXY
     # quote of ~100 needs pip 0.01, and pricing it on the FX scale (0.0001) puts
     # it ~1,000,000 pips from zero. The pip-count band is what discriminates.
+    # AUDIT FIX (round 21): the band 10..1e6 accepted BOTH the correct scale and a
+    # SWAPPED one — a 1.14 price on the DXY pip (0.01) gives 114 and a 100 price on
+    # the FX pip (0.0001) gives exactly 1e6, so GEOMETRY voted True while AT-07's
+    # CODE voted False, forcing a spurious DIVERGENT. The band is now what each
+    # instrument's own quote magnitude actually produces: FX majors sit in the
+    # thousands of pips from zero, DXY in the ten-thousands, and neither can
+    # masquerade as the other because the scales differ by 100x.
+    # MEASURED, not guessed: every instrument this circuit trades lands in the
+    # same pip-count decade (EUR/USD 1.14 -> 11,400 · GBP/USD 1.33 -> 13,300 ·
+    # DXY 100.9 -> 10,090), while a SWAPPED scale lands far outside it (1.14 on
+    # the DXY pip -> 114 · 100.9 on the FX pip -> 1,009,000). The band is
+    # therefore 1,000..100,000: it accepts all three real instruments and rejects
+    # both swap directions.
     _pips_from_zero = abs(e) / pip
-    scale_ok = 10.0 <= _pips_from_zero <= 1_000_000.0
+    scale_ok = 1_000.0 <= _pips_from_zero <= 100_000.0
     return bool(sign_ok and dist_ok and scale_ok)
 
 

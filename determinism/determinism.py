@@ -44,6 +44,13 @@ def canonical(obj) -> str:
     obj = _freeze(obj)
 
     def strip(o, depth=0):
+        # AUDIT FIX (round 21): `_freeze` wraps a top-level list in a _Tag (which
+        # IS a dict), so strip saw a dict at depth 0 and recursed to depth 1 — the
+        # elements' VOLATILE keys stopped being filtered and every run falsely
+        # diverged. A _Tag is TRANSPARENT: it recurses into its value at the SAME
+        # depth, because the wrapper is the digest's own, not payload structure.
+        if isinstance(o, _Tag):
+            return {k: strip(v, depth) for k, v in o.items()}
         if isinstance(o, dict):
             # AUDIT FIX (round 10): VOLATILE was filtered at EVERY depth, so a
             # legitimate DECISION field named `ts`/`host`/`pid` inside a nested
@@ -217,12 +224,20 @@ def _freeze(o):
         # ADDRESS — and the ORDER varied between runs (the round-14 bug,
         # reintroduced through the sort). Elements are sorted by their canonical
         # RENDERING, which refuses unfreezable values instead of str()-ing them.
+        # AUDIT FIX (round 21): set and frozenset both returned a BARE tuple, so
+        # they digested identically while list/tuple were distinguished — the same
+        # type-erasure class, one branch over. The container type is tagged here.
         frozen = [_freeze(x) for x in o]
-        return tuple(sorted(frozen, key=canonical))
+        return _Tag({_TAG_SEQ[type(o).__name__]:
+                     tuple(sorted(frozen, key=canonical))})
     if isinstance(o, (bytes, bytearray)):
         # AUDIT FIX (round 19): decoding erased the type, so b'abc' and 'abc'
         # digested identically. The tag keeps them distinct.
-        return _Tag({_TAG_BYTES: o.decode("utf-8", "backslashreplace")})
+        # AUDIT FIX (round 21): `backslashreplace` is NON-INJECTIVE — b'\xff'
+        # (one invalid byte) decodes to the 4-char string "\\xff", IDENTICAL to
+        # the decoding of b'\\xff' (four ASCII bytes). Two distinct payloads
+        # therefore shared a digest. hex() is injective and type-tagged.
+        return _Tag({_TAG_BYTES: o.hex()})
     return o
 
 
