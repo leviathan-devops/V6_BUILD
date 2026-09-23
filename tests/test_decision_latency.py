@@ -3,7 +3,7 @@ from pathlib import Path
 from circuit import Circuit
 from state_constructor import parse_bars
 
-FIX = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD/shared/fixtures/bars_anchored.json")
+FIX = Path(__file__).resolve().parent.parent / "shared/fixtures/bars_anchored.json"
 ANCHOR = 1783317600000
 raw = json.loads(FIX.read_text())
 feeds = {}

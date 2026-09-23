@@ -140,3 +140,28 @@ behaviour CHANGES, so an improvement or a regression is deliberate.
 
 ---
 _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-23._
+
+## CONTAINER ISOLATION — DONE (the last actionable gap)
+`.trident/ct-results.json` — 16/16 PASS (3 adversarial FIRST, 13 happy LAST),
+image `python:3.12-slim`, container `omp-ct`, **python 3.12.14 with `pip` as the
+ONLY installed package** — a genuine stdlib-only environment.
+
+THE FOUR DEFECTS THE HOST WAS HIDING (this is why the container test exists):
+1. **16 of the 31 tests embedded the absolute host build path.** They passed on
+   the host and died in the container with FileNotFoundError for a fixture that
+   exists at a path the container does not have. All 16 now derive the root from
+   `Path(__file__).resolve().parent.parent`.
+2. **`forensic/classify_38.py` required the PLUTUS tree** (the forensic doc, the
+   SL/MAE table, the outcome audit). It now resolves PLUTUS-first and falls back
+   to a flat `sources/` beside the module, matched by basename.
+3. **`test_determinism_sha_match` asserted the PRE-round-8 volatile contract.**
+   Round 8 deliberately changed it (a top-level key is a STAGE NAME the caller
+   chose, so it is hashed; only NESTED volatile keys are stripped). The test was
+   stale and was corrected to the current contract.
+4. **`test_walkforward_unseen_week` needs `bars_raw.json`** (the WIDE harvest)
+   as well as `bars_anchored.json` — the wide file is what proves the temporal
+   law bites on real data.
+
+THE EXCLUSION, STATED: six tests are excluded BY NAME because they call the LIVE
+host services (the Decider on :8008, Limite on :8100) and are not hermetic by
+construction. The exclusion is recorded in the artifact, not hidden.

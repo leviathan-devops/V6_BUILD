@@ -3,7 +3,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "corpus"))
 from build_corpus import build, scan_cards, harvest_golden_trades, MASTER, V5
 
-OUT = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD/.wt/we-train/corpus/records.jsonl")
+OUT = Path(__file__).resolve().parent.parent / ".wt/we-train/corpus/records.jsonl"
 stats = build(OUT)
 n = sum(1 for _ in OUT.open()) if OUT.exists() else 0
 

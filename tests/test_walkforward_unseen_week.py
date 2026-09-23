@@ -28,7 +28,7 @@ from circuit import Circuit
 from state_constructor import parse_bars, session_label
 from oms import commission_sensitivity, TradeDecision
 
-B = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD")
+B = Path(__file__).resolve().parent.parent
 RAW = json.loads((B/"shared/fixtures/bars_raw.json").read_text())
 PIP = {"EUR/USD": 0.0001, "GBP/USD": 0.0001, "DXY": 0.01}
 

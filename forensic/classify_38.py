@@ -36,9 +36,30 @@ from dataclasses import dataclass
 # a FileNotFoundError from deep inside a parser.
 PLUTUS = Path(os.environ.get(
     "PLUTUS_HOME", "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS"))
-FORENSIC = PLUTUS / "MASTER_CONTEXT/FORENSIC_ANALYSIS_38_TRADES.md"
-SLDOC = PLUTUS / "ARCHIVE/agent/Visual_Evals/v4.5.1/SL_vs_ENTRY_ANALYSIS.md"
-OUTCOME = PLUTUS / "ARCHIVE/agent/Visual_Evals/v4.5.1/OUTCOME_AUDIT.md"
+# PORTABILITY: the three sources are looked up in the PLUTUS tree first, then in
+# a `sources/` directory beside this module — so the classifier runs in a
+# container where only the circuit plus the three documents were copied.
+_HERE = Path(__file__).resolve().parent
+_LOCAL = _HERE.parent / "sources"
+
+
+def _source(rel: str) -> Path:
+    """Resolve a source document.
+
+    PLUTUS-relative first (the real tree), then a FLAT `sources/` beside this
+    module by BASENAME — a container copy does not reproduce the tree's nested
+    directories, so `sources/MASTER_CONTEXT/FORENSIC...md` will not exist while
+    `sources/FORENSIC...md` will.
+    """
+    for cand in (PLUTUS / rel, _LOCAL / rel, _LOCAL / Path(rel).name):
+        if cand.exists():
+            return cand
+    return PLUTUS / rel          # report the PLUTUS path in the error
+
+
+FORENSIC = _source("MASTER_CONTEXT/FORENSIC_ANALYSIS_38_TRADES.md")
+SLDOC = _source("ARCHIVE/agent/Visual_Evals/v4.5.1/SL_vs_ENTRY_ANALYSIS.md")
+OUTCOME = _source("ARCHIVE/agent/Visual_Evals/v4.5.1/OUTCOME_AUDIT.md")
 
 LAW_RE = re.compile(r"^###\s+(LAW\s+\d+):\s*(.+?)\s*$", re.M)
 ROW_RE = re.compile(

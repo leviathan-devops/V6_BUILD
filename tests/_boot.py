@@ -1,3 +1,4 @@
+from pathlib import Path
 """tests/_boot.py — path bootstrap for the integrated V6 tree."""
 import sys, pathlib
 WT = pathlib.Path(__file__).resolve().parent.parent

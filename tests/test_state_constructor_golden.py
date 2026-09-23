@@ -5,7 +5,7 @@ from state_constructor import (parse_bars, render_state, atr, swing_levels,
                                count_tokens, assert_state_fits, STATE_DELIM)
 
 ANCHOR = 1783317600000   # the harness canon (2026-07-06T06:00:00Z)
-FIXD = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD/shared/fixtures")
+FIXD = Path(__file__).resolve().parent.parent / "shared/fixtures"
 
 # THE ANCHORED FIXTURE: every bar <= the anchor. This file is the canonical
 # one; bars_raw.json is the WIDE harvest (it spans days past the anchor).

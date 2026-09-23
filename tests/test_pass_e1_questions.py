@@ -1,5 +1,6 @@
+from pathlib import Path
 import _boot, sys, json
-sys.path.insert(0, "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD/.wt/wa-decider/decider")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "decider"))
 from question_templates import ALL_QUESTIONS, CALLS, E1, E2, E3, PVE, expected_level
 from decider_client import Decider, choice, noul, score
 

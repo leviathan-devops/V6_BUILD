@@ -1,5 +1,6 @@
+from pathlib import Path
 import _boot, sys, random
-sys.path.insert(0, "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD/.wt/wf-det/determinism")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "determinism"))
 from determinism import RunDigest, digest, compare, canonical, assert_deterministic, VOLATILE
 
 # a representative multi-stage run
@@ -23,9 +24,20 @@ ok1 = r_same["match"] and a.sha == b.sha
 c = RunDigest(stage_run(43))
 ok2 = c.sha != a.sha
 
-# 3) volatile fields must NOT change the digest
-d = RunDigest({**stage_run(42), "ts_wall": 1234567, "duration_ms": 999})
-ok3 = d.sha == a.sha
+# 3) AUDIT ROUND 8 CHANGED THIS CONTRACT, DELIBERATELY.
+# The old behaviour stripped VOLATILE keys at the TOP level too, so a caller
+# could add `ts_wall` without changing the digest. The audit found that a STAGE
+# named `ts`/`timing` was then silently dropped from the hash — a real decision
+# field, unhashed. Volatile filtering now happens INSIDE payloads only
+# (canonical), and a TOP-LEVEL key is a STAGE NAME the caller chose, so it IS
+# hashed. The test asserts the NEW contract: adding a top-level key CHANGES the
+# digest, and a volatile key NESTED inside a stage does not.
+d = RunDigest({**stage_run(42), "ts_wall": 1234567})
+ok3_top = d.sha != a.sha                      # a top-level key is hashed now
+nested_a = RunDigest({"s": {"decided": 1, "duration_ms": 5}})
+nested_b = RunDigest({"s": {"decided": 1, "duration_ms": 999}})
+ok3_nested = nested_a.sha == nested_b.sha     # a nested volatile key is not
+ok3 = ok3_top and ok3_nested
 
 # 4) a divergence NAMES the stage
 e = RunDigest({**stage_run(42), "decision": {"accepted": False, "direction": "short", "rrr": 1.0}})
@@ -41,7 +53,8 @@ print(f"[TOKEN] test_determinism_sha_match" if ok else "[TOKEN-ABSENT] test_dete
 print(f"[DETAIL] run1 sha={a.sha}")
 print(f"[DETAIL] run2 sha={b.sha}  match={r_same['match']} (pass={ok1})")
 print(f"[DETAIL] different seed sha={c.sha} differs={ok2}")
-print(f"[DETAIL] volatile fields excluded={ok3} (sha unchanged with ts_wall/duration_ms added)")
+print(f"[DETAIL] top-level keys ARE hashed (round-8 contract) = {ok3_top}; "
+      f"nested volatile keys excluded = {ok3_nested}")
 print(f"[DETAIL] divergence names the stage={ok4} stages={list(r_div['divergent_stages'])}")
 print(f"[DETAIL] assert_deterministic(pure fn) match={ok5}")
 print(f"RESULT: {'PASS' if ok else 'FAIL'} test_determinism_sha_match")

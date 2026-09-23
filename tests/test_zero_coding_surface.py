@@ -3,7 +3,7 @@ from pathlib import Path
 from coding_surface import (scan_tree, scan_text, EXEC_FORBIDDEN, WRITE_FORBIDDEN,
                             WRITE_ALLOWED_PATHS, is_write_allowed)
 
-R = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD")
+R = Path(__file__).resolve().parent.parent
 
 # ---- 1. THE AGENT TREE: no code execution, no undeclared writes -------------
 # The agent's own modules (the circuit's runtime surface).

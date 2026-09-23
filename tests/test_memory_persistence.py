@@ -1,5 +1,6 @@
+from pathlib import Path
 import _boot, sys, tempfile, os, pathlib
-sys.path.insert(0, "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD/.wt/wf-det/memory")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "memory"))
 from memory_store import MemoryStore, Row
 
 tmp = tempfile.mkdtemp()

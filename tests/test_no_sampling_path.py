@@ -1,9 +1,9 @@
 import _boot, sys, re, json
 from pathlib import Path
-sys.path.insert(0, "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD/.wt/wf-det/determinism")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "determinism"))
 from determinism import digest
 
-R = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD")
+R = Path(__file__).resolve().parent.parent
 
 # THE LAW: no SAMPLING on the decision/math path.
 # A seeded weight INITIALISATION is not sampling — it is deterministic by

@@ -34,7 +34,7 @@ Exit 1 = the measured result CHANGED (either better or worse) and this record
 import _boot, sys, re, json
 from pathlib import Path
 
-B = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD")
+B = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(B / "limite"))
 from math_queries import code_truth
 

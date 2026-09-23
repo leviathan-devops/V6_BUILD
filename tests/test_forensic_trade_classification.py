@@ -4,9 +4,9 @@ from pathlib import Path
 # THE 38 FORENSIC TRADES + the 7 universal laws (the pin's STOP condition 2).
 # Source: MASTER_CONTEXT/FORENSIC_ANALYSIS_38_TRADES.md — the 7 laws, each
 # CONFIRMED ACROSS ALL 38 TRADES by VLM analysis.
-F = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/MASTER_CONTEXT/FORENSIC_ANALYSIS_38_TRADES.md")
+F = Path(__file__).resolve().parent.parent.parent / "MASTER_CONTEXT/FORENSIC_ANALYSIS_38_TRADES.md"
 if not F.exists():
-    F = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/agent/MASTER_CONTEXT/FORENSIC_ANALYSIS_38_TRADES.md")
+    F = Path(__file__).resolve().parent.parent.parent / "agent/MASTER_CONTEXT/FORENSIC_ANALYSIS_38_TRADES.md"
 text = F.read_text(errors="ignore")
 
 laws = re.findall(r"^###\s+(LAW\s+\d+):\s*(.+?)\s*$", text, re.M)
@@ -14,8 +14,8 @@ n_laws = len(laws)
 
 # the circuit must ingest each law as a named predicate and classify a trade
 # against it. We classify the canon Tier-A set: every one must be OBEYING.
-sys.path.insert(0, "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD/.wt/wb-limite/gates")
-sys.path.insert(0, "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD/.wt/wb-limite/limite")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "gates"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "limite"))
 from gates import TradeCandidate, evaluate
 
 TIER_A = [

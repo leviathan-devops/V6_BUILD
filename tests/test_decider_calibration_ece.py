@@ -1,6 +1,6 @@
 import _boot, sys, json, random
 from pathlib import Path
-B = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD")
+B = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(B/"decider"))
 from calibration import fit, ece, split, apply_T, nll
 from decider_client import Decider, choice

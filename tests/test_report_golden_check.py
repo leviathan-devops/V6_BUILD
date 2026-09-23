@@ -3,8 +3,8 @@ from pathlib import Path
 from report import ReportInput, render, run_id, section_count
 
 # Build a report from the REAL modules in this tree.
-sys.path.insert(0, "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD/.wt/wb-limite/gates")
-sys.path.insert(0, "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD/.wt/wb-limite/limite")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "gates"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "limite"))
 from gates import TradeCandidate, evaluate
 from math_queries import code_truth
 from oms import simulate, TradeDecision
