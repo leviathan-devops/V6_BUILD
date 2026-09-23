@@ -134,6 +134,13 @@ class Fill:
             raise ValueError(f"INVALID_COMMISSION: {self.commission_rate} (must be >= 0)")
         if self.direction not in ("long", "short"):
             raise ValueError(f"INVALID_DIRECTION: {self.direction!r}")
+        # AUDIT FIX (round 17 H6): the unknown-pair check stayed LAZY (it lived
+        # only in the `pip` property), so a bad pair constructed fine, entered a
+        # Portfolio, and failed much later during aggregation — the exact lazy
+        # failure mode this __post_init__ exists to close.
+        if self.pair not in PIP:
+            raise ValueError(f"UNKNOWN_PAIR: {self.pair!r} has no declared pip scale "
+                             f"(known: {sorted(PIP)})")
         # NOTE (round 14, my own correction): a first version ALSO checked that a
         # long's exit sat above its entry. That is WRONG — an SL hit is a
         # legitimate LOSS whose exit is below entry. The bracket invariant belongs
@@ -179,9 +186,37 @@ class Fill:
 
 @dataclass
 class TradeResult:
+    # AUDIT FIX (round 17 H8): nothing checked that `outcome` was one of
+    # ('tp','sl') nor that the fill's exit MATCHED the level that outcome names —
+    # so `outcome='tp'` beside a fill that exited at the STOP was accepted and
+    # corrupted the aggregate. The label must agree with the numbers.
     decision: TradeDecision
     fill: Fill
     outcome: str            # "tp" | "sl"
+
+    def __post_init__(self):
+        """THE LABEL MUST AGREE WITH THE NUMBERS (audit round 17 H8).
+
+        `simulate` derives the exit from the outcome (`d.tp if outcome == "tp"
+        else d.sl`), but nothing ENFORCED that a manually built TradeResult obeys
+        the same rule — so `outcome="tp"` beside a fill that exited at the STOP
+        was accepted, and the aggregate reported a winner that lost. The invariant
+        is checked here, where the pair (decision, fill, outcome) first exists.
+        """
+        if self.outcome not in ("tp", "sl"):
+            raise ValueError(f"INVALID_OUTCOME: {self.outcome!r} (want 'tp'|'sl')")
+        if self.fill.pair != self.decision.pair:
+            raise ValueError(f"OUTCOME_PAIR_MISMATCH: fill {self.fill.pair!r} vs "
+                             f"decision {self.decision.pair!r}")
+        if self.fill.direction != self.decision.direction:
+            raise ValueError(f"OUTCOME_DIRECTION_MISMATCH: fill "
+                             f"{self.fill.direction!r} vs decision "
+                             f"{self.decision.direction!r}")
+        want = self.decision.tp if self.outcome == "tp" else self.decision.sl
+        if abs(self.fill.exit - want) > 1e-9:
+            raise ValueError(
+                f"OUTCOME_EXIT_MISMATCH: outcome {self.outcome!r} names {want}, "
+                f"but the fill exited at {self.fill.exit}")
 
     @property
     def gross_pips(self) -> float: return self.fill.gross_pips
@@ -197,6 +232,22 @@ class TradeResult:
 class Portfolio:
     starting_equity: float = 100_000.0
     trades: list[TradeResult] = field(default_factory=list)
+
+    def __post_init__(self):
+        """AUDIT FIX (round 17 H7): starting_equity was the ONE numeric input with
+        no validation — and it is the WORST place to skip one. A NaN start made
+        `if peak > 0` false, so `max_drawdown` returned 0.0 on a POISONED book:
+        the report said "no drawdown" on outright ruin. A non-positive start is
+        refused by name.
+        """
+        e = self.starting_equity
+        if isinstance(e, bool) or not isinstance(e, (int, float)) \
+                or e != e or abs(e) == float("inf"):
+            raise ValueError(f"INVALID_STARTING_EQUITY: non-finite {e!r}")
+        if e <= 0:
+            raise ValueError(
+                f"INVALID_STARTING_EQUITY: {e} must be positive (a non-positive "
+                f"book cannot express a drawdown)")
 
     @property
     def net_pips_total(self) -> float:

@@ -213,7 +213,10 @@ def main() -> int:
         # `in` raised TypeError for a non-str token or a None/list context — a
         # malformed capture must REFUSE, never crash the validator.
         _tok, _ctx = r.get("passToken"), r.get("toolResultContext")
-        if not isinstance(_tok, str) or not isinstance(_ctx, str):
+        # AUDIT FIX (round 17 H1): `"" in ctx` is ALWAYS True, so a fabricated
+        # PASS with an empty passToken cleared the evidence check. Non-empty is
+        # required — an empty token is not evidence of anything.
+        if not isinstance(_tok, str) or not _tok.strip() or not isinstance(_ctx, str):
             print(f"CT_CAPTURE_MALFORMED: {r.get('id')} has a non-string "
                   f"passToken/toolResultContext")
             return 2

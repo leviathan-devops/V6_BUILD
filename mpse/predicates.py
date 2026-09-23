@@ -49,6 +49,11 @@ REQUIRED_KEYS = ("pair", "direction", "entry", "sl", "tp", "rrr",
 
 
 def _missing(c: dict) -> list:
+    # AUDIT FIX (round 17 H2): `k not in c` raises TypeError when c is None/int/
+    # float, so trust() and every at_* predicate RAISED instead of returning the
+    # documented INCONCLUSIVE. The module's contract is fail-closed.
+    if not isinstance(c, dict):
+        return list(REQUIRED_KEYS)
     """Fields that are ABSENT **or** not usable numbers.
 
     AUDIT FIX (round 10): the first version checked only KEY PRESENCE, so a
@@ -275,6 +280,11 @@ def geometry_witness(c) -> bool:
 
     AUDIT FIX: an invalid direction was silently treated as short. Validate.
     """
+    # AUDIT FIX (round 17 H3): the isinstance guard must come FIRST — `c.get()`
+    # on a None/list/str raised AttributeError before any check could run, so the
+    # witness crashed instead of returning the fail-closed False it promises.
+    if not isinstance(c, dict):
+        return False
     d = c.get("direction")
     if d not in ("long", "short"):
         return False
@@ -282,6 +292,11 @@ def geometry_witness(c) -> bool:
     # DIRECT call (not via _guard) raised KeyError/TypeError instead of returning
     # the fail-closed False the module's contract promises. `pair` also needs a
     # hashable check before `not in PIP`.
+    # AUDIT FIX (round 17 H3): `c.get('direction')` ran BEFORE the guard, so a
+    # direct call with None/list/str raised AttributeError instead of the
+    # fail-closed False this witness promises.
+    if not isinstance(c, dict):
+        return False
     try:
         e, sl, tp = c["entry"], c["sl"], c["tp"]
     except (KeyError, TypeError):

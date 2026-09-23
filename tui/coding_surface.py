@@ -395,12 +395,23 @@ def scan_write_suspects(src: str) -> list:
 
 
 def scan_text(text: str) -> list:
-    """Scan a string with the FULL lexicon (used by the negative control)."""
+    """Scan a string with the FULL lexicon (used by the negative control).
+
+    AUDIT FIX (round 17 H4): the docstring said FULL but it scanned only
+    EXEC_FORBIDDEN + WRITE_FORBIDDEN — omitting the WRITE_SUSPECT tier that
+    scan_tree reports — and it returned no `confidence`, so a caller could not
+    tell an EXACT violation from a SUSPECT. Both are now carried, so the
+    negative control covers what the tree audit covers.
+    """
     out = []
     for lexicon in (EXEC_FORBIDDEN, WRITE_FORBIDDEN):
         for name, pat in lexicon.items():
             for m in re.finditer(pat, text):
-                out.append({"capability": name, "text": m.group(0)})
+                out.append({"capability": name, "text": m.group(0),
+                            "confidence": "suspect" if name.endswith("-any-receiver")
+                            else "exact"})
+    for name, m in scan_write_suspects(text):
+        out.append({"capability": name, "text": m.group(0), "confidence": "suspect"})
     return out
 
 

@@ -156,7 +156,15 @@ def card_records(cards: list[Record]) -> list[Record]:
             id=r.id + "-kind", source=r.source, quote=r.quote,
             state=f"DOCTRINE CARD: {r.quote}\nSOURCE {r.source}",
             question="What kind of doctrine card is this?",
-            options=["mechanism", "ruling", "forensic", "golden"],
+            # AUDIT FIX (round 17 H9): the option order was FIXED while the answer
+            # distribution is heavily skewed (583 mechanisms vs 38 rulings), so
+            # "mechanism" sat at index 0 for the overwhelming majority — the
+            # constant-index positional shortcut already fixed for golden/cascade
+            # with `_rotate`, reintroduced here. The order now rotates.
+            # `len(out) // 2` — the loop appends TWO records per card (the card, then
+            # this KIND record), so a raw `len(out)` is always ODD and the rotation
+            # only ever reached indices 1 and 3. Halving it covers all four.
+            options=_rotate(["mechanism", "ruling", "forensic", "golden"], len(out) // 2),
             # AUDIT FIX: the answer is the card's OWN kind, not a path guess.
             # The old form derived it from "/rulings/" in the source path, so a
             # forensic or golden card outside rulings/ was taught as "mechanism"
@@ -324,8 +332,17 @@ def _negative_variant(r, opts):
     #         documented row spells it `a/b/c RRR`, so the RRR is the number
     #         AFTER the three-price group — never the last number in the line.
     if "above the operator floor" in q:
+        # AUDIT FIX (round 17 H11): only the TRIPLE form (`a/b/c RRR`) was
+        # rewritten, but harvest_gap_analysis also accepts the RRR-beside-label
+        # form (`... RRR 4.5`). Those rows hit `ns == state` and SKIPPED, so they
+        # kept yes-only supervision. Both spellings are handled; the label form is
+        # tried when the triple form does not match.
         ns = re.sub(r"(\d+\.\d+/\d+\.\d+/\d+\.\d+\s+)([\d.]+)",
                     r"\g<1>2.0", r.state)
+        if ns == r.state:
+            ns = re.sub(r"(\bRRR\b[^\d]{0,6})([\d.]+)", r"\g<1>2.0", ns)
+        if ns == r.state:
+            ns = re.sub(r"([\d.]+)([^\d]{0,6}\bRRR\b)", r"2.0\g<2>", ns)
         if ns == r.state:
             return None
         # AUDIT FIX (round 13): the corruption was never VERIFIED to have hit the
@@ -379,15 +396,20 @@ def _negative_variant(r, opts):
                            r"must not exceed|never (?:more|above)|fewer than|"
                            r"within)\b",
                            r.quote, re.I)
+        # AUDIT FIX (round 17 H10): `.replace(_tok, ..., 1)` rewrites the FIRST
+        # substring match, which is NOT the match the regex found — with _tok
+        # "10" inside "100" it corrupted the wrong number. The splice uses the
+        # regex's own span, so the token the check validated is the token changed.
+        _s, _e = _thresh.span(1) if _thresh.group(1) else _thresh.span(2)
         if _upper and not _lower:
             # raise the value above an upper bound: multiply it out of range
             try:
                 _raised = str(float(_tok) * 10 + 1)
             except ValueError:
                 return None
-            broken = r.quote.replace(_tok, _raised, 1)
+            broken = r.quote[:_s] + _raised + r.quote[_e:]
         elif _lower:
-            broken = r.quote.replace(_tok, "0", 1)
+            broken = r.quote[:_s] + "0" + r.quote[_e:]
         else:
             return None                  # no stated bound -> no verified negative
         ns = r.state.replace(r.quote, broken)
