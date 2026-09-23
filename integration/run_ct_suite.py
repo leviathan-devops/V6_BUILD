@@ -208,6 +208,17 @@ def main() -> int:
         print(f"CT_EXCLUSION_TAMPERED: the capture claims {sorted(claimed)} but the "
               f"local authority is {sorted(EXCLUDED)} — refusing")
         return 2
+    # AUDIT FIX (round 18): the evidence check was SELF-REFERENTIAL — a capture
+    # supplying any non-empty token that appears in its own context passed. The
+    # token must equal the LOCAL authority's expectation for that scenario.
+    _expected = {sid: tok for sid, _n, _c, tok, _f in ADV}
+    _expected.update({sid: f"RESULT: PASS {test}" for sid, _n, test in HAPPY})
+    for r in results:
+        _want = _expected.get(r["id"])
+        if _want is not None and r.get("passToken") != _want:
+            print(f"CT_EVIDENCE_SUBSTITUTED: {r['id']} claims passToken "
+                  f"{r.get('passToken')!r}; the local authority is {_want!r}")
+            return 2
     for r in results:
         # AUDIT FIX (round 14): `r["passToken"]` raised KeyError when missing and
         # `in` raised TypeError for a non-str token or a None/list context — a

@@ -349,7 +349,14 @@ def _negative_variant(r, opts):
         # RRR. If the row spells it elsewhere (`RRR 4.5`) the incidental number
         # was zeroed while the RRR stayed above the floor — a false refusal. The
         # result is parsed back, exactly as branch (1) does.
+        # AUDIT FIX (round 18): the corruption handles BOTH spellings but the
+        # verification parsed only the triple form, so a label-form row
+        # (`... RRR 4.5`) verified as None and SKIPPED — those rows kept yes-only
+        # supervision. The verification now parses whichever spelling is present.
         m2 = re.search(r"\d+\.\d+/\d+\.\d+/\d+\.\d+\s+([\d.]+)", ns)
+        if not m2:
+            m2 = re.search(r"\bRRR\b[^\d]{0,6}([\d.]+)", ns) or \
+                 re.search(r"([\d.]+)[^\d]{0,6}\bRRR\b", ns)
         try:
             shown = float(m2.group(1)) if m2 else None
         except ValueError:
@@ -441,7 +448,13 @@ def _negative_variant(r, opts):
         _btok = _bm.group(1) or _bm.group(2)
         if _btok is None:
             return None
-        nbody = body.replace(_btok, "0", 1)
+        # AUDIT FIX (round 18): `.replace(_btok, "0", 1)` hits the FIRST substring
+        # occurrence, not the bound-word span `_bm` validated — with _btok "10"
+        # inside "100" it corrupted the wrong number and left the bound intact.
+        # The SAME class was fixed in the VERIFY branch (H10); this is its
+        # sibling site.
+        _bs, _be = _bm.span(1) if _bm.group(1) else _bm.span(2)
+        nbody = body[:_bs] + "0" + body[_be:]
         if nbody == body:
             return None
         return f"{head}\n{nbody}", nbody, "no"

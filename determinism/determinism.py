@@ -62,13 +62,13 @@ def canonical(obj) -> str:
         if isinstance(o, float):
             # AUDIT FIX (round 17 H5): `round(o, 10)` mapped values differing by
             # less than 1e-10 to the SAME canonical form, so real nondeterminism
-            # could digest as a MATCH — a false-negative in a gate whose entire
-            # purpose is detecting divergence. The EXACT value is hashed via its
-            # repr (which round-trips a float losslessly and is stable across
-            # runs for the same computation). The pinned law is byte-identical
-            # output on the same decision; rounding was a tolerance the law does
-            # not grant.
-            return repr(o)
+            # could digest as a MATCH. The EXACT value is hashed instead — but it
+            # must be TAGGED: a bare `repr(1.0)` is the string "1.0", which
+            # json.dumps renders identically to the STRING "1.0", so a stage
+            # flipping between float and str would still digest the same (my own
+            # round-17 regression, caught in round 18). The `f:` prefix makes the
+            # type part of the digest.
+            return "f:" + repr(o)
         if o is None or isinstance(o, (str, int, bool)):
             return o
         # anything else would reach json.dumps unfreezable

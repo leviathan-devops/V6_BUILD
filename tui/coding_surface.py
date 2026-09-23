@@ -233,9 +233,12 @@ _WRITE_NAMES = [
      + "|" + _f(_PRE, "mk", "stemp", _WS, "[(]")
      + "|" + _f(_PRE, "mk", "dtemp", _WS, "[(]")),
     (_f("tempfile", "-creators"),
-     _f("[.]", "Temporary", "File", _WS, "[(]")
-     + "|" + _f("[.]mk", "stemp", _WS, "[(]")
-     + "|" + _f("[.]mk", "dtemp", _WS, "[(]")),
+     # AUDIT FIX (round 18): a literal `[.]` required an ADJACENT dot, so a dotted
+     # creator written with legal whitespace evaded the scan. Every other dotted
+     # rule had migrated to _DOT; this one had not.
+     _f("tempfile", _DOT, "Temporary", "File", _WS, "[(]")
+     + "|" + _f("tempfile", _DOT, "mk", "stemp", _WS, "[(]")
+     + "|" + _f("tempfile", _DOT, "mk", "dtemp", _WS, "[(]")),
     # AUDIT FIX (round 13): the generic bare-form expansion derives a method name
     # by splitting on the dot, which cannot work for these hyphenated
     # multi-method entries — so `from os import mkdir; mkdir(p)` evaded the whole
@@ -257,6 +260,24 @@ _WRITE_NAMES = [
      + "|" + _bare(_f("re", "place"))
      + "|" + _bare(_f("sym", "link"))
      + "|" + _bare(_f("trun", "cate"))),
+    # AUDIT FIX (round 18): `rmdir`/`removedirs`/`renames` (and `Path.rmdir`)
+    # evaded the WHOLE lexicon — the remove/rename rules require `[(]` straight
+    # after the stem with no suffix wildcard. A deletion is a write.
+    (_f("os.", "fs-removers"),
+     "|".join(_f("os", _DOT, *frags, _WS, "[(]") for frags in (
+         ("rm", "dir"), ("rm", "dirs"), ("remove", "dirs"), ("re", "names"),
+         ("re", "move")))),
+    (_f("Path.", "rmdir"),
+     _f(_DOT, "rm", "dir", _WS, "[(]")),
+    # the ALIASED route for the removers: a from-import (`from os import
+    # removedirs`) or an aliased module (`import os as o; o.renames(..)`) has no
+    # literal `os` at the call site, so it needs the bare + any-receiver forms.
+    (_f("os.", "fs-removers-bare"),
+     "|".join(_bare(_f(*fr)) for fr in (
+         ("rm", "dir"), ("rm", "dirs"), ("remove", "dirs"), ("re", "names")))),
+    (_f("os.", "fs-removers-any-receiver"),
+     "|".join(_f(_ALIAS, *fr, _WS, "[(]") for fr in (
+         ("rm", "dir"), ("rm", "dirs"), ("remove", "dirs"), ("re", "names")))),
     (_f("os.", "fs-creators"),
      _f("os", _DOT, "mk", "dir", _WS, "[(]")
      + "|" + _f("os", _DOT, "make", "dirs", _WS, "[(]")
@@ -356,9 +377,12 @@ def scan_tree(root: str, include_tests: bool = True) -> list:
         try:
             src = f.read_text(errors="ignore")
         except (OSError, UnicodeError) as e:
+            # AUDIT FIX (round 18): this record omitted `confidence` while every
+            # other finding carries it, so a consumer filtering on confidence
+            # crashed on exactly the error path that should be most robust.
             violations.append({"file": rel, "line": 0, "capability": "UNREADABLE",
                                "text": f"{type(e).__name__}: {e}", "kind": "scan",
-                               "in_test": is_test})
+                               "in_test": is_test, "confidence": "exact"})
             continue
         violations += _scan(f, root_p, src, EXEC_FORBIDDEN, "exec")
         # AUDIT FIX (round 7): a file matching TEST_PATH_RE skipped the WRITE

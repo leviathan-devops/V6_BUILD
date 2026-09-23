@@ -217,7 +217,11 @@ def _session_hhmm(s: str):
     m = re.search(r"(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(Z|[+-]\d{2}:?\d{2})?\s*$",
                   s.strip())
     if not m:
-        m = re.search(r"(\d{1,2}):(\d{2})(?::(\d{2}))?", s)
+        # AUDIT FIX (round 18): the unanchored fallback has only THREE groups, so
+        # `off` was forced to None and an offset stamp with trailing text was
+        # adjudicated as wall-clock — the exact defect the anchored form fixes.
+        # The fallback now captures the offset too.
+        m = re.search(r"(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(Z|[+-]\d{2}:?\d{2})?", s)
         if not m:
             return None
     h, mi = int(m.group(1)), int(m.group(2))
