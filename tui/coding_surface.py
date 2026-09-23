@@ -167,10 +167,18 @@ _EXEC_NAMES = _ALIASED + [
     # so `os . system(...)` evaded it while the neighbouring rules used _DOT.
     (_f("os.", "sy", "s", "tem"), _f("os", _DOT, "sy", "s", "tem", _WS, "[(]") + "|"
                                  + _bare(_f("sy", "s", "tem"))),
+    # AUDIT FIX (round 20, CRITICAL): the bare forms enumerated only SIX os.exec
+    # variants while the dotted form used `[0-9A-Za-z_]*`. Python's os module
+    # also ships execlpe/execvpe, so those evaded BOTH tiers. The bare form now
+    # matches the same wildcard the dotted form does.
+    # AUDIT FIX (round 20): the DOTTED form may use a wildcard (it requires the
+    # `os.` prefix), but the BARE form must not — `exec[a-z]*(` matched
+    # `execute(`, a false positive on ordinary code. The real variants are
+    # exec{l,v}{p,e}? — that is the suffix, and it covers all eight.
     (_f("os.", "ex", "ec"),      _f("os", _DOT, "ex", "ec", "[0-9A-Za-z_]*", _WS, "[(]") + "|"
-                                 + "|".join(_bare(_f("ex", "ec") + v)
-                                            for v in ("l", "v", "lp", "vp", "le", "ve"))),
+                                 + _f(_PRE, "ex", "ec", "[lv][pe]{0,2}", _WS, "[(]")),
     (_f("os.", "spa", "wn"),     _f("os", _DOT, "spa", "wn", "[0-9A-Za-z_]*", _WS, "[(]") + "|"
+                                 + _f(_PRE, "spa", "wn", "[lv][pe]{0,2}", _WS, "[(]") + "|"
                                  + "|".join(_bare(_f("spa", "wn") + v)
                                             for v in ("", "l", "v", "lp", "vp"))),
     (_f("po", "pen"),            _f("[Pp]", "open", _WS, "[(]")),
@@ -361,6 +369,11 @@ def scan_tree(root: str, include_tests: bool = True) -> list:
     """Every code-execution violation in the tree (never exempted), plus write
     violations outside the declared artifact paths."""
     root_p = Path(root)
+    # AUDIT FIX (round 20): `rglob` on a NON-EXISTENT path yields empty with no
+    # exception, and `[]` is this module's PASS — so a typo in the root silently
+    # "proved" zero capability. A missing root is a refusal, never a clean scan.
+    if not root_p.is_dir():
+        raise ValueError(f"SCAN_ROOT_INVALID: {root!r} is not a directory")
     violations = []
     for f in sorted(root_p.rglob("*.py")):
         if any(part in (".git", ".venv", "__pycache__", "node_modules")

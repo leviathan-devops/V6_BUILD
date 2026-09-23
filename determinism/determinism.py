@@ -37,6 +37,10 @@ def canonical(obj) -> str:
     TypeError, so digest() crashed while RunDigest (which freezes first)
     succeeded — the two entry points disagreed. Everything is frozen first.
     """
+    # AUDIT FIX (round 20): the reserved-key check runs on the RAW input, BEFORE
+    # `_freeze` inserts its own tags — otherwise strip() rejects the digest's own
+    # tag structures (which is exactly what happened on the first attempt).
+    _check_reserved(obj)
     obj = _freeze(obj)
 
     def strip(o, depth=0):
@@ -75,7 +79,7 @@ def canonical(obj) -> str:
             # flipping between float and str would still digest the same (my own
             # round-17 regression, caught in round 18). The `f:` prefix makes the
             # type part of the digest.
-            return "f:" + repr(o)
+            return _Tag({_TAG_FLOAT: repr(o)})
         if o is None or isinstance(o, (str, int, bool)):
             return o
         # anything else would reach json.dumps unfreezable
@@ -135,6 +139,28 @@ def digest(stages: dict) -> str:
     return h.hexdigest()
 
 
+# THE TYPE TAGS. AUDIT FIX (round 20): a STRING prefix (`"f:" + repr(o)`) is
+# forgeable — a payload holding the literal string "f:1.0" digested identically
+# to the float 1.0, so the tag merely moved the collision. The tags are now
+# RESERVED KEYS, and `strip` REFUSES any input dict that carries one, so a
+# payload cannot forge a tag at all (loud fail, not a silent merge).
+_TAG_FLOAT = "__py_float__"
+_TAG_BYTES = "__py_bytes__"
+_TAG_SEQ = {"list": "__py_list__", "tuple": "__py_tuple__",
+            "set": "__py_set__", "frozenset": "__py_frozenset__"}
+_TAGS = frozenset({_TAG_FLOAT, _TAG_BYTES, *_TAG_SEQ.values()})
+
+
+class _Tag(dict):
+    """A TYPE TAG produced by `_freeze` — deliberately a DISTINCT TYPE, not a
+    plain dict. `_check_reserved` refuses a payload carrying a tag key, but it
+    must not refuse the digest's OWN tag structures, and a `_Tag` is how the two
+    are told apart. `_freeze` also returns a `_Tag` unchanged, so freezing a
+    already-frozen payload is idempotent (the double-freeze bug that broke
+    test_determinism_sha_match on the first attempt at this fix).
+    """
+
+
 class _FrozenDict(dict):
     """A dict that refuses mutation after construction."""
 
@@ -148,9 +174,33 @@ class _FrozenDict(dict):
     __ior__ = _no
 
 
+def _check_reserved(o) -> None:
+    """A payload may not carry a RESERVED TAG KEY.
+
+    The tags are what make a float/bytes/list distinguishable from a string in
+    the digest; if a payload could carry one, it could forge the tag and merge
+    two different decisions. A collision is a LOUD refusal, never a silent merge.
+    """
+    if isinstance(o, _Tag):
+        return                       # the digest's own tag — not a forgery
+    if isinstance(o, dict):
+        forged = _TAGS.intersection(str(k) for k in o)
+        if forged:
+            raise ValueError(
+                f"CANONICAL_RESERVED_KEY: the payload carries {sorted(forged)} — "
+                f"those keys are reserved for the digest's type tags")
+        for v in o.values():
+            _check_reserved(v)
+    elif isinstance(o, (list, tuple, set, frozenset)):
+        for v in o:
+            _check_reserved(v)
+
+
 def _freeze(o):
     # AUDIT FIX: tuples were not recursed (a dict inside a tuple stayed mutable)
     # and sets passed through (mutable AND unserializable by canonical()).
+    if isinstance(o, _Tag):
+        return o                     # already frozen — idempotent
     if isinstance(o, dict):
         return _FrozenDict({k: _freeze(v) for k, v in o.items()})
     if isinstance(o, (list, tuple)):
@@ -158,7 +208,7 @@ def _freeze(o):
         # rendered as the same JSON array, so a stage flipping container TYPE
         # digested identically — the same class as the float/str collision fixed
         # in round 18. The type is now part of the frozen value.
-        return ("__" + type(o).__name__ + "__", tuple(_freeze(x) for x in o))
+        return _Tag({_TAG_SEQ[type(o).__name__]: tuple(_freeze(x) for x in o)})
     if isinstance(o, (set, frozenset)):
         # AUDIT FIX (round 6): sorted() on heterogeneous members ({1,'a'}) or on
         # dicts/lists raised TypeError. Sort by the CANONICAL RENDERING instead.
@@ -172,7 +222,7 @@ def _freeze(o):
     if isinstance(o, (bytes, bytearray)):
         # AUDIT FIX (round 19): decoding erased the type, so b'abc' and 'abc'
         # digested identically. The tag keeps them distinct.
-        return "__bytes__" + o.decode("utf-8", "backslashreplace")
+        return _Tag({_TAG_BYTES: o.decode("utf-8", "backslashreplace")})
     return o
 
 

@@ -234,6 +234,11 @@ def _session_hhmm(s: str):
         else:
             sign = -1 if off[0] == "-" else 1
             oh, om = int(off[1:3]), int(off[3:].lstrip(":") or 0)
+            # AUDIT FIX (round 20): an out-of-range offset (+99:99) was applied
+            # and the result WRAPPED by the modulo into a plausible-looking
+            # HH:MM — so a malformed stamp was adjudicated instead of refused.
+            if not (0 <= oh <= 14 and 0 <= om <= 59):
+                return None
             delta = sign * (oh * 60 + om)
         total = (h * 60 + mi) - delta
         total %= 1440

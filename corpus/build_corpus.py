@@ -454,7 +454,24 @@ def _negative_variant(r, opts):
         # The SAME class was fixed in the VERIFY branch (H10); this is its
         # sibling site.
         _bs, _be = _bm.span(1) if _bm.group(1) else _bm.span(2)
-        nbody = body[:_bs] + "0" + body[_be:]
+        # AUDIT FIX (round 20): this branch ALWAYS zeroed, so an upper-bound law
+        # ("max N", "within N") stayed SATISFIED while being labelled `no` — a
+        # false refusal. Branch (3) reads the bound direction; this sibling now
+        # does too.
+        _fl = re.search(r"\b(at least|minimum|min\b|>=|no fewer than|"
+                        r"must exceed|greater than)\b", body, re.I)
+        _fu = re.search(r"\b(at most|maximum|max\b|<=|no more than|"
+                        r"must not exceed|fewer than|within)\b", body, re.I)
+        if _fu and not _fl:
+            try:
+                _new = str(float(_btok) * 10 + 1)
+            except ValueError:
+                return None
+        elif _fl:
+            _new = "0"
+        else:
+            return None
+        nbody = body[:_bs] + _new + body[_be:]
         if nbody == body:
             return None
         return f"{head}\n{nbody}", nbody, "no"
