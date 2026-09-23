@@ -51,6 +51,42 @@ class TradeCandidate:
     recent_keys: list[str] = field(default_factory=list)
 
 
+import math
+
+VALID_DIRECTIONS = ("long", "short")
+
+
+def _finite(x) -> bool:
+    """A value is usable only if it is a real, finite number."""
+    try:
+        return math.isfinite(float(x))
+    except (TypeError, ValueError):
+        return False
+
+
+def _geometry_ok(t: TradeCandidate) -> tuple[bool, str]:
+    """Direction + price geometry must be coherent BEFORE any threshold gate.
+
+    DEFECT FIXED (audit 2026-09-23): `direction`, `entry`, `sl`, `tp` were
+    stored on the candidate but NO gate read them, so `evaluate()` returned
+    accepted=True for `direction="no_trade"`, for an inverted SL/TP, and for a
+    zero-width zone. This is the SIDE_INVERSION class the MPSE predicates
+    caught while the gates let it through.
+    """
+    if t.direction not in VALID_DIRECTIONS:
+        return False, f"direction {t.direction!r} is not one of {VALID_DIRECTIONS}"
+    for name, v in (("entry", t.entry), ("sl", t.sl), ("tp", t.tp)):
+        if not _finite(v):
+            return False, f"{name}={v!r} is not a finite price"
+    if t.direction == "long" and not (t.tp > t.entry > t.sl):
+        return False, f"long geometry violated: need tp > entry > sl, got {t.tp} {t.entry} {t.sl}"
+    if t.direction == "short" and not (t.sl > t.entry > t.tp):
+        return False, f"short geometry violated: need sl > entry > tp, got {t.sl} {t.entry} {t.tp}"
+    if len({t.entry, t.sl, t.tp}) != 3:
+        return False, f"collapsed levels: {t.entry} {t.sl} {t.tp}"
+    return True, "geometry coherent"
+
+
 def _ok(token: str, detail: str, gate: str) -> GateResult:
     return GateResult(True, token, detail, gate)
 
@@ -61,6 +97,10 @@ def _no(token: str, detail: str, gate: str) -> GateResult:
 
 def g_rrr(t: TradeCandidate) -> GateResult:
     """G-RRR: the risk-reward floor. The single most load-bearing gate."""
+    # FAIL-CLOSED (audit fix): a NaN rrr makes `nan < floor` False, so the
+    # original form PASSED a corrupt value. Non-finite must reject.
+    if not _finite(t.rrr):
+        return _no("G-RRR_REJECT", f"rrr {t.rrr!r} is not a finite number", "G-RRR")
     if t.rrr < RRR_FLOOR:
         return _no("G-RRR_REJECT", f"rrr {t.rrr:.2f} < floor {RRR_FLOOR}", "G-RRR")
     return _ok("G-RRR_PASS", f"rrr {t.rrr:.2f} >= {RRR_FLOOR}", "G-RRR")
@@ -86,16 +126,23 @@ def _local_hhmm(session_utc: str) -> str | None:
     # while this gate originally parsed only ISO timestamps, so every candidate
     # the circuit produced was rejected as "no parseable session timestamp".
     # The gate now accepts BOTH forms — the label and the ISO timestamp.
-    m = re.search(r"\b(\d{2}:\d{2})\b", session_utc)
-    if m and "T" not in session_utc:
-        return m.group(1)
-    # FORM 2: an ISO timestamp — the local time is between 'T' and the offset.
+    # FORM 2 FIRST (the more structured form): an ISO timestamp. The local time
+    # is strictly between 'T' and the offset — never the offset tail.
+    # AUDIT FIX: the previous version fell through to `m.group(1)`, the FIRST
+    # HH:MM in the string, which on a malformed local time could pick the
+    # offset. The fallback is removed; an unparseable stamp returns None.
     if "T" in session_utc:
         after_t = session_utc.split("T", 1)[1]
-        hhmm = after_t[:5]                  # "14:30" — never the offset tail
-        if len(hhmm) == 5 and hhmm[2] == ":":
+        hhmm = after_t[:5]
+        if len(hhmm) == 5 and hhmm[2] == ":" and hhmm[:2].isdigit() and hhmm[3:].isdigit():
             return hhmm
-    return m.group(1) if m else None
+        return None                          # malformed ISO -> refuse, no guess
+    # FORM 1: the state constructor's label, e.g. "LONDON 02:00". Only a label
+    # that STARTS with a session word is accepted (no arbitrary HH:MM scrape).
+    m = re.match(r"^[A-Z_]+\s+(\d{2}:\d{2})$", session_utc.strip())
+    if m:
+        return m.group(1)
+    return None
 
 
 def g_session(t: TradeCandidate) -> GateResult:
@@ -115,6 +162,12 @@ def g_session(t: TradeCandidate) -> GateResult:
 def g_sl(t: TradeCandidate) -> GateResult:
     """G-SL: the stop-loss envelope. A wide SL destroys the RRR at scale."""
     d = t.sl_distance_pips
+    # FAIL-CLOSED (audit fix): `d > MAX` is False for NaN, and 0/negative were
+    # never rejected. A missing or corrupt SL distance must REJECT.
+    if not _finite(d):
+        return _no("G-SL_REJECT", f"sl distance {d!r} is not a finite number", "G-SL")
+    if d <= 0:
+        return _no("G-SL_REJECT", f"sl distance {d:.4f}p is non-positive", "G-SL")
     if d > SL_MAX_PIPS:
         return _no("G-SL_REJECT", f"sl distance {d:.1f}p > envelope {SL_MAX_PIPS}p", "G-SL")
     return _ok("G-SL_PASS", f"sl distance {d:.1f}p within envelope", "G-SL")
@@ -122,9 +175,16 @@ def g_sl(t: TradeCandidate) -> GateResult:
 
 def g_conf(t: TradeCandidate) -> GateResult:
     """G-CONF: the confidence floor. Below F = reject; F..C = flag for review."""
-    if t.confidence < CONF_FLOOR:
-        return _no("G-CONF_REJECT", f"confidence {t.confidence:.2f} < {CONF_FLOOR}", "G-CONF")
-    return _ok("G-CONF_PASS", f"confidence {t.confidence:.2f} >= {CONF_FLOOR}", "G-CONF")
+    c = t.confidence
+    # FAIL-CLOSED + bounded (audit fix): NaN passed; there was no upper bound,
+    # so confidence=5.0 or inf passed as "high confidence".
+    if not _finite(c):
+        return _no("G-CONF_REJECT", f"confidence {c!r} is not a finite number", "G-CONF")
+    if not (0.0 <= c <= 1.0):
+        return _no("G-CONF_REJECT", f"confidence {c} outside [0,1]", "G-CONF")
+    if c < CONF_FLOOR:
+        return _no("G-CONF_REJECT", f"confidence {c:.2f} < {CONF_FLOOR}", "G-CONF")
+    return _ok("G-CONF_PASS", f"confidence {c:.2f} >= {CONF_FLOOR}", "G-CONF")
 
 
 def g_cascade(t: TradeCandidate) -> GateResult:
@@ -152,6 +212,10 @@ def g_dual(t: TradeCandidate) -> GateResult:
     """G-DUAL: LIMITE COMPUTES, CODE VERIFIES. |model - code| <= eps."""
     if t.limite_rrr is None:
         return _no("LIMITE_CODE_DIVERGENCE", "no Limite RRR to verify against", "G-DUAL")
+    # FAIL-CLOSED (audit fix): NaN on either side made `delta > eps` False.
+    if not _finite(t.limite_rrr) or not _finite(t.rrr):
+        return _no("LIMITE_CODE_DIVERGENCE",
+                   f"non-finite pair: limite={t.limite_rrr!r} code={t.rrr!r}", "G-DUAL")
     delta = abs(t.limite_rrr - t.rrr)
     if delta > DUAL_EPS:
         return _no("LIMITE_CODE_DIVERGENCE",
@@ -159,8 +223,18 @@ def g_dual(t: TradeCandidate) -> GateResult:
     return _ok("G-DUAL_PASS", f"|limite - code| = {delta:.4f} <= eps {DUAL_EPS}", "G-DUAL")
 
 
-GATES = (g_rrr, g_session, g_sl, g_conf, g_cascade, g_chain, g_dedup, g_dual)
-GATE_NAMES = ("G-RRR", "G-SESSION", "G-SL", "G-CONF", "G-CASCADE", "G-CHAIN", "G-DEDUP", "G-DUAL")
+def g_geometry(t: TradeCandidate) -> GateResult:
+    """G-GEOMETRY: direction + price coherence. Runs FIRST (audit fix)."""
+    ok, detail = _geometry_ok(t)
+    return _ok("G-GEOMETRY_PASS", detail, "G-GEOMETRY") if ok else \
+           _no("G-GEOMETRY_REJECT", detail, "G-GEOMETRY")
+
+
+# G-GEOMETRY leads the chain: nothing downstream is meaningful on incoherent
+# geometry, and it is the gate the audit proved was missing entirely.
+GATES = (g_geometry, g_rrr, g_session, g_sl, g_conf, g_cascade, g_chain, g_dedup, g_dual)
+GATE_NAMES = ("G-GEOMETRY", "G-RRR", "G-SESSION", "G-SL", "G-CONF",
+              "G-CASCADE", "G-CHAIN", "G-DEDUP", "G-DUAL")
 
 
 @dataclass(frozen=True)

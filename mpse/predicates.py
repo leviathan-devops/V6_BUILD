@@ -123,29 +123,71 @@ class TrustVerdict:
 
 
 def geometry_witness(c) -> bool:
-    """Structural consistency: signs, ordering, magnitude coherent."""
-    d, e, sl, tp = c["direction"], c["entry"], c["sl"], c["tp"]
+    """Structural consistency: signs, ordering, magnitude coherent.
+
+    AUDIT FIX: an invalid direction was silently treated as short. Validate.
+    """
+    d = c.get("direction")
+    if d not in ("long", "short"):
+        return False
+    e, sl, tp = c["entry"], c["sl"], c["tp"]
     sign_ok = (tp > e > sl) if d == "long" else (sl > e > tp)
     dist_ok = abs(e-sl) > 0 and abs(tp-e) > 0
     scale_ok = c["entry"] > 10 if c["pair"] == "DXY" else c["entry"] < 10
     return bool(sign_ok and dist_ok and scale_ok)
 
 
+# Which witness a predicate's own subject implicates. A witness that does not
+# bear on the predicate's subject abstains (None) rather than voting.
+# A predicate with NO entry here draws all three witnesses (the conservative
+# default). A predicate whose subject is a single layer names it explicitly.
+PREDICATE_SUBJECT = {
+    "AT-01": "LIMITE",    # the RRR floor is a numeric claim
+    "AT-02": "CODE",      # the SL envelope is a structural claim
+    "AT-03": "GEOMETRY",  # side inversion is pure geometry
+    "AT-04": "CODE",      # zone width is a structural claim
+    "AT-05": "CODE",      # the confidence range is a structural claim
+    "AT-06": "LIMITE",    # dual consistency is the model-vs-code claim
+    "AT-07": "GEOMETRY",  # the pip scale is a geometry claim
+    "AT-08": "GEOMETRY",  # collapsed levels are geometry
+    "AT-09": "LIMITE",    # the stated/derived RRR is arithmetic
+    "AT-10": "CODE",      # the session window is a structural claim
+}
+
+
 def trust(predicate: Callable, c: dict) -> TrustVerdict:
-    """Adjudicate ONE predicate across the three witnesses."""
+    """Adjudicate ONE predicate across the three witnesses.
+
+    AUDIT FIX: the LIMITE and GEOMETRY witnesses were computed identically for
+    EVERY predicate (always the RRR delta and always the geometry), so a
+    non-RRR predicate like AT-04 (zone width) spuriously reported DIVERGENT
+    whenever the RRR delta happened to be non-zero. A witness now VOTES only
+    when it bears on the predicate's subject; otherwise it ABSTAINS (None),
+    and abstention is not counted as agreement or disagreement.
+    """
     v = predicate(c)
     code_ok = v.passed
-    model_ok = (abs(c.get("limite_rrr", c["rrr"]) - c["rrr"]) <= 0.02
-                if c.get("limite_rrr") is not None else False)
-    geom_ok = geometry_witness(c)
-    w = {"LIMITE": model_ok, "CODE": code_ok, "GEOMETRY": geom_ok}
-    if all(w.values()):
-        status = TRUSTED
-    elif sum(w.values()) == 0:
+    subject = PREDICATE_SUBJECT.get(v.name)
+    votes = {"CODE": code_ok}
+    if subject == "LIMITE" or subject is None:
+        votes["LIMITE"] = (abs(c["limite_rrr"] - c["rrr"]) <= 0.02
+                           if c.get("limite_rrr") is not None else None)
+    if subject == "GEOMETRY" or subject is None:
+        votes["GEOMETRY"] = geometry_witness(c)
+    voting = [x for x in votes.values() if x is not None]
+    if not voting:
         status = INCONCLUSIVE
+    elif all(voting):
+        # unanimous PASS, with no dissenting voter
+        status = TRUSTED if len(voting) == len(votes) else INCONCLUSIVE
+    elif not any(voting):
+        # unanimous FAIL: the witnesses AGREE that the predicate fails. That is
+        # a TRUSTED rejection, not an inconclusive one (audit fix: the first
+        # version classified it INCONCLUSIVE, losing the distinction).
+        status = "TRUSTED_REJECT"
     else:
         status = DIVERGENT
-    return TrustVerdict(status, v.name, w, v.detail)
+    return TrustVerdict(status, v.name, votes, v.detail)
 
 
 def trust_all(c: dict) -> list[TrustVerdict]:

@@ -49,10 +49,18 @@ class Fill:
 
     @property
     def pip(self) -> float:
-        return PIP.get(self.pair, 0.0001)
+        # AUDIT FIX: an unknown pair must fail loudly, not default to FX scale.
+        if self.pair not in PIP:
+            raise ValueError(f"UNKNOWN_PAIR: {self.pair!r} has no declared pip scale "
+                             f"(known: {sorted(PIP)})")
+        return PIP[self.pair]
 
     @property
     def gross_pips(self) -> float:
+        # AUDIT FIX: any direction other than exactly "long"/"short" silently
+        # inverted P&L. Validate.
+        if self.direction not in ("long", "short"):
+            raise ValueError(f"INVALID_DIRECTION: {self.direction!r}")
         sign = 1.0 if self.direction == "long" else -1.0
         return round(sign * (self.exit - self.entry) / self.pip, 4)
 
@@ -109,11 +117,16 @@ class Portfolio:
         if not self.trades: return 0.0
         return round(sum(1 for t in self.trades if t.net_pips > 0) / len(self.trades), 4)
 
+    def _equity_per_pip(self, t) -> float:
+        """AUDIT FIX: $/pip is a property of the PAIR, not a global 10.0.
+        DXY's pip is 0.01, so a flat 10.0 overstated its swings ~10x."""
+        return PIP_VALUE_PER_UNIT.get(t.fill.pair, 10.0)
+
     @property
     def max_drawdown(self) -> float:
         equity, peak, dd = self.starting_equity, self.starting_equity, 0.0
         for t in self.trades:
-            equity += t.net_pips * EQUITY_PER_PIP
+            equity += t.net_pips * self._equity_per_pip(t)
             peak = max(peak, equity)
             if peak > 0:
                 dd = max(dd, (peak - equity) / peak)
@@ -131,6 +144,10 @@ def simulate(decisions: list[TradeDecision], commission_rate: float,
     pf = Portfolio()
     for d in decisions:
         outcome = outcomes.get(d.zone_id, "tp")
+        # AUDIT FIX: any typo was silently treated as an SL exit, flipping a
+        # winner into a loser. Validate the outcome.
+        if outcome not in ("tp", "sl"):
+            raise ValueError(f"INVALID_OUTCOME: {outcome!r} for {d.zone_id!r} (want 'tp'|'sl')")
         exit_price = d.tp if outcome == "tp" else d.sl
         fill = Fill(pair=d.pair, direction=d.direction, entry=d.entry,
                     exit=exit_price, units=DEFAULT_UNITS,

@@ -40,10 +40,16 @@ def _fmt_ts(ms: int) -> str:
 
 
 def run_id(ri: ReportInput) -> str:
+    # AUDIT FIX: the id must cover the WHOLE run. The first version hashed only
+    # pair/anchor/decider/gates, so runs differing in session, state, limite,
+    # decision, execution or gaps collided.
     h = hashlib.sha256()
-    h.update(json.dumps({"pair": ri.pair, "anchor": ri.anchor_ms,
-                         "decider": ri.decider, "gates": ri.gates},
-                        sort_keys=True).encode())
+    h.update(json.dumps({
+        "pair": ri.pair, "anchor": ri.anchor_ms, "session": ri.session,
+        "state_text": ri.state_text, "decider": ri.decider, "limite": ri.limite,
+        "gates": ri.gates, "decision": ri.decision, "execution": ri.execution,
+        "gaps": ri.gaps,
+    }, sort_keys=True, default=str).encode())
     return h.hexdigest()[:16]
 
 

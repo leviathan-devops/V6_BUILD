@@ -129,7 +129,12 @@ def card_records(cards: list[Record]) -> list[Record]:
             state=f"DOCTRINE CARD: {r.quote}\nSOURCE {r.source}",
             question="What kind of doctrine card is this?",
             options=["mechanism", "ruling", "forensic", "golden"],
-            answer="ruling" if "/rulings/" in r.source else "mechanism",
+            # AUDIT FIX: the answer is the card's OWN kind, not a path guess.
+            # The old form derived it from "/rulings/" in the source path, so a
+            # forensic or golden card outside rulings/ was taught as "mechanism"
+            # and the forensic/golden options were never emitted at all.
+            answer=r.kind if r.kind in ("mechanism", "ruling", "forensic", "golden")
+                   else "mechanism",
             kind=r.kind))
     return out
 
@@ -205,6 +210,31 @@ def harvest_gap_analysis(master: Path) -> list[Record]:
     return recs
 
 
+def negative_records(cards: list[Record]) -> list[Record]:
+    """NEGATIVE supervision — audit fix.
+
+    The audit found every yes/no record taught `answer="yes"`: a corpus with
+    ONE class trains a yes-sayer, and the model can never learn to refuse.
+    Each card therefore also yields a MISQUOTED variant (the quote perturbed
+    in a way that breaks the rule) whose answer is "fail".
+    """
+    out = []
+    for r in cards:
+        if not r.quote or len(r.quote) < 12:
+            continue
+        # a controlled corruption: drop the rule's numeric/threshold token,
+        # which is exactly what makes the card's rule no longer satisfied
+        import re as _re
+        broken = _re.sub(r"\b(\d+(?:\.\d+)?)\b", "0", r.quote, count=1)
+        if broken == r.quote:
+            broken = r.quote[:-6] + " [TRUNCATED]"
+        out.append(Record(
+            id=r.id + "-neg", source=r.source, quote=broken,
+            state=f"DOCTRINE (altered) {broken}",
+            question=r.question, options=r.options, answer="fail", kind=r.kind))
+    return out
+
+
 def build(out_path: Path) -> dict:
     cards = []
     for root in CARD_ROOTS:
@@ -214,7 +244,8 @@ def build(out_path: Path) -> dict:
     golden += harvest_golden_cascade(MASTER)
     golden += harvest_gap_analysis(MASTER)
     forensic = harvest_forensic_laws(MASTER)
-    all_recs = cards + golden + forensic
+    negatives = negative_records(cards)
+    all_recs = cards + negatives + golden + forensic
     seen, uniq = set(), []
     for r in all_recs:
         # the dedup key is (source, quote, QUESTION): the same card legitimately
@@ -229,6 +260,6 @@ def build(out_path: Path) -> dict:
         for r in uniq:
             fh.write(json.dumps({**asdict(r), "triple": r.to_triple()}) + "\n")
     return {"total": len(uniq), "cards": len(cards), "golden": len(golden),
-            "forensic": len(forensic),
+            "forensic": len(forensic), "negatives": len(negatives),
             "kinds": {k: sum(1 for r in uniq if r.kind == k)
                       for k in {r.kind for r in uniq}}}

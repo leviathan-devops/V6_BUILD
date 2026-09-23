@@ -38,7 +38,7 @@ def _last_number(text: str) -> float:
 
 # ---- L1: zone width in pips -------------------------------------------------
 def _shadow_zone_width(top: float, bottom: float, pair: str) -> float:
-    return round(abs(top - bottom) / PIP[pair], 4)
+    return round(abs(top - bottom) / pip_for(pair), 4)
 
 
 # ---- L2: SL distance = zone width + buffer ----------------------------------
@@ -48,8 +48,9 @@ def _shadow_sl_distance(zone_width_pips: float, buffer_pips: float) -> float:
 
 # ---- L3: RRR = TP_dist / SL_dist --------------------------------------------
 def _shadow_rrr(entry: float, sl: float, tp: float, pair: str) -> float:
-    sl_d = abs(entry - sl) / PIP[pair]
-    tp_d = abs(tp - entry) / PIP[pair]
+    pip = pip_for(pair)
+    sl_d = abs(entry - sl) / pip
+    tp_d = abs(tp - entry) / pip
     if sl_d == 0:
         raise ZeroDivisionError("RRR_SL_ZERO: SL distance is 0 pips")
     return round(tp_d / sl_d, 4)
@@ -67,16 +68,16 @@ def _shadow_fib(swing_high: float, swing_low: float) -> dict[str, float]:
 # ---- L5: commission impact --------------------------------------------------
 def _shadow_commission(gross_pips: float, units: float, rate: float, pair: str) -> float:
     """Commission cost in pips. cost_$ = units * rate * 2 (round trip)."""
-    pip_value_per_unit = PIP[pair]
-    cost_pips = (units * rate * 2) / (units * pip_value_per_unit / PIP[pair]) if units else 0.0
-    # the shadow is expressed in PIPS of the pair directly:
-    cost_pips = (rate * 2) / PIP[pair]
+    # AUDIT FIX: the first assignment was dead (immediately overwritten) and
+    # made `units` look load-bearing when the pip-cost formula is
+    # units-independent: cost_pips = (units*rate*2) / (units*pip) = rate*2/pip.
+    cost_pips = (rate * 2) / pip_for(pair)
     return round(gross_pips - cost_pips, 4)
 
 
 # ---- L6: TP distance --------------------------------------------------------
 def _shadow_tp_distance(entry: float, tp: float, pair: str) -> float:
-    return round(abs(tp - entry) / PIP[pair], 4)
+    return round(abs(tp - entry) / pip_for(pair), 4)
 
 
 QUERIES: dict[str, MathQuery] = {
@@ -127,12 +128,37 @@ QUERIES: dict[str, MathQuery] = {
 }
 
 
+class UnknownPair(ValueError):
+    """A pair with no declared pip scale. Loud, never defaulted."""
+
+
+def pip_for(pair: str) -> float:
+    """THE single pip authority. Every path resolves the pip through here.
+
+    AUDIT FIX: render() used to default an unknown pair to 0.0001 while the
+    shadows raised KeyError on the same input — the prompt and the python side
+    could compute with DIFFERENT pip assumptions. One function, one answer.
+    """
+    if pair not in PIP:
+        raise UnknownPair(f"UNKNOWN_PAIR: {pair!r} has no declared pip scale "
+                          f"(known: {sorted(PIP)})")
+    return PIP[pair]
+
+
 def render(query_id: str, **kw) -> str:
     q = QUERIES[query_id]
-    kw.setdefault("pip", PIP.get(kw.get("pair", "EUR/USD"), 0.0001))
+    # resolve the pip through the ONE authority, so a bad pair fails here too
+    kw.setdefault("pip", pip_for(kw.get("pair", "EUR/USD")))
     return q.template.format(**kw)
 
 
 def code_truth(query_id: str, **kw) -> float:
-    """The python shadow — the deterministic ground truth for dual-compute."""
+    """The python shadow — the deterministic ground truth for dual-compute.
+
+    AUDIT FIX: the template and the shadow must accept the SAME kwargs. The
+    templates interpolate {pip} while the shadows derive it from `pair`, so a
+    caller passing both made the shadow raise TypeError. `pip` is now consumed
+    by this wrapper (it is derived, not passed).
+    """
+    kw.pop("pip", None)
     return QUERIES[query_id].shadow(**kw)

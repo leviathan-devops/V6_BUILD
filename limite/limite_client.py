@@ -39,12 +39,20 @@ def complete(prompt: str, max_tokens: int = 512, timeout: float = 120.0) -> str:
                                  headers={"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            data = json.loads(r.read())
+            raw = r.read()
     except urllib.error.HTTPError as e:
         raise LimiteUnavailable(f"LIMITE_HTTP_{e.code}: {e.read()[:400]!r}") from e
     except Exception as e:
         raise LimiteUnavailable(f"LIMITE_DOWN: {e}") from e
-    return data["choices"][0]["text"]
+    # AUDIT FIX: the shape check lives INSIDE the loud-fail contract. The first
+    # version indexed choices[0].text outside the try, so a malformed payload
+    # raised a raw KeyError/IndexError instead of LimiteUnavailable.
+    try:
+        data = json.loads(raw)
+        return data["choices"][0]["text"]
+    except Exception as e:
+        raise LimiteUnavailable(
+            f"LIMITE_BAD_RESPONSE: {type(e).__name__} on {raw[:300]!r}") from e
 
 
 def ask(query_id: str, **kw) -> tuple[float, str]:

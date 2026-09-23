@@ -49,15 +49,31 @@ def parse_bars(raw: list[dict], anchor_ms: int) -> list[Bar]:
     """Parse + TEMPORAL-FILTER. Any bar past the anchor raises FutureBarLeak."""
     if not raw:
         raise EmptyBars("NO_BARS: the feed returned an empty bar list")
-    bars, leaks = [], []
+    bars, leaks, bad_ts = [], [], []
     for r in raw:
-        ts = int(r.get("ts") or r.get("time") or 0)
+        # AUDIT FIX: a missing timestamp became ts=0, which passes the anchor
+        # check and sorts to the FRONT of the state, polluting the bar order.
+        # accepted key names: ts | time | timestamp (the harvester's key)
+        raw_ts = r.get("ts")
+        if raw_ts is None: raw_ts = r.get("time")
+        if raw_ts is None: raw_ts = r.get("timestamp")
+        if raw_ts is None:
+            bad_ts.append(r)
+            continue
+        try:
+            ts = int(raw_ts)
+        except (TypeError, ValueError):
+            bad_ts.append(r)
+            continue
         if ts > anchor_ms:
             leaks.append(ts)
             continue
         bars.append(Bar(ts, float(r["open"]), float(r["high"]),
                         float(r["low"]), float(r["close"]),
                         float(r.get("volume", 0.0))))
+    if bad_ts:
+        raise ValueError(
+            f"BAR_MISSING_TIMESTAMP: {len(bad_ts)} bar(s) carry no usable ts/time")
     if leaks:
         raise FutureBarLeak(
             f"FUTURE_BAR_LEAK: {len(leaks)} bar(s) past anchor {anchor_ms} "
@@ -103,7 +119,13 @@ def render_state(pair: str, anchor_ms: int, feeds: dict[tuple[str, str], list[Ba
     for (p, tf), bars in sorted(feeds.items()):
         if not bars: continue
         blocks.append(render_feed_block(p, tf, bars))
-    main = feeds.get((pair, "30m")) or feeds.get((pair, "1H")) or []
+    # AUDIT FIX: a state with neither 30m nor 1H raised EmptyBars from inside
+    # swing_levels. The condition is NAMED here.
+    main = feeds.get((pair, "30m")) or feeds.get((pair, "1H"))
+    if not main:
+        raise EmptyBars(
+            f"NO_MAIN_TIMEFRAME: {pair!r} has neither a 30m nor a 1H feed "
+            f"(available: {sorted(k for k in feeds if k[0] == pair)})")
     atr_v = atr(main)
     hi, lo = swing_levels(main)
     head = [

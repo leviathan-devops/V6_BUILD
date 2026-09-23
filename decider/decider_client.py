@@ -19,34 +19,50 @@ slot; there is no decode, no temperature, no text generation.
 from __future__ import annotations
 import json, os, urllib.request, urllib.error
 
-BASE = os.environ.get("DECIDER_URL", "http://127.0.0.1:8008")
-TIMEOUT = float(os.environ.get("DECIDER_TIMEOUT", "180"))
+DEFAULT_BASE = "http://127.0.0.1:8008"
 
 
 class DeciderUnavailable(RuntimeError):
     """LOUD FAIL: the decider cannot be reached. No substitute, ever."""
 
 
-def health(timeout: float = 10.0) -> dict:
+def health(url: str | None = None, timeout: float = 10.0) -> dict:
+    """AUDIT FIX: url resolves AT CALL TIME (was an import-time default that
+    froze a stale BASE)."""
+    base = url or os.environ.get("DECIDER_URL", DEFAULT_BASE)
     try:
-        with urllib.request.urlopen(f"{BASE}/health", timeout=timeout) as r:
+        with urllib.request.urlopen(f"{base}/health", timeout=timeout) as r:
             return json.loads(r.read())
     except Exception as e:
-        raise DeciderUnavailable(f"DECIDER_DOWN: {BASE}/health unreachable — {e}") from e
+        raise DeciderUnavailable(f"DECIDER_DOWN: {base}/health unreachable — {e}") from e
 
 
-def system_one(state, questions: dict, timeout: float = TIMEOUT) -> dict:
+def system_one(state, questions: dict, timeout: float | None = None,
+               url: str | None = None) -> dict:
     """One forward pass: state + typed questions -> a distribution per question."""
+    base = url or os.environ.get("DECIDER_URL", DEFAULT_BASE)
+    to = timeout if timeout is not None else float(os.environ.get("DECIDER_TIMEOUT", "180"))
     body = json.dumps({"state": state, "questions": questions}).encode()
-    req = urllib.request.Request(f"{BASE}/v1/systemone", data=body,
+    req = urllib.request.Request(f"{base}/v1/systemone", data=body,
                                  headers={"Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.loads(r.read())
+        with urllib.request.urlopen(req, timeout=to) as r:
+            raw = r.read()
     except urllib.error.HTTPError as e:
         raise DeciderUnavailable(f"DECIDER_HTTP_{e.code}: {e.read()[:400]!r}") from e
     except Exception as e:
         raise DeciderUnavailable(f"DECIDER_DOWN: {e}") from e
+    # AUDIT FIX: the response shape is validated INSIDE the loud-fail contract.
+    try:
+        data = json.loads(raw)
+    except Exception as e:
+        raise DeciderUnavailable(f"DECIDER_BAD_JSON: {raw[:300]!r}") from e
+    if not isinstance(data, dict):
+        raise DeciderUnavailable(f"DECIDER_BAD_SHAPE: expected an object, got {type(data).__name__}")
+    if "answers" not in data:
+        raise DeciderUnavailable(
+            f"DECIDER_NO_ANSWERS: the payload carries no 'answers' key — keys={list(data)}")
+    return data
 
 
 # ---- the typed question builders (the family's 3 primitives) ----------------
@@ -61,19 +77,24 @@ def score(instructions: str, criteria: list) -> dict:
 
 
 class Decider:
-    """The published decider, called over its own wire format."""
+    """The published decider, called over its own wire format.
 
-    def __init__(self, url: str = BASE):
-        global BASE
-        BASE = url
-        h = health()
+    AUDIT FIX: the instance keeps its OWN url. The first version rewrote a
+    module global in __init__, so a second instance silently rewired every
+    other instance and the module-level functions — and decide() ignored
+    self.url entirely, so two instances with different urls both talked to
+    whichever was constructed last.
+    """
+
+    def __init__(self, url: str | None = None):
+        self.url = url or os.environ.get("DECIDER_URL", DEFAULT_BASE)
+        h = health(self.url)
         self.model = h.get("model", "?")
         self.device = h.get("device", "?")
-        self.url = url
 
     def decide(self, state, questions: dict) -> dict:
-        out = system_one(state, questions)
-        return out.get("answers", out)
+        # no fallback: system_one raises DeciderUnavailable on a bad payload
+        return system_one(state, questions, url=self.url)["answers"]
 
     def info(self) -> dict:
         return {"url": self.url, "model": self.model, "device": self.device,

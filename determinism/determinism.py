@@ -52,20 +52,36 @@ def digest(stages: dict) -> str:
     return h.hexdigest()
 
 
-@dataclass
+@dataclass(frozen=True)
 class RunDigest:
+    """A FROZEN snapshot of the run.
+
+    AUDIT FIX: the dataclass was mutable and `stages` stayed an aliased
+    reference, so a later `stages[...] = ...` left `sha` stale while compare()
+    still trusted it — a false match. frozen=True + a copied dict + no
+    caller-supplied sha removes the whole class.
+    """
     stages: dict
     sha: str = ""
 
     def __post_init__(self):
+        # copy so the caller cannot mutate the hashed content afterwards
+        object.__setattr__(self, "stages", {k: v for k, v in self.stages.items()})
         if not self.sha:
-            self.sha = digest(self.stages)
+            object.__setattr__(self, "sha", digest(self.stages))
 
 
 def compare(a: RunDigest, b: RunDigest) -> dict:
-    """Per-stage diff so a divergence NAMES the stage that broke determinism."""
+    """Per-stage diff so a divergence NAMES the stage that broke determinism.
+
+    AUDIT FIX: the loop iterated EVERY stage name while digest() EXCLUDED the
+    volatile ones, so a volatile-only difference produced match=True with a
+    non-empty divergent_stages — the two signals contradicted each other. The
+    loop now skips the same names digest() skips.
+    """
     diffs = {}
-    for name in sorted(set(a.stages) | set(b.stages)):
+    names = (set(a.stages) | set(b.stages)) - VOLATILE
+    for name in sorted(names):
         ca, cb = canonical(a.stages.get(name)), canonical(b.stages.get(name))
         if ca != cb:
             diffs[name] = {"a": ca[:200], "b": cb[:200]}

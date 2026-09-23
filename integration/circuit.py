@@ -22,7 +22,7 @@ THE STAGE CONTRACT (blueprint "complete V6 cycle"):
  13. OMS: execute + measure
 """
 from __future__ import annotations
-import sys, time, hashlib, json
+import sys, time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
@@ -73,27 +73,34 @@ class Circuit:
         self._limite_ok = None
 
     # ---- stage 1-2: feed + state -------------------------------------------
-    def build_state(self, feeds: dict) -> str:
-        """Render the state. An empty feed is a NAMED refusal (NO_BARS),
-        never a bare ValueError from inside max()."""
+    def build_state(self, feeds: dict, pair: str | None = None) -> str:
+        """Render the state. An empty feed is a NAMED refusal (NO_BARS).
+
+        AUDIT FIX: `pair` is an explicit parameter. The first version read
+        `self.pair`, which __init__ never set, so a standalone build_state()
+        raised AttributeError; and decide() assigned self.pair per call, so
+        reusing one Circuit across pairs leaked state.
+        """
         from state_constructor import render_state, session_label, EmptyBars
+        target = pair or getattr(self, "pair", None)
+        if not target:
+            raise ValueError("NO_PAIR: build_state requires a pair")
         if not feeds:
             raise EmptyBars("NO_BARS: the circuit received an empty feed set")
-        return render_state(self.pair, self.anchor_ms, feeds,
+        return render_state(target, self.anchor_ms, feeds,
                             session_utc=session_label(self.anchor_ms))
 
     # ---- stage 3-11: the judgment chain ------------------------------------
     def decide(self, pair: str, bars_by_tf: dict, feeds: dict,
                limite_rrr: float | None = None) -> CircuitResult:
         t0 = time.perf_counter()
-        self.pair = pair
-        from state_constructor import session_label, in_london
+        from state_constructor import session_label
         from gates import TradeCandidate, evaluate
         from math_queries import code_truth
 
         stage = {}
         t = time.perf_counter()
-        state = self.build_state(feeds)
+        state = self.build_state(feeds, pair)
         stage["state_ms"] = round((time.perf_counter() - t) * 1000, 3)
 
         # Decider (optional live model; the deterministic fallback is the
@@ -106,6 +113,12 @@ class Circuit:
 
         # Limite: the geometry the gates consume
         t = time.perf_counter()
+        # AUDIT FIX: required keys are validated with a NAMED refusal, not a
+        # bare KeyError (the circuit's own contract uses named refusals).
+        required = ("entry", "sl", "tp", "direction")
+        missing = [k for k in required if k not in bars_by_tf]
+        if missing:
+            raise ValueError(f"MISSING_CANDIDATE_FIELDS: {missing} (need {list(required)})")
         entry, sl, tp = bars_by_tf["entry"], bars_by_tf["sl"], bars_by_tf["tp"]
         direction = bars_by_tf["direction"]
         # DEFECT FIXED (found by the e2e probe 2026-09-23): this stage hardcoded
@@ -114,7 +127,11 @@ class Circuit:
         # scale is a property of the PAIR and must come from the one authority
         # that defines it (math_queries.PIP), never a literal.
         from math_queries import PIP as PIP_SCALE
-        pip = PIP_SCALE.get(pair, 0.0001)
+        if pair not in PIP_SCALE:
+            # AUDIT FIX: an unknown pair must fail loudly. The first version
+            # defaulted to 0.0001, silently mispricing DXY-style instruments.
+            raise ValueError(f"UNKNOWN_PAIR: {pair!r} has no declared pip scale")
+        pip = PIP_SCALE[pair]
         zone_w = bars_by_tf.get("zone_width_pips", abs(tp - entry) / pip)
         sl_d = abs(entry - sl) / pip
         rrr_code = code_truth("L3", entry=entry, sl=sl, tp=tp, pair=pair)
@@ -181,13 +198,18 @@ class Circuit:
         from report import ReportInput, render
         ex = {}
         if execution and execution.trades:
-            f = execution.trades[0].fill
+            tr = execution.trades[0]
+            f = tr.fill
+            # AUDIT FIX: the outcome comes from the fill, not a hardcoded "tp".
             ex = {"entry": f.entry, "exit": f.exit, "gross_pips": f.gross_pips,
-                  "cost_pips": f.cost_pips, "net_pips": f.net_pips, "outcome": "tp"}
+                  "cost_pips": f.cost_pips, "net_pips": f.net_pips,
+                  "outcome": tr.outcome}
         ri = ReportInput(
             pair=result.pair, anchor_ms=result.anchor_ms, session=result.session,
             state_text="<|fim_prefix|> (see state constructor)",
-            decider=result.decider or {"E3.Q1": {"long": 0.6, "short": 0.2, "no_trade": 0.2}},
+            # AUDIT FIX: an empty decider renders as empty. The first version
+            # fabricated a distribution, which looks like model output.
+            decider=result.decider or {},
             limite=result.limite, gates=result.gate_results,
             decision={"accepted": result.accepted, "direction": result.direction,
                       "reason": "all gates pass" if result.accepted
@@ -199,5 +221,7 @@ class Circuit:
     @staticmethod
     def digest(results: list[CircuitResult]) -> str:
         from determinism import digest as dg
-        stages = {r.zone_id or f"t{i}": r.to_dict() for i, r in enumerate(results)}
+        # AUDIT FIX: key on the INDEX as well as the zone_id, so two trades
+        # sharing (or missing) a zone_id cannot silently overwrite each other.
+        stages = {f"{i:04d}:{r.zone_id}": r.to_dict() for i, r in enumerate(results)}
         return dg(stages)
