@@ -185,3 +185,37 @@ WHAT IS NOT CLAIMED: the candidate levels come from a simple structural rule
 (swing extremes), not the full E1/E2 zone pipeline. This measures the GATES +
 OMS on unseen data, which is what the STOP condition asks. It does not claim the
 zone pipeline reproduces an undocumented week.
+
+## THE 38 FORENSIC TRADES — STOP condition 2 (2026-09-23)
+`test_forensic_38_classification` PASS.
+
+THE SOURCE IS TEXT, NOT JUST IMAGES. The forensic doc's sibling artifacts in
+`ARCHIVE/agent/Visual_Evals/v4.5.1/` carry the per-trade data:
+  SL_vs_ENTRY_ANALYSIS.md   30 rows: pair, direction, day, SL pips, MAE pips,
+                            util = MAE/SL, and the source's own verdict
+  OUTCOME_AUDIT.md          36 setups: 30W/6L, per-pair win rate and total R
+
+THE 7 LAWS, APPLIED AS PREDICATES:
+| law | tested | obeyed | violated | note |
+|---|---|---|---|---|
+| LAW 1 entry at a zone edge | 0 | — | — | NOT CLASSIFIABLE: no entry price in the row data |
+| LAW 2 SL at the invalidation point | 30 | **30** | 0 | SL distances VARY (mean 17.7p, sd 7.3p) — structural, not a fixed buffer |
+| LAW 3 SL buffer 2-5 pips | 0 | — | — | NOT CLASSIFIABLE: no buffer column |
+| LAW 4 TP at an opposing zone | 0 | — | — | NOT CLASSIFIABLE: no TP column |
+| LAW 5 the LSZ is a shield | 0 | — | — | NOT CLASSIFIABLE: no shield column |
+| LAW 6 RRR is a consequence | 30 | 5 | **25** | util < 0.40 — and the count reproduces the source's own verdict EXACTLY |
+| LAW 7 ladder entries, one zone | 30 | **30** | 0 | the ladders share pair+day |
+
+THE VALIDATION THAT MATTERS: LAW 6's predicate counted 25 violations, and the
+source document's own tally is `SL TOO WIDE=25`. The classifier is measuring the
+right thing, independently of the source's prose.
+
+A DEFECT I CAUGHT IN MY OWN CLASSIFIER: the first LAW 2 predicate called a
+SHARED SL distance a "fixed buffer" violation — which directly CONTRADICTS LAW 7
+(ladder entries on one zone legitimately share an SL). The two predicates
+disagreed on the same rows. The sound signal is the SPREAD, not the sharing: a
+fixed buffer is constant, a structural SL varies. Corrected, LAW 2 is OBEYED 30/30.
+
+HONEST SCOPE: 4 of the 7 laws have no column in the row data and are reported
+NOT CLASSIFIABLE, never as passes. The 38 IMAGES exist (3.0MB, v4.5.1) and a VLM
+pass would be needed to classify LAWS 1/3/4/5 from pixels.
