@@ -295,3 +295,32 @@ re-run in the container.
 
 **THE RESULT, reproduced end to end through the sanctioned path:**
   adversarial 3/3 PASS · happy path 13/13 PASS · overall PASS
+
+
+## THE TWO SUITES, AND WHY THE NAMES MISLEAD (read this before citing either)
+
+There are TWO different suites and they prove DIFFERENT things. The pin mandates
+the artifact filename `container-test-results.json`, but the suite that writes it
+does NOT run in a container — so the name is a pin convention, never evidence of
+isolation. Stated here so no auditor conflates them:
+
+| | HOST RUNTIME suite | CONTAINER ISOLATION suite |
+|---|---|---|
+| runner | `integration/run_container_suite.py` | `integration/run_ct_suite.py` (assembler) + `integration/ct_run_inside.py` (driver) |
+| where it runs | the HOST, in `/home/leviathan/venvs/plutus-v6` | `python:3.12-slim`, via the container-testing tool |
+| artifact | `.trident/container-test-results.json` | `.trident/ct-results.json` (+ `.trident/ct-capture.json`) |
+| scenarios | 5 adversarial + 8 happy = 13 | 3 adversarial + 13 happy = 16 |
+| proves | the circuit behaves under the REAL runtime deps | the OFFLINE code needs NOTHING but the stdlib |
+| result | **13/13 PASS** | **16/16 PASS** |
+
+WHAT THE HOST SUITE DOES NOT PROVE: that the code is hermetic. The host silently
+satisfies dependencies the container lacks — which is exactly how the container
+suite found FOUR real defects the host had been hiding (16 of 31 tests embedded
+the absolute host path; `classify_38` required a tree the container does not have).
+
+WHAT THE CONTAINER SUITE DOES NOT PROVE: anything about the two MODEL-DEPENDENT
+paths. `test_limite_dual_live`, `test_calibration_layer`,
+`test_decider_calibration_ece`, `test_decider_load`, `test_limite_serves_temp0`
+and `test_pass_e1_questions` require the LIVE Decider (127.0.0.1:8008) and Limite
+(127.0.0.1:8100). They are excluded BY NAME and the exclusion is recorded in the
+artifact — never hidden.
