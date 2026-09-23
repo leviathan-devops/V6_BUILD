@@ -24,8 +24,8 @@ SCENARIOS = [
      "cmd": [PY, "-c", """
 import sys, pathlib
 B=pathlib.Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD")
-for s in ("wg-integ/integration","wa-decider/state","wb-limite/gates","wb-limite/limite","wc-exec/oms","wf-det/determinism"):
-    sys.path.insert(0,str(B/".wt"/s))
+for s in ("integration","state","gates","limite","oms","determinism"):
+    sys.path.insert(0,str(B/s))
 from state_constructor import parse_bars, EmptyBars
 try:
     parse_bars([], 1783317600000); print("NO_REFUSAL")
@@ -39,7 +39,7 @@ except EmptyBars as e:
      "cmd": [PY, "-c", """
 import sys, pathlib
 B=pathlib.Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD")
-sys.path.insert(0,str(B/".wt/wa-decider/state"))
+sys.path.insert(0,str(B/"state"))
 from state_constructor import parse_bars, FutureBarLeak
 A=1783317600000
 try:
@@ -54,7 +54,7 @@ except FutureBarLeak as e:
      "cmd": [PY, "-c", """
 import sys, pathlib
 B=pathlib.Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD")
-sys.path.insert(0,str(B/".wt/wb-limite/gates"))
+sys.path.insert(0,str(B/"gates"))
 from gates import TradeCandidate, evaluate
 c=TradeCandidate(pair="EUR/USD",direction="long",entry=1.14110,sl=1.13925,tp=1.14395,
   rrr=1.54,zone_width_pips=10.0,sl_distance_pips=18.5,confidence=0.72,
@@ -69,7 +69,7 @@ print("REJECTED" if not v.accepted else "ACCEPTED_BADLY", [r.token for r in v.re
      "cmd": [PY, "-c", """
 import sys, pathlib
 B=pathlib.Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD")
-sys.path.insert(0,str(B/".wt/wb-limite/gates"))
+sys.path.insert(0,str(B/"gates"))
 from gates import g_session, TradeCandidate
 c=TradeCandidate(pair="EUR/USD",direction="long",entry=1.1,sl=1.09,tp=1.13,rrr=4.0,
   zone_width_pips=10.0,sl_distance_pips=11.0,confidence=0.75,
@@ -83,8 +83,8 @@ r=g_session(c); print(r.token, r.detail)
      "cmd": [PY, "-c", """
 import sys, pathlib
 B=pathlib.Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD")
-for s in ("wb-limite/gates","wb-limite/limite"):
-    sys.path.insert(0,str(B/".wt"/s))
+for s in ("gates","limite"):
+    sys.path.insert(0,str(B/s))
 from gates import g_dual, TradeCandidate
 c=TradeCandidate(pair="EUR/USD",direction="long",entry=1.14110,sl=1.13925,tp=1.14395,
   rrr=1.5405,zone_width_pips=10.0,sl_distance_pips=18.5,confidence=0.72,
@@ -96,35 +96,35 @@ r=g_dual(c); print(r.token, r.detail)
     # --- THE HAPPY PATH (runs LAST) ---------------------------------------
     {"id": "HAPPY-1", "name": "golden week e2e: 6/6 Tier-A accepted, canon RRR +-0.02",
      "kind": "happy_path",
-     "cmd": ["bash", str(R/".wt/wg-integ/tests/run.sh"), "test_golden_week_e2e"],
+     "cmd": ["bash", str(R/"tests/run.sh"), "test_golden_week_e2e"],
      "passToken": "test_golden_week_e2e", "failToken": "[TOKEN-ABSENT]"},
     {"id": "HAPPY-2", "name": "limite live temp=0 deterministic",
      "kind": "happy_path",
-     "cmd": ["bash", str(R/".wt/wb-limite/tests/run.sh"), "test_limite_serves_temp0"],
+     "cmd": ["bash", str(R/"tests/run.sh"), "test_limite_serves_temp0"],
      "passToken": "test_limite_serves_temp0", "failToken": "[TOKEN-ABSENT]"},
     {"id": "HAPPY-3", "name": "decider live: 17/17 non-uniform distributions",
      "kind": "happy_path",
-     "cmd": ["bash", str(R/".wt/wa-decider/tests/run.sh"), "test_pass_e1_questions"],
+     "cmd": ["bash", str(R/"tests/run.sh"), "test_pass_e1_questions"],
      "passToken": "test_pass_e1_questions", "failToken": "[TOKEN-ABSENT]"},
     {"id": "HAPPY-4", "name": "commission: golden week profitable at 0.1%",
      "kind": "happy_path",
-     "cmd": ["bash", str(R/".wt/wc-exec/tests/run.sh"), "test_commission_0_1pct"],
+     "cmd": ["bash", str(R/"tests/run.sh"), "test_commission_0_1pct"],
      "passToken": "test_commission_0_1pct", "failToken": "[TOKEN-ABSENT]"},
     {"id": "HAPPY-5", "name": "determinism: SHA-identical runs",
      "kind": "happy_path",
-     "cmd": ["bash", str(R/".wt/wf-det/tests/run.sh"), "test_determinism_sha_match"],
+     "cmd": ["bash", str(R/"tests/run.sh"), "test_determinism_sha_match"],
      "passToken": "test_determinism_sha_match", "failToken": "[TOKEN-ABSENT]"},
     {"id": "HAPPY-6", "name": "TUI renders every probability",
      "kind": "happy_path",
-     "cmd": ["bash", str(R/".wt/wd-tui/tests/run.sh"), "test_tui_renders_probabilities"],
+     "cmd": ["bash", str(R/"tests/run.sh"), "test_tui_renders_probabilities"],
      "passToken": "test_tui_renders_probabilities", "failToken": "[TOKEN-ABSENT]"},
     {"id": "HAPPY-7", "name": "zero coding surface",
      "kind": "happy_path",
-     "cmd": ["bash", str(R/".wt/wd-tui/tests/run.sh"), "test_zero_coding_surface"],
+     "cmd": ["bash", str(R/"tests/run.sh"), "test_zero_coding_surface"],
      "passToken": "test_zero_coding_surface", "failToken": "[TOKEN-ABSENT]"},
     {"id": "HAPPY-8", "name": "corpus 1267 records with D13 provenance",
      "kind": "happy_path",
-     "cmd": ["bash", str(R/".wt/we-train/tests/run.sh"), "test_corpus_record_count"],
+     "cmd": ["bash", str(R/"tests/run.sh"), "test_corpus_record_count"],
      "passToken": "test_corpus_record_count", "failToken": "[TOKEN-ABSENT]"},
 ]
 

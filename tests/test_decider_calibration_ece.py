@@ -27,7 +27,7 @@ instrument_ok = ece_perfect < 0.05 < ece_bad
 # gate; the corpus can.
 B = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD")
 sys.path.insert(0, str(B/".wt/wa-decider/decider"))
-from client import Decider, choice
+from decider_client import Decider, choice
 
 CORPUS = B/".wt/we-train/corpus/records.jsonl"
 recs = [json.loads(l) for l in CORPUS.open()] if CORPUS.exists() else []

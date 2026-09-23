@@ -56,6 +56,6 @@ def verify_strict(query_id: str, model_value: float, raw: str = "", **kw) -> Dua
 
 def verify_live(query_id: str, **kw) -> DualResult:
     """Ask Limite AND verify against the shadow — the full dual path."""
-    from client import ask
+    from limite_client import ask
     model_value, raw = ask(query_id, **kw)
     return verify_strict(query_id, model_value, raw, **kw)
