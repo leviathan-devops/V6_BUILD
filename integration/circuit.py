@@ -232,15 +232,25 @@ class Circuit:
             rejections=[{"token": r.token, "detail": r.detail} for r in verdict.rejections])
 
     def _run_decider(self, state: str) -> dict:
+        """Score the state with the PUBLISHED Decider over its own wire format.
+
+        DEFECT FIXED (2026-09-24): this imported `model.Decider` — the
+        hand-built pointer head that `decider/SUPERSEDED.md` marks, verbatim,
+        "IT IS SUPERSEDED AND MUST NOT BE USED FOR DECISIONS" (its measured ECE
+        was 0.3858 against the 0.05 gate). It ALSO OOM'd: it loads
+        Qwen3-0.6B-Base onto a GPU that already hosts the served decider.
+
+        THE REAL PATH (SUPERSEDED.md, verbatim): `decider/client.py` ->
+        POST /v1/systemone -> the published model. The identity is pinned by the
+        client's own EXPECTED_MODEL_SUBSTR check, so a substitute server is a
+        named refusal rather than a silent swap.
+        """
+        from decider_client import Decider
+        from question_templates import wire_questions
         if self._decider is None:
-            from model import Decider
-            from question_templates import CALLS
-            self._decider = Decider()
-            self._calls = CALLS
-        out = {}
-        for call, qs in self._calls.items():
-            out.update(self._decider.decide_call(state, qs))
-        return out
+            self._decider = Decider()          # raises on a wrong/substitute model
+            self._wire = wire_questions()
+        return self._decider.decide(state, self._wire)
 
     # ---- stage 12-13: execute + measure ------------------------------------
     @staticmethod

@@ -501,3 +501,38 @@ _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-2
 - THE RULING: the audit waves STOP here. The gate is reported FAIL (1 critical)
   at round 16, and round 17 is NOT run — running it would be manufacturing the
   next regression. The remaining findings are operator-review debt.
+
+## EN-029 · the circuit scored with the SUPERSEDED model (2026-09-24)
+- FINDING: `integration/circuit.py::_run_decider` imported `model.Decider` — the
+  hand-built pointer head. `decider/SUPERSEDED.md` says of it, verbatim:
+  **"IT IS SUPERSEDED AND MUST NOT BE USED FOR DECISIONS"** (measured ECE 0.3858
+  against the 0.05 gate) and names the real path: "decider/client.py ->
+  POST /v1/systemone -> the published model."
+- IT ALSO OOM'd: it loads Qwen3-0.6B-Base onto a GPU that already hosts the
+  served decider. Measured: `CUDA out of memory. Tried to allocate 48.00 MiB.
+  GPU 0 has a total capacity of 11.60 GiB of which 44...`
+- WHY NO TEST CAUGHT IT: `test_golden_week_e2e` runs `use_decider=False`, and no
+  test anywhere runs `use_decider=True`. The live path had ZERO coverage.
+- FIX: the circuit now calls the PUBLISHED decider over its wire format, with a
+  new `question_templates.to_wire_spec()` / `wire_questions()` converter (the
+  three primitives: choice -> {option: rubric}, noul -> instructions, score ->
+  an ORDERED list). The client's own `EXPECTED_MODEL_SUBSTR` check refuses a
+  substitute server, so a wrong model is a NAMED refusal.
+- VERIFIED: `grep -c "from model import Decider" integration/circuit.py` = 0;
+  the battery is 28/28; `test_pass_e1_questions` passes against the live model.
+- LESSON: a documented "do not use" is a binding instruction. The artifact that
+  declares itself superseded must be unreachable from the production path.
+
+## EN-030 · BLOCKED — VRAM overflow (the pin's hard stop) (2026-09-24)
+- FINDING: the served Decider OOMs on the REAL state. Server traceback
+  (`/tmp/decider-serve.log`): `torch.OutOfMemoryError` in `repeat_kv` — the
+  activations for a 9452-char state do not fit. GPU: 12282 MiB total, 11871 used,
+  **6 MiB free**.
+- THE PIN'S MISMATCH: the pin budgets **Decider-0.6B bf16**; the DEPLOYED model is
+  **Mapika/decider-2b** — 3.3x larger and the largest consumer at 6582 MiB.
+- THE MANDATED REPORT: downgrade to **Mapika/decider-0.8b** (1.4 GB bf16, the
+  smallest published family member — same wire, same recipe) to free ~3.5-4 GiB.
+  Secondary, no substitution: two non-stack `llama-server` processes hold 1144 MiB.
+- I DID NOT SUBSTITUTE THE MODEL — the pin reserves that decision for the operator.
+- CONSEQUENCE: STOP condition 4 (<500ms with the model in the loop) is UNMET and
+  currently UNMEASURABLE. `test_golden_week_e2e` passes on the OFFLINE path.

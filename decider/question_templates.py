@@ -96,6 +96,32 @@ PVE = (
 )
 
 CALLS = {"E1": E1, "E2": E2, "E3": E3, "PVE": PVE}
+
+
+def to_wire_spec(q: "Question") -> dict:
+    """A Question -> the PUBLISHED decider's wire spec (POST /v1/systemone).
+
+    THE PUBLISHED MODEL IS CALLED, NOT REIMPLEMENTED. The three primitives the
+    family serves (decider/SUPERSEDED.md + MODEL_CARD_0.8B.md):
+      choice — a dict of {option: rubric}
+      noul   — the instructions alone (a yes-probability)
+      score  — an ORDERED list of levels
+    This converter is the ONLY place the template set and the wire format meet.
+    """
+    if q.kind == CHOICE:
+        return {"type": "choice", "instructions": q.text,
+                "criteria": {o: o for o in q.options}}
+    if q.kind == NOUL:
+        return {"type": "noul", "instructions": q.text}
+    if q.kind == SCORE:
+        return {"type": "score", "instructions": q.text,
+                "criteria": list(q.options)}
+    raise ValueError(f"UNKNOWN_QUESTION_KIND: {q.kind!r} for {q.id}")
+
+
+def wire_questions() -> dict:
+    """All 17 questions as one wire payload, keyed by qid."""
+    return {q.id: to_wire_spec(q) for q in ALL_QUESTIONS}
 ALL_QUESTIONS = E1 + E2 + E3 + PVE           # 17
 
 # The confidence grade -> numeric mapping the gate layer consumes.
