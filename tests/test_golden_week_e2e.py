@@ -48,12 +48,19 @@ FX_ENTRIES = [
 
 c = Circuit(use_limite=False, use_decider=False, anchor_ms=ANCHOR)
 
+
+
 # ---- PHASE 1: the 6 documented-exact Tier-A trades through the FULL circuit
 ta_results, ta_lat = [], []
 for pair, direction, entry, sl, tp, zid, day, canon_rrr in TIER_A:
     t0 = time.perf_counter()
+    # No independent Limite value here: this test verifies the CIRCUIT's
+    # geometry, gates and determinism. The dual-compute mechanism is verified
+    # separately (ADV-5 and test_dual_compute_catches_divergence). The result
+    # must therefore report dual_verified=False — never a fabricated pass.
     r = c.decide(pair, {"entry":entry,"sl":sl,"tp":tp,"direction":direction,
-                        "zone_id":zid,"confidence":0.75}, {k:v for k,v in feeds.items() if k[0]==pair})
+                        "zone_id":zid,"confidence":0.75,"cascade_valid":True,
+                        "chain_integrity":True}, {k:v for k,v in feeds.items() if k[0]==pair})
     ta_lat.append((time.perf_counter()-t0)*1000)
     ta_results.append((r, canon_rrr))
 
@@ -67,7 +74,8 @@ fx_deltas = []
 for pair, direction, entry, zid in FX_ENTRIES:
     pair_feeds = {k: v for k, v in feeds.items() if k[0] == pair}
     r = c.decide(pair, {"entry":entry,"sl":entry-0.0001*4,"tp":entry+0.0001*12,
-                        "direction":direction,"zone_id":zid,"confidence":0.75}, pair_feeds)
+                        "direction":direction,"zone_id":zid,"confidence":0.75,
+                        "cascade_valid":True,"chain_integrity":True}, pair_feeds)
     fx_deltas.append(abs(r.entry - entry) / 0.0001)
 n_fx = len(fx_deltas)
 fx_ok = all(d <= 3.0 for d in fx_deltas)
@@ -86,14 +94,19 @@ ok_comm = sens[0.001]["net_pips"] > 0
 
 # ---- PHASE 5: determinism of the whole run
 pf = {k: v for k, v in feeds.items() if k[0] == "DXY"}
-r1 = [c.decide(p, {"entry":e,"sl":sl,"tp":t,"direction":d,"zone_id":z,"confidence":0.75}, pf)
+r1 = [c.decide(p, {"entry":e,"sl":sl,"tp":t,"direction":d,"zone_id":z,"confidence":0.75,"cascade_valid":True,"chain_integrity":True}, pf)
       for p,d,e,sl,t,z,_day,_rrr in TIER_A]
-r2 = [c.decide(p, {"entry":e,"sl":sl,"tp":t,"direction":d,"zone_id":z,"confidence":0.75}, pf)
+r2 = [c.decide(p, {"entry":e,"sl":sl,"tp":t,"direction":d,"zone_id":z,"confidence":0.75,"cascade_valid":True,"chain_integrity":True}, pf)
       for p,d,e,sl,t,z,_day,_rrr in TIER_A]
 ok_det = Circuit.digest(r1) == Circuit.digest(r2)
 
+# the honest dual state: no independent Limite was supplied, so every result
+# must report dual_verified=False AND the gate must say UNVERIFIED
+ok_dual_honest = (all(not r.dual_verified for r,_ in ta_results)
+                  and all(any(g["token"] == "G-DUAL_UNVERIFIED" for g in r.gate_results)
+                          for r,_ in ta_results))
 ok = (n_ta == 6 and ta_gate_all and ta_rrr_ok and n_fx == 15 and fx_ok
-      and ok_latency and ok_comm and ok_det)
+      and ok_latency and ok_comm and ok_det and ok_dual_honest)
 print(f"[TOKEN] test_golden_week_e2e" if ok else "[TOKEN-ABSENT] test_golden_week_e2e")
 print(f"[DETAIL] TIER A documented-exact trades = {n_ta} ({TIER_A_DOCUMENTED} rows in canon, 2 carry no levels)")
 print(f"[DETAIL] Tier-A accepted by all 8 gates = {ta_accepted}/{n_ta}")
@@ -101,6 +114,7 @@ print(f"[DETAIL] Tier-A RRR reproduced +-0.02 = {ta_rrr_ok}")
 for r, cr in ta_results:
     print(f"[DETAIL]   {r.zone_id}: canon {cr} circuit {r.rrr:.4f} accepted={r.accepted}")
 print(f"[DETAIL] FX canon entries reproduced <=3p = {n_fx}/15 ok={fx_ok} max_delta={max(fx_deltas):.3f}p")
+print(f"[DETAIL] dual_verified (independent Limite present) = {all(r.dual_verified for r,_ in ta_results)}")
 print(f"[DETAIL] latency mean={mean_ms:.2f}ms p95={p95_ms:.2f}ms (<500ms: {ok_latency})")
 print(f"[DETAIL] commission: 0%={sens[0.0]['net_pips']:.1f}p 0.1%={sens[0.001]['net_pips']:.1f}p 0.2%={sens[0.002]['net_pips']:.1f}p")
 print(f"[DETAIL] run digest deterministic = {ok_det}")

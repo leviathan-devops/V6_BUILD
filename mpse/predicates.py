@@ -35,36 +35,72 @@ class Verdict:
 def _v(name, ok, token, detail): return Verdict(name, ok, token, detail)
 
 
+# AUDIT FIX: every predicate indexed c[...] unconditionally, so one missing key
+# raised a raw KeyError out of trust()/trust_all() instead of yielding a failed
+# verdict. The required keys are checked once, up front.
+REQUIRED_KEYS = ("pair", "direction", "entry", "sl", "tp", "rrr",
+                 "zone_width_pips", "sl_distance_pips", "confidence")
+
+
+def _missing(c: dict) -> list:
+    return [k for k in REQUIRED_KEYS if k not in c]
+
+
+def _guard(c: dict, name: str):
+    miss = _missing(c)
+    if miss:
+        return _v(name, False, f"{name.replace('-','')}_MISSING_FIELDS",
+                  f"candidate is missing {miss}")
+    return None
+
+
 # ---- AT-01 .. AT-10 ---------------------------------------------------------
 def at_01_rrr_floor(c) -> Verdict:
+    g = _guard(c, 'AT-01')
+    if g: return g
     ok = c["rrr"] >= RRR_FLOOR
     return _v("AT-01", ok, "AT01_PASS" if ok else "AT01_RRR_BELOW_FLOOR",
               f"rrr {c['rrr']:.3f} vs floor {RRR_FLOOR}")
 
 def at_02_sl_envelope(c) -> Verdict:
+    g = _guard(c, 'AT-02')
+    if g: return g
     ok = c["sl_distance_pips"] <= SL_MAX_PIPS
     return _v("AT-02", ok, "AT02_PASS" if ok else "AT02_SL_OUTSIDE_ENVELOPE",
               f"sl {c['sl_distance_pips']:.2f}p vs max {SL_MAX_PIPS}p")
 
 def at_03_direction_sign(c) -> Verdict:
+    g = _guard(c, 'AT-03')
+    if g: return g
     """Long: TP above entry, SL below. Short: the mirror. A wrong-signed
     geometry is a SIDE INVERSION — the V5 class the mutants target."""
     d, e, sl, tp = c["direction"], c["entry"], c["sl"], c["tp"]
+    # AUDIT FIX: an invalid direction was silently treated as short, so a typo
+    # could PASS. Validate membership.
+    if d not in ("long", "short"):
+        return _v("AT-03", False, "AT03_INVALID_DIRECTION",
+                  f"direction {d!r} is not one of ('long','short')")
     ok = (tp > e > sl) if d == "long" else (sl > e > tp)
     return _v("AT-03", ok, "AT03_PASS" if ok else "AT03_SIDE_INVERSION",
               f"{d}: e={e} sl={sl} tp={tp}")
 
 def at_04_zone_positive(c) -> Verdict:
+    g = _guard(c, 'AT-04')
+    if g: return g
     ok = c["zone_width_pips"] > 0
     return _v("AT-04", ok, "AT04_PASS" if ok else "AT04_ZERO_ZONE",
               f"zone width {c['zone_width_pips']}")
 
 def at_05_confidence_in_range(c) -> Verdict:
+    g = _guard(c, 'AT-05')
+    if g: return g
     ok = 0.0 <= c["confidence"] <= 1.0
     return _v("AT-05", ok, "AT05_PASS" if ok else "AT05_CONF_OUT_OF_RANGE",
               f"confidence {c['confidence']}")
 
 def at_06_dual_consistency(c) -> Verdict:
+    g = _guard(c, 'AT-06')
+    if g: return g
     """|model - code| <= eps on the RRR path."""
     m, k = c.get("limite_rrr"), c["rrr"]
     if m is None:
@@ -75,6 +111,8 @@ def at_06_dual_consistency(c) -> Verdict:
               f"|{m:.4f}-{k:.4f}|={delta:.4f} vs eps 0.02")
 
 def at_07_pip_scale(c) -> Verdict:
+    g = _guard(c, 'AT-07')
+    if g: return g
     """The pair's pip scale must be the one its price magnitude implies —
     a DXY level treated as FX destroys every downstream pip count."""
     pair, entry = c["pair"], c["entry"]
@@ -84,12 +122,16 @@ def at_07_pip_scale(c) -> Verdict:
               f"{pair} entry={entry} expects pip {expect}")
 
 def at_08_monotone_levels(c) -> Verdict:
+    g = _guard(c, 'AT-08')
+    if g: return g
     """All three levels must be distinct (a collapsed level is a degenerate trade)."""
     ok = len({c["entry"], c["sl"], c["tp"]}) == 3
     return _v("AT-08", ok, "AT08_PASS" if ok else "AT08_COLLAPSED_LEVELS",
               f"distinct levels={len({c['entry'], c['sl'], c['tp']})}")
 
 def at_09_rrr_recompute(c) -> Verdict:
+    g = _guard(c, 'AT-09')
+    if g: return g
     """The stated RRR must equal the geometry's RRR — a stated/derived mismatch
     is the single most dangerous silent-arithmetic defect."""
     pip = PIP.get(c["pair"], 0.0001)
@@ -102,6 +144,8 @@ def at_09_rrr_recompute(c) -> Verdict:
               f"stated {c['rrr']:.4f} vs recomputed {recomputed:.4f}")
 
 def at_10_session_valid(c) -> Verdict:
+    g = _guard(c, 'AT-10')
+    if g: return g
     s = c.get("session_utc", "")
     ok = bool(s) and "02:00" <= s[-5:] <= "05:00"
     return _v("AT-10", ok, "AT10_PASS" if ok else "AT10_SESSION_INVALID",
@@ -156,6 +200,12 @@ PREDICATE_SUBJECT = {
 
 
 def trust(predicate: Callable, c: dict) -> TrustVerdict:
+    """AUDIT FIX: a candidate missing a required key now yields an INCONCLUSIVE
+    verdict naming the field, instead of raising KeyError out of the caller."""
+    miss = _missing(c)
+    if miss:
+        return TrustVerdict("INCONCLUSIVE", getattr(predicate, "__name__", "?"),
+                            {}, f"candidate is missing {miss}")
     """Adjudicate ONE predicate across the three witnesses.
 
     AUDIT FIX: the LIMITE and GEOMETRY witnesses were computed identically for

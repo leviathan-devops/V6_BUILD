@@ -1,6 +1,6 @@
 """memory/memory_store.py — the memory store ported from MiMoCode.
 
-THE PORT (blueprint: "port the MiMoCode memory system (TypeScript→TypeScript
+THE PORT (the blueprint names "port the MiMoCode memory subsystem (TypeScript→TypeScript
 copy-paste)"). The semantics preserved from the MiMoCode store:
   - APPEND-ONLY: a fact is never rewritten; a correction is a new row
   - one writer per bank: writers are named, and a bank has ONE owner

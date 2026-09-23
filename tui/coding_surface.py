@@ -48,7 +48,10 @@ def _f(*parts: str) -> str:
 # backslash escape, which a generator layer would turn into a control char.
 _PRE = "(?<![0-9A-Za-z_.])"
 _POST = "(?![0-9A-Za-z_])"
-_WS = "[ \t]*"
+# AUDIT FIX: a backslash-newline is a valid continuation inside a call, so a
+# whitespace class of space/tab alone is evadable with one backslash. The class
+# now also matches a newline preceded by a backslash.
+_WS = "[ \t]*(?:[" + chr(92) + chr(92) + "][" + chr(10) + chr(13) + "][ \t]*)?"
 
 
 def _bare(word: str) -> str:
@@ -56,14 +59,27 @@ def _bare(word: str) -> str:
 
 
 def _qualified(word: str) -> str:
-    return _f("built", "ins", "[.]", word, _WS, "[(]")
+    # AUDIT FIX: the dunder-qualified call form matched NEITHER the bare pattern
+    # (a preceding '.' is excluded) nor the plain qualified pattern. Both
+    # qualified spellings are now matched.
+    # split the "builtins" literal so this source never contains it whole
+    bi = _f("buil", "t", "ins")
+    return (_f(bi, "[.]", word, _WS, "[(]") + "|"
+            + _f("__", bi, "__[.]", word, _WS, "[(]"))
 
 
 _EXEC_NAMES = [
     (_f("sub", "pro", "cess"),   _f(_PRE, "sub", "pro", "cess", _POST)),
-    (_f("os.", "sys", "tem"),    _f("os[.]", "sys", "tem", _WS, "[(]")),
-    (_f("os.", "ex", "ec"),      _f("os[.]", "ex", "ec", "[0-9A-Za-z_]*", _WS, "[(]")),
-    (_f("os.", "spa", "wn"),     _f("os[.]", "spa", "wn", "[0-9A-Za-z_]*", _WS, "[(]")),
+    # AUDIT FIX: the dotted-only forms were bypassed by a from-import
+    # (importing the name directly and calling it). Each name now also matches
+    # its BARE call form, so the alias/import route is caught too.
+    (_f("os.", "sy", "s", "tem"), _f("os[.]", "sy", "s", "tem", _WS, "[(]") + "|"
+                                 + _bare(_f("sy", "s", "tem"))),
+    (_f("os.", "ex", "ec"),      _f("os[.]", "ex", "ec", "[0-9A-Za-z_]*", _WS, "[(]") + "|"
+                                 + _bare(_f("ex", "ec", "l")) + "|" + _bare(_f("ex", "ec", "v"))
+                                 + "|" + _bare(_f("ex", "ec", "l", "p"))),
+    (_f("os.", "spa", "wn"),     _f("os[.]", "spa", "wn", "[0-9A-Za-z_]*", _WS, "[(]") + "|"
+                                 + _bare(_f("spa", "wn")) + "|" + _bare(_f("spa", "wn", "l"))),
     (_f("po", "pen"),            _f("[Pp]", "open", _WS, "[(]")),
     (_f("ev", "al"),             _bare("eval") + "|" + _qualified("eval")),
     (_f("ex", "ec"),             _bare("exec") + "|" + _qualified("exec")),
@@ -71,7 +87,10 @@ _EXEC_NAMES = [
     (_f("__", "imp", "ort", "__"), _f("__", "imp", "ort", "__", _WS, "[(]")),
     (_f("p", "ty"),              _f(_PRE, "p", "ty", _POST)),
     (_f("c", "ty", "pes"),       _f(_PRE, "c", "ty", "pes", _POST)),
-    (_f("pickle.", "lo", "ad"),  _f("pickle[.]lo", "ads?", _WS, "[(]")),
+    # AUDIT FIX: only load/loads were covered; Unpickler(...).load() and the
+    # _pickle alias execute identical deserialization.
+    (_f("pickle.", "lo", "ad"),  _f("_?pickle[.](?:lo", "ads?|Unpickler)", _WS, "[(]") + "|"
+                                 + _bare(_f("lo", "ads"))),
     (_f("mar", "sh", "al"),      _f(_PRE, "mar", "sh", "al", _POST)),
     (_f("shell", "=True"),       _f("shell", _WS, "=", _WS, "True")),
     (_f("run", "py"),            _f(_PRE, "run", "py", _POST)),
@@ -81,7 +100,11 @@ EXEC_FORBIDDEN = {n: p for n, p in _EXEC_NAMES}
 
 # ---- FILE WRITE: exempted ONLY for the declared artifact writers -----------
 _WRITE_NAMES = [
-    (_f("open", "-write-mode"), _f("open", _WS, "[(][^)]*", "['", '"', "][wax]")),
+    # AUDIT FIX: `[^)]*` could not cross the first ')' so open(get(), "w") was
+    # invisible; and r+/w+/a+/x+ were not covered. The arg scan is now
+    # non-greedy to the LAST quote, and the mode class includes '+'.
+    (_f("open", "-write-mode"),
+     _f("open", _WS, "[(].*?['", '"', "][rwax][+]?['", '"', "][ \t]*[,)]")),
     (_f("os.", "wr", "ite"),    _f("os[.]", "wr", "ite", _WS, "[(]")),
     (_f("os.", "op", "en"),     _f("os[.]", "op", "en", _WS, "[(]")),
     (_f("os.", "re", "name"),   _f("os[.]", "re", "name", _WS, "[(]")),

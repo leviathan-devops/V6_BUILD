@@ -6,7 +6,7 @@ ARGS = {
     "L2": dict(zone_width_pips=10.0, buffer_pips=3.0),
     "L3": dict(entry=1.14110, sl=1.13925, tp=1.14395, pair="EUR/USD"),
     "L4": dict(swing_high=1.14315, swing_low=1.13925),
-    "L5": dict(gross_pips=28.5, units=100000, rate=0.001, pair="EUR/USD"),
+    "L5": dict(gross_pips=28.5, rate=0.001, pair="EUR/USD"),
     "L6": dict(entry=1.14110, tp=1.14395, pair="EUR/USD"),
 }
 errors, vals = [], {}

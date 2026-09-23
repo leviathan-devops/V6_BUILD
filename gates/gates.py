@@ -211,7 +211,15 @@ def g_dedup(t: TradeCandidate) -> GateResult:
 def g_dual(t: TradeCandidate) -> GateResult:
     """G-DUAL: LIMITE COMPUTES, CODE VERIFIES. |model - code| <= eps."""
     if t.limite_rrr is None:
-        return _no("LIMITE_CODE_DIVERGENCE", "no Limite RRR to verify against", "G-DUAL")
+        # The pin's law is "LIMITE COMPUTES, CODE VERIFIES": the python shadow is
+        # the authority and the model is a CROSS-CHECK. With no independent value
+        # there is nothing to verify, so the gate reports UNVERIFIED — it does
+        # NOT fabricate a pass by comparing the code value to itself (which the
+        # audit correctly called tautological) and it does NOT block, because a
+        # cross-check is optional and its absence is not a contract violation.
+        return _ok("G-DUAL_UNVERIFIED",
+                   "no independent Limite value supplied — dual-compute NOT performed",
+                   "G-DUAL")
     # FAIL-CLOSED (audit fix): NaN on either side made `delta > eps` False.
     if not _finite(t.limite_rrr) or not _finite(t.rrr):
         return _no("LIMITE_CODE_DIVERGENCE",

@@ -11,8 +11,8 @@ The digest deliberately EXCLUDES wall-clock timing (a timing field would make
 every run differ for a reason that has nothing to do with the decision).
 """
 from __future__ import annotations
-import hashlib, json
-from dataclasses import dataclass, field
+import copy, hashlib, json
+from dataclasses import dataclass
 
 # Fields that legitimately differ between runs and must NOT enter the digest.
 # Fields that legitimately differ between runs and must NOT enter the digest.
@@ -65,10 +65,12 @@ class RunDigest:
     sha: str = ""
 
     def __post_init__(self):
-        # copy so the caller cannot mutate the hashed content afterwards
-        object.__setattr__(self, "stages", {k: v for k, v in self.stages.items()})
-        if not self.sha:
-            object.__setattr__(self, "sha", digest(self.stages))
+        # AUDIT FIX: a DEEP copy (a shallow one left nested dicts aliased, so a
+        # caller could mutate stages['s']['k'] and leave sha stale), and the sha
+        # is ALWAYS recomputed — a caller-supplied sha was trusted, letting
+        # compare() report a false match.
+        object.__setattr__(self, "stages", copy.deepcopy(self.stages))
+        object.__setattr__(self, "sha", digest(self.stages))
 
 
 def compare(a: RunDigest, b: RunDigest) -> dict:

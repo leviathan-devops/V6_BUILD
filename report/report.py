@@ -61,7 +61,14 @@ def render(ri: ReportInput) -> str:
           f"pair={ri.pair}  anchor={_fmt_ts(ri.anchor_ms)}  session={ri.session}  run_id={rid}",
           ""]
     # 2
-    L += ["## 2. MARKET STATE", "```", ri.state_text.strip()[:1500], "```", ""]
+    # AUDIT FIX: the display truncation is now DISCLOSED (the run_id hashes the
+    # FULL text, so a reader must know the shown state is a prefix).
+    shown = ri.state_text.strip()
+    truncated = len(shown) > 1500
+    L += ["## 2. MARKET STATE",
+          f"  (showing {min(len(shown),1500)} of {len(shown)} chars"
+          + (" — TRUNCATED for display; the run_id hashes the full text)" if truncated else ")"),
+          "```", shown[:1500], "```", ""]
     # 3
     L += ["## 3. DECIDER — 17 distributions"]
     for qid in sorted(ri.decider):
@@ -101,8 +108,15 @@ def render(ri: ReportInput) -> str:
     # 8
     L += ["## 8. VERDICT"]
     n_ok = sum(1 for g in ri.gates if g.get("passed"))
+    short = contract_shortfalls(ri)
     L += [f"  gates_passed={n_ok}/{len(ri.gates)}",
+          f"  CONTRACT: decider {len(ri.decider)}/{CONTRACT_COUNTS['decider']} "
+          f"limite {len(ri.limite)}/{CONTRACT_COUNTS['limite']} "
+          f"gates {len(ri.gates)}/{CONTRACT_COUNTS['gates']}",
+          f"  contract_complete={not short}",
           f"  run_id={rid}"]
+    if short:
+        L.append(f"  CONTRACT SHORTFALL: {short}")
     if ri.gaps:
         L.append("  HONEST GAPS:")
         for g in ri.gaps: L.append(f"    - {g}")
@@ -115,3 +129,16 @@ def render(ri: ReportInput) -> str:
 def section_count() -> int:
     """The contract's section count (the test asserts >= 8)."""
     return 8
+
+
+# The contract's per-section counts (the pin DOC CONTRACT).
+CONTRACT_COUNTS = {"decider": 17, "limite": 6, "gates": 8}
+
+
+def contract_shortfalls(ri: ReportInput) -> dict:
+    """AUDIT FIX: the report emitted headings and a gates_passed=n/len(gates)
+    line for ANY input, so a run with 12 decider answers / 5 limite quantities /
+    6 gates looked complete. The shortfall is now NAMED per section."""
+    have = {"decider": len(ri.decider), "limite": len(ri.limite), "gates": len(ri.gates)}
+    return {k: {"have": have[k], "need": v} for k, v in CONTRACT_COUNTS.items()
+            if have[k] < v}

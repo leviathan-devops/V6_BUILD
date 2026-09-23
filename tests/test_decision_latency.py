@@ -21,13 +21,13 @@ pf = {k: v for k, v in feeds.items() if k[0] == "DXY"}
 
 # warm up (first call builds the state from 6,500 bars)
 c.decide("DXY", {"entry":100.945,"sl":100.905,"tp":101.115,"direction":"long",
-                 "zone_id":"warm","confidence":0.75}, pf)
+                 "zone_id":"warm","confidence":0.75,"cascade_valid":True,"chain_integrity":True}, pf)
 
 lat = []
 for _ in range(20):
     for pair, d, e, sl, tp, z in TIER_A:
         t0 = time.perf_counter()
-        c.decide(pair, {"entry":e,"sl":sl,"tp":tp,"direction":d,"zone_id":z,"confidence":0.75}, pf)
+        c.decide(pair, {"entry":e,"sl":sl,"tp":tp,"direction":d,"zone_id":z,"confidence":0.75,"cascade_valid":True,"chain_integrity":True}, pf)
         lat.append((time.perf_counter()-t0)*1000)
 
 mean = statistics.mean(lat); p50 = statistics.median(lat)

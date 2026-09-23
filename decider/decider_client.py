@@ -32,17 +32,32 @@ def health(url: str | None = None, timeout: float = 10.0) -> dict:
     base = url or os.environ.get("DECIDER_URL", DEFAULT_BASE)
     try:
         with urllib.request.urlopen(f"{base}/health", timeout=timeout) as r:
-            return json.loads(r.read())
+            raw = r.read()
     except Exception as e:
         raise DeciderUnavailable(f"DECIDER_DOWN: {base}/health unreachable — {e}") from e
+    # AUDIT FIX: the health payload shape is validated here too — a 200 with a
+    # non-object body used to pass through and fail later with AttributeError.
+    try:
+        data = json.loads(raw)
+    except Exception as e:
+        raise DeciderUnavailable(f"DECIDER_BAD_JSON: {raw[:200]!r}") from e
+    if not isinstance(data, dict):
+        raise DeciderUnavailable(f"DECIDER_BAD_SHAPE: expected an object, got {type(data).__name__}")
+    return data
 
 
 def system_one(state, questions: dict, timeout: float | None = None,
                url: str | None = None) -> dict:
     """One forward pass: state + typed questions -> a distribution per question."""
     base = url or os.environ.get("DECIDER_URL", DEFAULT_BASE)
-    to = timeout if timeout is not None else float(os.environ.get("DECIDER_TIMEOUT", "180"))
-    body = json.dumps({"state": state, "questions": questions}).encode()
+    # AUDIT FIX: env parsing and serialization now sit INSIDE the contract — a
+    # malformed DECIDER_TIMEOUT or a non-serializable state raised a raw
+    # ValueError/TypeError before the try that maps failures to DeciderUnavailable.
+    try:
+        to = timeout if timeout is not None else float(os.environ.get("DECIDER_TIMEOUT", "180"))
+        body = json.dumps({"state": state, "questions": questions}).encode()
+    except (TypeError, ValueError) as e:
+        raise DeciderUnavailable(f"DECIDER_BAD_REQUEST: {type(e).__name__}: {e}") from e
     req = urllib.request.Request(f"{base}/v1/systemone", data=body,
                                  headers={"Content-Type": "application/json"})
     try:
@@ -62,6 +77,10 @@ def system_one(state, questions: dict, timeout: float | None = None,
     if "answers" not in data:
         raise DeciderUnavailable(
             f"DECIDER_NO_ANSWERS: the payload carries no 'answers' key — keys={list(data)}")
+    if not isinstance(data["answers"], dict):
+        raise DeciderUnavailable(
+            f"DECIDER_BAD_ANSWERS: 'answers' must be an object, got "
+            f"{type(data['answers']).__name__}")
     return data
 
 
