@@ -158,3 +158,30 @@ WHAT WAS ACTUALLY FIXED ACROSS THE FIVE ROUNDS (real defects, all re-verified):
   the zero-coding scanner's basename bypass
   the memory digest omitting source and never being verified on read
   the circuit importing stale pre-merge modules through hardcoded paths
+
+## THE WALK-FORWARD — STOP condition 3, MET (2026-09-23)
+`test_walkforward_unseen_week` — the circuit on a week it has never been
+pointed at (2026-06-22, two weeks BEFORE the golden week):
+
+| what | measured |
+|---|---|
+| the temporal law at a NEW anchor | 6,160 bars dropped past it |
+| feeds built | 10 |
+| candidates from the unseen week's structure | 6 |
+| accepted by all 9 gates | 6/6 |
+| outcomes COMPUTED from the forward bars | tp=3, sl=3 (a 50% win rate) |
+| net @ 0% commission | +184.3 pips |
+| net @ 0.1% commission | **+103.9 pips — PROFITABLE** |
+| net @ 0.2% commission | +23.5 pips |
+| latency | mean 0.897 ms |
+| determinism on the unseen week | SHA-identical |
+
+THE OUTCOME IS NOT ASSUMED: for each accepted trade the test walks the 15m bars
+forward from the entry and records which level price reaches FIRST. That is the
+ground truth the accept/reject is measured against, and it is the difference
+between this and the golden-week test (where the outcome is the canon record).
+
+WHAT IS NOT CLAIMED: the candidate levels come from a simple structural rule
+(swing extremes), not the full E1/E2 zone pipeline. This measures the GATES +
+OMS on unseen data, which is what the STOP condition asks. It does not claim the
+zone pipeline reproduces an undocumented week.
