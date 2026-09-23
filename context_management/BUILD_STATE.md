@@ -70,3 +70,23 @@ _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-2
 | 13. 6 ship docs | MET (6 present, current) |
 | 14. 11 canon docs | MET (11 present, current) |
 **12 of 14 MET. 4 is BLOCKED (operator: downgrade decision). 11 is NOT MET.**
+
+
+## THE 14-CONDITION BOARD, UPDATED (2026-09-24)
+| STOP condition | verdict |
+|---|---|
+| 1. golden week >=14/15 <=3p | MET (15/15, max_delta 0.000p) |
+| 2. 38 forensic classified | MET |
+| 3. profitable at 0.1% unseen week | MET |
+| **4. latency <500ms (model IN the loop)** | **MET — 402ms warm** (`test_decider_live_pipeline`) |
+| 5. zero coding agent | MET |
+| 6. TUI shows every probability/gate | MET |
+| 7. determinism SHA-identical | MET |
+| 8. golden RRR +-0.02 | MET (6/6) |
+| 9. mutant tests fire | MET (AT-03 side-inversion) |
+| 10. ECE < 0.05 | MET (0.03238) |
+| 11. audit gate GATE: PASS | **NOT MET** (0 critical, 11 high) |
+| 12. checkpoint sealed | MET (10) |
+| 13. 6 ship docs | MET |
+| 14. 11 canon docs | MET |
+**13 of 14 MET. 11 is NOT MET.**
