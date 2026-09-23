@@ -395,7 +395,12 @@ def negative_records(cards: list[Record]) -> list[Record]:
             skipped += 1                     # NEVER emit a mislabeled record
             continue
         ns, nq, neg_answer = variant
-        out.append(Record(id=r.id + "-neg", source=r.source, quote=nq,
+        # AUDIT FIX (round 14): the negative stored the CORRUPTED text as its
+        # `quote` while `source` still pointed at the original file:line — so the
+        # quote was no longer VERBATIM from its source, breaking the module's D13
+        # provenance contract (the test asserts quote-in-source). The PARENT's
+        # verbatim quote is kept; the corruption lives in `state` only.
+        out.append(Record(id=r.id + "-neg", source=r.source, quote=r.quote,
                           state=ns, question=r.question, options=opts,
                           answer=neg_answer, kind=r.kind))
     if skipped:

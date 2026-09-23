@@ -152,6 +152,9 @@ def main() -> int:
     except (json.JSONDecodeError, OSError) as e:
         print(f"CT_CAPTURE_UNREADABLE: {type(e).__name__}: {e}")
         return 2
+    if not isinstance(cap, dict):
+        print(f"CT_CAPTURE_MALFORMED: the capture is a {type(cap).__name__}, not an object")
+        return 2
     results = cap.get("scenarios")
     if not isinstance(results, list) or not results:
         print(f"CT_CAPTURE_EMPTY: {cap_path} carries no scenarios — refusing a "
@@ -173,7 +176,14 @@ def main() -> int:
               f"{len(expected_map)} — a short capture must not read as a pass")
         return 2
     seen = {}
-    for r in results:
+    for i, r in enumerate(results):
+        if not isinstance(r.get("id"), str) or not isinstance(r.get("kind"), str):
+            print(f"CT_CAPTURE_MALFORMED: scenario[{i}] has a non-string id/kind")
+            return 2
+        if r.get("verdict") not in ("PASS", "FAIL"):
+            print(f"CT_CAPTURE_MALFORMED: scenario[{i}] verdict "
+                  f"{r.get('verdict')!r} is not PASS/FAIL")
+            return 2
         seen[r["id"]] = r.get("kind")
     if seen != expected_map:
         missing = sorted(set(expected_map) - set(seen))
@@ -192,14 +202,24 @@ def main() -> int:
     # list is evidence of tampering or of a drifted deployment, and must be LOUD
     # rather than silently overruled.
     claimed = cap.get("excludedByName")
-    if claimed is not None and sorted(claimed) != sorted(EXCLUDED):
+    if claimed is not None and (not isinstance(claimed, list)
+                                or not all(isinstance(x, str) for x in claimed)
+                                or sorted(claimed) != sorted(EXCLUDED)):
         print(f"CT_EXCLUSION_TAMPERED: the capture claims {sorted(claimed)} but the "
               f"local authority is {sorted(EXCLUDED)} — refusing")
         return 2
     for r in results:
-        if r["verdict"] == "PASS" and r["passToken"] not in r.get("toolResultContext", ""):
+        # AUDIT FIX (round 14): `r["passToken"]` raised KeyError when missing and
+        # `in` raised TypeError for a non-str token or a None/list context — a
+        # malformed capture must REFUSE, never crash the validator.
+        _tok, _ctx = r.get("passToken"), r.get("toolResultContext")
+        if not isinstance(_tok, str) or not isinstance(_ctx, str):
+            print(f"CT_CAPTURE_MALFORMED: {r.get('id')} has a non-string "
+                  f"passToken/toolResultContext")
+            return 2
+        if r["verdict"] == "PASS" and _tok not in _ctx:
             print(f"CT_EVIDENCE_UNSUPPORTED: {r['id']} is marked PASS but its "
-                  f"passToken {r['passToken']!r} is absent from the recorded output")
+                  f"passToken {_tok!r} is absent from the recorded output")
             return 2
     n_pass = sum(1 for r in results if r["verdict"] == "PASS")
     adv = [r for r in results if r["kind"] == "adversarial"]

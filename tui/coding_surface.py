@@ -240,6 +240,14 @@ _WRITE_NAMES = [
     # by splitting on the dot, which cannot work for these hyphenated
     # multi-method entries — so `from os import mkdir; mkdir(p)` evaded the whole
     # lexicon. The bare forms are listed explicitly.
+    # AUDIT FIX (round 14): the dotted forms need the LITERAL `os` prefix and the
+    # bare forms are dot-guarded, so `import os as o; o.makedirs(p)` matched
+    # NEITHER — the aliased-import evasion the exec lexicon had already closed.
+    # Every write primitive now also has an ANY-RECEIVER form (the same _ALIAS
+    # the exec lexicon uses), reported as a SUSPECT tier.
+    # NOTE: each method needs its OWN _f call — `_f(a, b, c)` CONCATENATES, so a
+    # single call with a fragment LIST builds one meaningless string.
+
     (_f("os.", "fs-creators-bare"),
      # AUDIT FIX (round 13): `_f(w) for w in ("mk","dir")` iterated the fragment
      # TUPLE, so it produced the patterns `mk(` and `dir(` instead of `mkdir(`.
@@ -268,12 +276,36 @@ _WRITE_NAMES = [
 for _n, _pat in list(_WRITE_NAMES):
     if _n.startswith(("os.", "tempfile.")) and "." in _n:
         _word = _n.split(".", 1)[1]
+        # AUDIT FIX (round 14): a hyphenated pseudo-entry ("fs-creators") has no
+        # single method name, so `_bare("fs-creators")` built a pattern for the
+        # literal `fs-creators(` — a rule that can never match. Only real
+        # single-identifier method names are expanded.
+        if not _word.isidentifier():
+            continue
         # AUDIT FIX (round 13): the first list omitted mkdir/makedirs/replace/
         # symlink/truncate, so `from os import mkdir; mkdir(p)` evaded the
         # lexicon entirely. The bare expansion now covers EVERY write name.
         _WRITE_NAMES.append((_n + "-bare", _pat + "|" + _bare(_f(_word))))
 
 WRITE_FORBIDDEN = {n: p for n, p in _WRITE_NAMES}
+
+# THE WRITE SUSPECT TIER. AUDIT FIX (round 14): the aliased-import evasion
+# (`import os as o; o.makedirs(p)`) is closed with ANY-RECEIVER patterns — but a
+# receiver is not provably `os`, so `text.replace(` / `name.remove(` / `f.open(`
+# match too. Those are LEGITIMATE calls, so they cannot be VIOLATIONS; they are
+# REVIEW ITEMS, exactly like _ALIASED for the exec lexicon. The two tiers keep
+# the audit's "zero violations" assertion honest while still surfacing the
+# aliased spawn for a human.
+WRITE_SUSPECT = [
+    (_f("os.", "fs-creators-any-receiver"),
+     "|".join(_f(_ALIAS, *frags, _WS, "[(]") for frags in (
+         ("mk", "dir"), ("make", "dirs"), ("re", "place"), ("sym", "link"),
+         ("trun", "cate")))),
+    (_f("os.", "write-any-receiver"),
+     "|".join(_f(_ALIAS, *frags, _WS, "[(]") for frags in (
+         ("wr", "ite"), ("op", "en"), ("re", "name"), ("un", "link"),
+         ("re", "move")))),
+]
 
 # FULL-PATH prefixes whose write authority is declared (the artifact writers).
 # AUDIT FIX: keyed on the full relative path, never the basename.
@@ -336,6 +368,16 @@ def scan_tree(root: str, include_tests: bool = True) -> list:
         if rel not in WRITE_ALLOWED_PATHS:
             violations += _scan(f, root_p, src, WRITE_FORBIDDEN, "write")
     return violations
+
+
+def scan_write_suspects(src: str) -> list:
+    """The WRITE review tier: an aliased receiver calling a write primitive.
+    Reported, never asserted against (see WRITE_SUSPECT)."""
+    out = []
+    for name, pat in WRITE_SUSPECT:
+        for m in re.finditer(pat, src):
+            out.append((name, m.group(0)))
+    return out
 
 
 def scan_text(text: str) -> list:

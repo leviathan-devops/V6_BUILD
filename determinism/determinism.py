@@ -44,17 +44,34 @@ def canonical(obj) -> str:
                     sorted(o.items(), key=lambda kv: str(kv[0]))
                     if str(k) not in drop}
         if isinstance(o, (list, tuple)):
-            return [strip(x, depth + 1) for x in o]
+            # AUDIT FIX (round 14): a stage returning a LIST of dicts put the
+            # measurement at depth 1, where `drop` was already empty — so the
+            # filter never applied and every run falsely diverged. A list element
+            # is still "the top of the payload" for filtering purposes.
+            return [strip(x, depth) for x in o]
         if isinstance(o, float):
             return round(o, 10)
-        return o
+        if o is None or isinstance(o, (str, int, bool)):
+            return o
+        # anything else would reach json.dumps unfreezable
+        raise ValueError(f"CANONICAL_UNFREEZABLE: {type(o).__name__} has no "
+                         f"deterministic rendering")
     # AUDIT FIX (round 9): a datetime/Decimal/custom object passed _freeze
     # unchanged and then raised TypeError out of json.dumps, so digest() CRASHED
     # where the gate should have produced a digest. `default=str` makes any
     # remaining object render deterministically; a non-str dict KEY is
     # normalised in strip().
-    return json.dumps(strip(obj), separators=(",", ":"), sort_keys=True,
-                      default=str)
+    # AUDIT FIX (round 14): `default=str` let an object render via its
+    # `__repr__`, which for a default object embeds a HEAP ADDRESS
+    # (`<Foo object at 0x7f...>`) — so two logically identical runs digested
+    # differently (a false DIVERGENCE). An unfreezable object is now a NAMED
+    # refusal, which is the loud-fail contract: the caller must put real data in.
+    try:
+        return json.dumps(strip(obj), separators=(",", ":"), sort_keys=True)
+    except TypeError as e:
+        raise ValueError(
+            f"CANONICAL_UNFREEZABLE: {e} — the payload carries an object with no "
+            f"deterministic rendering; pass plain data (dict/list/str/number/bool/None)") from e
 
 
 def digest(stages: dict) -> str:

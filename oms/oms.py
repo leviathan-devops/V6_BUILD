@@ -75,6 +75,30 @@ class TradeDecision:
     grade: str = ""
     zone_id: str = ""
 
+    def __post_init__(self):
+        """THE BRACKET INVARIANT, checked where it belongs.
+
+        AUDIT FIX (round 14): the orientation was never validated anywhere, so an
+        inverted bracket (a long with tp < entry, or sl > entry) flowed into the
+        OMS and produced NEGATIVE gross_pips on a "tp" win — inverting the P&L
+        with no error. The invariant is structural: for a long the target is
+        ABOVE entry and the stop BELOW; for a short, the reverse.
+        """
+        if self.direction not in ("long", "short"):
+            raise ValueError(f"INVALID_DIRECTION: {self.direction!r}")
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                   and v == v and abs(v) != float("inf")
+                   for v in (self.entry, self.sl, self.tp)):
+            raise ValueError(f"INVALID_PRICES: non-finite entry/sl/tp in {self!r}")
+        if self.direction == "long" and not (self.tp > self.entry > self.sl):
+            raise ValueError(
+                f"INVALID_BRACKET: long needs tp > entry > sl, got "
+                f"tp={self.tp} entry={self.entry} sl={self.sl}")
+        if self.direction == "short" and not (self.sl > self.entry > self.tp):
+            raise ValueError(
+                f"INVALID_BRACKET: short needs sl > entry > tp, got "
+                f"sl={self.sl} entry={self.entry} tp={self.tp}")
+
 
 @dataclass
 class Fill:
@@ -85,6 +109,35 @@ class Fill:
     exit: float
     units: int
     commission_rate: float     # round-trip rate, e.g. 0.001
+
+    def __post_init__(self):
+        """AUDIT FIX (round 14): validation was LAZY — it ran only when a property
+        was accessed — so an invalid Fill constructed fine, entered a Portfolio,
+        and failed much later during aggregation. This module's contract is to
+        fail LOUDLY, and the earliest honest place is creation.
+
+        Three classes were reachable before this guard:
+          - a NON-FINITE input: `rate < 0` is False for NaN, and entry/exit were
+            never checked, so a NaN commission poisoned every downstream total
+            and an inf price produced inf pips;
+          - a NON-POSITIVE unit count (already caught lazily, now eagerly);
+          - an INVERTED BRACKET: a long whose exit sat BELOW its entry produced
+            NEGATIVE gross_pips on a "win", inverting the P&L with no error.
+        """
+        vals = (self.entry, self.exit, self.units, self.commission_rate)
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                   and v == v and abs(v) != float("inf") for v in vals):
+            raise ValueError(f"INVALID_FILL: non-finite or non-numeric input {self!r}")
+        if self.units <= 0:
+            raise ValueError(f"INVALID_UNITS: {self.units} (must be positive)")
+        if self.commission_rate < 0:
+            raise ValueError(f"INVALID_COMMISSION: {self.commission_rate} (must be >= 0)")
+        if self.direction not in ("long", "short"):
+            raise ValueError(f"INVALID_DIRECTION: {self.direction!r}")
+        # NOTE (round 14, my own correction): a first version ALSO checked that a
+        # long's exit sat above its entry. That is WRONG — an SL hit is a
+        # legitimate LOSS whose exit is below entry. The bracket invariant belongs
+        # on the DECISION (tp/sl relative to entry), not on the fill's outcome.
 
     @property
     def pip(self) -> float:

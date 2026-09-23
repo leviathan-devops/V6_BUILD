@@ -413,3 +413,37 @@ _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-2
     would abort before the capture write and discard every prior result.
 - LESSON: a documented invariant that the code cannot reach is a FALSE CLAIM
   inside the source. Test the panel, not the docstring.
+
+## EN-026 · round 14, and TWO of my own fixes were wrong (2026-09-24)
+- THE GENUINE FIXES (all verified by attack):
+  - the SCANNER's aliased-import hole: `import os as o; o.makedirs(p)` matched
+    NEITHER the dotted forms (which need the literal `os`) nor the bare forms
+    (dot-guarded) — the exact evasion the exec lexicon had closed. Any-receiver
+    forms now exist for every write primitive.
+  - OMS: a Fill's numeric inputs are validated FINITE at creation (a NaN
+    commission poisoned every total; `rate < 0` is False for NaN so it passed).
+  - DETERMINISM: `default=str` rendered an unfreezable object via its `__repr__`,
+    which embeds a HEAP ADDRESS — two identical runs digested differently (a false
+    divergence). An unfreezable payload is now a NAMED refusal.
+  - DETERMINISM: a stage returning a LIST of dicts put its measurements at depth 1,
+    past the filter, so every run falsely diverged. A list element now counts as
+    the top of its payload.
+  - STATE: the render path assumed ascending order; it now SORTS (and the
+    hygiene checks still apply), so a tail slice cannot describe the wrong era.
+  - the CT runner type-checks the container-controlled fields instead of crashing
+    the validator on a malformed capture.
+- MY OWN ERRORS, CORRECTED:
+  1. I put the BRACKET check on the FILL (`long exit must be above entry`). WRONG:
+     an SL hit is a legitimate LOSS whose exit IS below entry — my check refused
+     every losing trade. The invariant is structural and belongs on the
+     `TradeDecision` (tp/sl relative to entry). A losing Fill now constructs
+     correctly with negative gross_pips, as it must.
+  2. I added the write any-receiver forms as VIOLATIONS, which flagged
+     `text.replace(` and `name.remove(` — ordinary string/list methods. A
+     receiver is not provably `os`, so these are REVIEW ITEMS: a WRITE_SUSPECT
+     tier now mirrors the exec lexicon's _ALIASED design.
+  3. `str.replace` replaced ALL occurrences of my anchor, inserting the oms block
+     TWICE (the anchor appears in two classes). Reverted and re-applied with the
+     edit tool.
+- LESSON: a validation that refuses LEGITIMATE behaviour is as wrong as one that
+  admits illegitimate behaviour. Both of my bad fixes refused correct inputs.
