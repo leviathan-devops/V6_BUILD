@@ -1,4 +1,26 @@
-"""tui/coding_surface.py — the NO-CODING audit.
+"""tui/coding_surface.py — the NO-CODING audit (a SUPPLEMENTARY source check).
+
+READ THIS BEFORE TRUSTING OR FIXING THIS FILE.
+
+THE PRIMARY ENFORCEMENT IS NOT HERE. The pin's law is "zero coding capability in
+the trading agent — bash REMOVED, code execution DISABLED". That is enforced
+MECHANICALLY by `pi --no-builtin-tools`, which removes pi's own read/bash/
+powershell/edit/write/grep/find/ls. `pi-harness/prove_zero_coding.py` asserts
+that flag is passed and that the extension registers ONLY `plutus_*` tools. That
+is the boundary: a flag the runtime honours, not a pattern match.
+
+THIS MODULE IS A SECONDARY CHECK ON THE EXTENSION'S OWN SOURCE. It greps for
+spawn/deserialize/write idioms so that a future edit adding one is caught in
+review. It is a HEURISTIC, and its limits are real and known:
+  - it cannot follow an import alias to its module (a regex has no dataflow), so
+    an aliased receiver is reported in the SUSPECT class, not the EXACT class;
+  - a determined author can evade any pattern list;
+  - the SUSPECT class WILL flag legitimate code (`json.loads`, a db cursor's
+    `.execute`), which is the deliberate trade: a false positive costs a review
+    item, a missed spawn costs the law.
+Its value is CATCHING ACCIDENTS, not stopping an adversary. Treating it as a
+security boundary is the mistake that produced five audit criticals across
+rounds 1/3/6/7/8 — each one an evasion of a list that cannot be complete.
 
 PIN LAW: "zero coding capability in the trading agent — bash REMOVED, code
 execution DISABLED". This module is the mechanical predicate that proves it:

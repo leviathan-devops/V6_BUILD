@@ -28,11 +28,14 @@ A law with no testable attribute is reported as NOT CLASSIFIABLE for that trade,
 never as a pass.
 """
 from __future__ import annotations
-import re
+import os, re
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-PLUTUS = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS")
+# AUDIT FIX: env-overridable, and a missing file is a NAMED failure rather than
+# a FileNotFoundError from deep inside a parser.
+PLUTUS = Path(os.environ.get(
+    "PLUTUS_HOME", "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS"))
 FORENSIC = PLUTUS / "MASTER_CONTEXT/FORENSIC_ANALYSIS_38_TRADES.md"
 SLDOC = PLUTUS / "ARCHIVE/agent/Visual_Evals/v4.5.1/SL_vs_ENTRY_ANALYSIS.md"
 OUTCOME = PLUTUS / "ARCHIVE/agent/Visual_Evals/v4.5.1/OUTCOME_AUDIT.md"
@@ -58,10 +61,6 @@ class Trade:
     def sl_too_wide(self) -> bool:
         return "SL TOO WIDE" in self.source_verdict
 
-    @property
-    def entry_too_early(self) -> bool:
-        return "ENTRY TOO EARLY" in self.source_verdict
-
 
 @dataclass
 class LawVerdict:
@@ -78,18 +77,31 @@ class LawVerdict:
         return self.tested / max(self.tested + self.not_classifiable, 1)
 
 
+def _read(p: Path) -> str:
+    if not p.exists():
+        raise FileNotFoundError(f"SOURCE_MISSING: {p} (set PLUTUS_HOME if the tree moved)")
+    return p.read_text(errors="ignore")
+
+
 def parse_laws() -> list[tuple[str, str]]:
-    text = FORENSIC.read_text(errors="ignore")
-    return [(m.group(1), m.group(2).strip()) for m in LAW_RE.finditer(text)]
+    text = _read(FORENSIC)
+    laws = [(m.group(1), m.group(2).strip()) for m in LAW_RE.finditer(text)]
+    # AUDIT FIX: a format drift silently yielded zero laws and the classification
+    # "succeeded" with nothing to classify.
+    if not laws:
+        raise ValueError(f"NO_LAWS_PARSED: the LAW heading pattern matched nothing in {FORENSIC}")
+    return laws
 
 
 def parse_trades() -> list[Trade]:
-    text = SLDOC.read_text(errors="ignore")
+    text = _read(SLDOC)
     out = []
     for m in ROW_RE.finditer(text):
         n, pair, direction, day, sl, mae, util, verdict = m.groups()
         out.append(Trade(int(n), pair, direction, day, float(sl), float(mae),
                          float(util), verdict))
+    if not out:
+        raise ValueError(f"NO_TRADES_PARSED: the row pattern matched nothing in {SLDOC}")
     return out
 
 
@@ -132,22 +144,25 @@ def classify(trades: list[Trade], laws: list[tuple[str, str]]) -> dict[str, LawV
             # The sound signal is the SPREAD, not the sharing: a fixed buffer
             # produces a CONSTANT SL across trades, while a structural SL varies
             # with each zone's width. The law is OBEYED when the distances vary.
+            # AUDIT FIX (round 7): a single aggregate verdict for all trades
+            # contradicted the per-trade model. The per-trade predicate: a
+            # FIXED-BUFFER SL is a CONSTANT distance, so a trade whose SL equals
+            # the modal (most common) SL is the fixed-buffer case; a trade with
+            # its own distance is a structural SL.
             import statistics
-            d = [t.sl_pips for t in trades]
-            spread = statistics.pstdev(d) if len(d) > 1 else 0.0
-            mean = statistics.mean(d) if d else 0.0
-            # a fixed buffer would have pstdev ~ 0; a structural SL does not
-            varies = spread > 0.05 * mean if mean else False
-            v.tested = len(trades)
-            if varies:
-                v.obeyed = len(trades)
-                v.note = (f"SL distances VARY (mean {mean:.1f}p, sd {spread:.1f}p) — "
-                          f"a structural SL tracks each zone; a fixed buffer would "
-                          f"be constant")
-            else:
-                v.violated = len(trades)
-                v.note = (f"SL distances are effectively CONSTANT (mean {mean:.1f}p, "
-                          f"sd {spread:.1f}p) — the fixed-buffer signature")
+            from collections import Counter as _C
+            dist = [t.sl_pips for t in trades]
+            modal, modal_n = _C(dist).most_common(1)[0]
+            spread = statistics.pstdev(dist) if len(dist) > 1 else 0.0
+            mean = statistics.mean(dist) if dist else 0.0
+            for t in trades:
+                v.tested += 1
+                if t.sl_pips == modal and modal_n > 1:
+                    v.violated += 1      # shares the modal distance = a buffer
+                else:
+                    v.obeyed += 1        # its own distance = structural
+            v.note = (f"per-trade: the modal SL {modal}p recurs {modal_n}x; "
+                      f"spread mean {mean:.1f}p sd {spread:.1f}p")
         elif "buffer" in low:
             v.not_classifiable = len(trades)
             v.note = "the buffer is not a recorded column"

@@ -92,7 +92,7 @@ def harvest_golden_trades(v5_root: Path) -> list[Record]:
     recs = []
     injector = v5_root / "MASTER_CONTEXT" / "PLUTUS_MASTER_CONTEXT_INJECTOR.md"
     if not injector.exists():
-        injector = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/agent/MASTER_CONTEXT/PLUTUS_MASTER_CONTEXT_INJECTOR.md")
+        injector = _PLUTUS / "agent" / "MASTER_CONTEXT" / "PLUTUS_MASTER_CONTEXT_INJECTOR.md"
     if not injector.exists(): return recs
     text = injector.read_text(errors="ignore")
     for ln, line in enumerate(text.splitlines(), 1):
@@ -210,7 +210,9 @@ def harvest_gap_analysis(master: Path) -> list[Record]:
     for name in ("PLUTUS_MASTER_CONTEXT_INJECTOR.md", "GAP_ANALYSIS_2026-07-18.md"):
         f = master / name
         if not f.exists():
-            f = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/agent/MASTER_CONTEXT") / name
+            # AUDIT FIX: derive the fallback from the env-overridable root rather
+            # than a second hardcoded absolute path.
+            f = _PLUTUS / "agent" / "MASTER_CONTEXT" / name
         if not f.exists(): continue
         text = f.read_text(errors="ignore")
         for ln, line in enumerate(text.splitlines(), 1):
@@ -218,7 +220,12 @@ def harvest_gap_analysis(master: Path) -> list[Record]:
             # above-floor without parsing the RRR. A row below the operator's
             # floor was a false positive. The value is now compared.
             _m = re.search(r"(\d+\.\d+)/(\d+\.\d+)/(\d+\.\d+)\s+([\d.]+)", line)
-            _rrr = float(_m.group(4)) if _m else None
+            try:
+                _rrr = float(_m.group(4)) if _m else None
+            except ValueError:
+                # AUDIT FIX: `[\d.]+` can match a bare "." (an ellipsis in prose)
+                # and float(".") aborted the whole harvest.
+                _rrr = None
             if _rrr is not None and _rrr >= 3.5 and re.search(r"\bRRR\b", line):
                 recs.append(Record(
                     id=f"gap-{f.stem}-{ln}", source=f"{f}:{ln}", quote=line.strip(),
