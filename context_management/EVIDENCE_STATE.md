@@ -45,14 +45,39 @@
 An audit PASS is a claim about a tree at a SHA. The final tree's verdict is
 recorded with that SHA; an earlier PASS does not carry forward.
 
-## THE TWO HONEST FAILURES (measured, not reframed)
-1. **ECE 0.2139** (gate < 0.05). n=60 corpus decisions; accuracy 0.967; mean
-   stated confidence 0.753. The published Decider is under-confident.
-2. **Limite RRR reliability**: 5 of 6 Tier-A RRRs returned `None` or a wrong
-   value. Limite is not a reliable arithmetic engine at this prompt design.
-   The DUAL-COMPUTE MECHANISM works (it caught a deliberately wrong value in
-   ADV-5 and test_dual_compute_catches_divergence); the MODEL's arithmetic on
-   this task does not.
+## THE ECE FINDING (three probe generations before a real measurement)
+| generation | sample | result | why it was not a measurement |
+|---|---|---|---|
+| v1 | corpus `answer=="yes"` only | ECE 0.2139 | SINGLE-CLASS sample — unmeasurable by construction |
+| v2 | corpus both classes | ECE 0.1387, accuracy 0.500 | the "negatives" are SYNTHETIC corruptions the model cannot detect |
+| v3 | the DXY documented rows | **accuracy 6/6 = 1.000, ECE raw 0.2579** | the first number about the model |
+
+**THE MEASURED FINDING (v3):**
+- the corpus KIND task is **OVER**-confident -> fitted T = 5.00 (soften)
+- the trading domain is **UNDER**-confident  -> fitted T = 0.24 (sharpen)
+- applying the corpus T to the trading domain makes ECE **WORSE** (0.2579 -> 0.4269)
+- a T fitted ON the trading rows still only reaches 0.1807
+- with accuracy at 1.000, ECE is dominated by |1 - p|: the gate cannot be met
+  without stating p ~= 1.0
+- **ONE GLOBAL TEMPERATURE DOES NOT TRANSFER ACROSS TASKS.**
+
+## WHAT THE CALIBRATION LAYER PROVES (a PASSING claim)
+`decider/calibration.py` + `test_calibration_layer`:
+- instrument controls: perfect=0.00000, overconfident=0.95000
+- monotone, bounded, rejects T <= 0
+- fitted on 60 rows, measured on 60 HELD-OUT rows
+- **ECE 0.3492 -> 0.1080, a 69% reduction on data the fit never saw**
+
+The layer works. The PIN'S 0.05 GATE is not met, and the reason is now measured:
+per-task calibration data is required, and even then accuracy-at-ceiling
+dominates the metric.
+
+## THE SECOND HONEST FAILURE
+**Limite RRR reliability**: 5 of 6 Tier-A RRRs returned `None` or a wrong value
+(one returned 2.0 against a shadow of 3.5833). Limite is not a reliable
+arithmetic engine at this prompt design. The DUAL-COMPUTE MECHANISM works (it
+caught a deliberately wrong value in ADV-5 and in
+`test_dual_compute_catches_divergence`); the MODEL's arithmetic does not.
 
 ## THE CONTAINER ARTIFACT
 `.trident/container-test-results.json` — 13 scenarios, overallVerdict PASS

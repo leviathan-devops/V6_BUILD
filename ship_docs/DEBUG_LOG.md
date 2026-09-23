@@ -122,3 +122,36 @@
   then the fail-open semantics, then the evasion corners. Fixing a class
   (fail-closed validation, path-keyed exemptions) removed many findings at once;
   patching a site moved the finding one line.
+
+## EN-012 · the ECE probe measured itself three times before measuring the model (2026-09-23)
+- FINDING: the calibration gate reported FAIL at 0.2139, then 0.1387, then 0.1808
+  — three different numbers for the same model, none of them a measurement of
+  the model's calibration.
+- ROOT CAUSE, in three layers:
+  v1  the sample filtered to `answer == "yes"` — a SINGLE-CLASS sample. On such
+      a sample every claim is correct ~97% of the time while the model states
+      ~0.75, which produces a large ECE **by construction**, however well
+      calibrated the model is.
+  v2  the "negative" records in the corpus are SYNTHETIC corruptions of a
+      doctrine quote (a digit replaced with 0). The model has no basis to detect
+      that, so it scored 40/80 = 0.500 — CHANCE. The number measured the
+      evaluation set.
+  v3  the trading-domain set (the operator's own documented rows) gave 6/6
+      CORRECT at 1.000 accuracy with a raw ECE of 0.2579 — the first number that
+      is about the model.
+- THE ACTUAL FINDING (v3, held out):
+  * the corpus KIND task is **OVER**-confident  -> a fitted T = 5.00 (soften)
+  * the trading domain is **UNDER**-confident    -> a fitted T = 0.24 (sharpen)
+  * applying the corpus T to the trading domain makes ECE **WORSE**
+    (0.2579 -> 0.4269)
+  * even a T fitted ON the trading rows only reaches 0.1807 — with accuracy at
+    1.000, the ECE is dominated by |1 - p| and cannot reach 0.05 without
+    stating p ~= 1.0.
+- FIX: `decider/calibration.py` (the temperature-scaling layer) plus
+  `test_calibration_layer`, which measures the LAYER on held-out data
+  (ECE 0.3492 -> 0.1080, a 69% reduction) and passes.
+- VERIFICATION: `test_calibration_layer` PASS; `test_decider_calibration_ece`
+  remains FAIL and now reports all three numbers plus the transfer finding.
+- LESSON: when a metric is computed over a sample, the SAMPLE is part of the
+  instrument. A single-class sample, a synthetic-label sample, and a
+  domain-mismatched sample each produce a confident number that means nothing.

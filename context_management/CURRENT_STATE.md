@@ -46,8 +46,11 @@ G-DUAL_UNVERIFIED when no independent Limite value is supplied — never a
 tautological pass.
 
 ## OPEN (NOT PASSED — reported as measured)
-1. **ECE = 0.2139** (gate < 0.05). The published Decider is accurate (0.967) but
-   under-confident (mean stated 0.753).
+1. **ECE gate < 0.05 NOT MET.** Measured on the trading domain: 6/6 correct
+   (accuracy 1.000), raw ECE 0.2579. The calibration LAYER works (held-out ECE
+   0.3492 -> 0.1080, a 69% reduction) but **one global temperature does not
+   transfer across tasks** — the corpus task is over-confident (T=5.00) while
+   the trading domain is under-confident (T=0.24).
 2. **Limite RRR reliability**: 5 of 6 Tier-A RRRs returned `None` or a wrong
    value. The dual-compute MECHANISM works; the MODEL's arithmetic on this task
    does not.
