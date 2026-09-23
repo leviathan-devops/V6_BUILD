@@ -74,8 +74,14 @@ def render_probabilities(decider) -> list[str]:
             out.append(f" {qid}: <no distribution>")
             continue
         clean = {k: _num(v) for k, v in dist.items()}
-        bad = [k for k, v in clean.items() if v is None]
-        clean = {k: v for k, v in clean.items() if v is not None}
+        # AUDIT FIX (round 10): a probability outside [0,1] passed _num (which
+        # only rejects NaN/Inf), printed as authoritative ("1.500") while _bar
+        # silently CLAMPED — so the text and the bar disagreed and the seat
+        # presented an impossible number as a real one. Out-of-range is
+        # malformed, not rendered.
+        bad = [k for k, v in clean.items() if v is None or not (0.0 <= v <= 1.0)]
+        clean = {k: v for k, v in clean.items()
+                 if v is not None and 0.0 <= v <= 1.0}
         if not clean:
             out.append(f" {qid}: <no numeric distribution> (unusable: {bad})")
             continue
@@ -112,7 +118,14 @@ def render_pnl(pnl_pips, open_positions) -> list[str]:
     p = _num(pnl_pips)
     o = _num(open_positions)
     p_s = f"{p:+.2f}" if p is not None else f"<malformed {type(pnl_pips).__name__}>"
-    o_s = f"{int(o)}" if o is not None else f"<malformed {type(open_positions).__name__}>"
+    # AUDIT FIX (round 10): sharing the FLOAT guard let `int(o)` silently
+    # truncate a fractional count (2.9 -> 2) and accept negatives, misreporting
+    # the position count instead of flagging a malformed feed. A count must be a
+    # non-negative integer; P&L may be any finite float. Separate validation.
+    if o is not None and (o < 0 or o != int(o)):
+        o_s = f"<malformed count {open_positions!r}>"
+    else:
+        o_s = f"{int(o)}" if o is not None else f"<malformed {type(open_positions).__name__}>"
     return [rule("="), " LIVE P&L", rule("="),
             f" net_pips={p_s}   open_positions={o_s}"]
 

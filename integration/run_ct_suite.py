@@ -138,8 +138,29 @@ def main() -> int:
         print("run integration/ct_run_inside.py inside the container first "
               "(the container-testing tool), then copy its capture back.")
         return 2
-    cap = json.loads(cap_path.read_text())
-    results = cap["scenarios"]
+    # AUDIT FIX (round 10): `cap["scenarios"]` assumed a well-formed dict, and
+    # an EMPTY list made `n_pass(0) == len(0)` true — a vacuous PASS, the
+    # false-green class. Both the shape and a non-empty expectation are enforced.
+    try:
+        cap = json.loads(cap_path.read_text())
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"CT_CAPTURE_UNREADABLE: {type(e).__name__}: {e}")
+        return 2
+    results = cap.get("scenarios")
+    if not isinstance(results, list) or not results:
+        print(f"CT_CAPTURE_EMPTY: {cap_path} carries no scenarios — refusing a "
+              f"vacuous PASS")
+        return 2
+    for i, r in enumerate(results):
+        if not isinstance(r, dict) or not all(
+                k in r for k in ("id", "name", "kind", "verdict")):
+            print(f"CT_CAPTURE_MALFORMED: scenario[{i}] lacks id/name/kind/verdict")
+            return 2
+    expected = len(ADV) + len(HAPPY)
+    if len(results) != expected:
+        print(f"CT_CAPTURE_COUNT: {len(results)} scenarios, expected {expected} — "
+              f"a short capture must not read as a pass")
+        return 2
     n_pass = sum(1 for r in results if r["verdict"] == "PASS")
     adv = [r for r in results if r["kind"] == "adversarial"]
     happy = [r for r in results if r["kind"] == "happy_path"]

@@ -87,6 +87,14 @@ def scan_cards(root: Path) -> list[Record]:
     return recs
 
 
+def _rotate(opts: list, n: int) -> list:
+    """Deterministically rotate a fixed option list so the correct answer's
+    INDEX varies — a constant index is a positional shortcut a model can learn
+    instead of reading the state (audit rounds 6 and 10)."""
+    rot = n % len(opts)
+    return opts[rot:] + opts[:rot]
+
+
 def harvest_golden_trades(v5_root: Path) -> list[Record]:
     """The golden-week trades from the canon injector (D13 verbatim)."""
     recs = []
@@ -107,9 +115,7 @@ def harvest_golden_trades(v5_root: Path) -> list[Record]:
                     # correct answer's index varies deterministically.
                     # (the golden-trade harvester rotates; the cascade one did
                     #  not — AUDIT FIX round 6 applied the same rotation here)
-                    opts = [rrr, "below_floor", "no_trade"]
-                    rot = len(recs) % len(opts)
-                    opts = opts[rot:] + opts[:rot]
+                    opts = _rotate([rrr, "below_floor", "no_trade"], len(recs))
                     recs.append(Record(
                         id=f"golden-{len(recs)+1}",
                         source=f"{injector}:{ln}",
@@ -200,7 +206,11 @@ def harvest_golden_cascade(master: Path) -> list[Record]:
             state=(f"GOLDEN CASCADE #{n} {day} {setup.strip()}: "
                    f"entry={entry} SL={sl} TP={tp} risk={risk.strip()} reward={reward.strip()} RRR={rrr}"),
             question="What is the risk-reward ratio of this golden-cascade trade?",
-            options=[rrr, "below_3.5", "no_trade"], answer=rrr, kind="golden"))
+            # AUDIT FIX (round 10): the answer was ALWAYS options[0], so a model
+            # could solve cascade RRR by position alone. Same rotation as the
+            # golden-trade harvester.
+            options=_rotate([rrr, "below_3.5", "no_trade"], len(recs)),
+            answer=rrr, kind="golden"))
     return recs
 
 
@@ -235,58 +245,78 @@ def harvest_gap_analysis(master: Path) -> list[Record]:
     return recs
 
 
-def negative_records(cards: list[Record]) -> list[Record]:
-    """NEGATIVE supervision — audit fix.
+def _negative_variant(r, opts):
+    """Return (state, quote, answer) for a VALID refusal, or None to SKIP.
 
-    The audit found every yes/no record taught `answer="yes"`: a corpus with
-    ONE class trains a yes-sayer, and the model can never learn to refuse.
-    Each card therefore also yields a MISQUOTED variant (the quote perturbed
-    in a way that breaks the rule) whose answer is "fail".
+    THE INVARIANT (audit round 10, CRITICAL): a negative is only valid if its
+    STATE genuinely contradicts its LABEL. The old builder zeroed the first
+    number in the QUOTE and then relabelled — for a golden-cascade record the
+    STATE kept `RRR=4.25` while the answer taught a different option, so the
+    record supervised the model to IGNORE its own input. A corruption that does
+    not reach the state is not a negative; it is a mislabel. Hence: corrupt,
+    then VERIFY the state changed, else return None and the record is skipped.
+
+    THE TEMPLATE INVARIANT: the negative reuses the PARENT's template by
+    substituting into the parent's own state string. A distinct negative
+    template (`GOLDEN (restated)`, or dropping `({kind})`) leaks the label —
+    refusal would be learnable from the template token alone.
     """
-    out = []
+    q = r.question
+    # --- a RRR question: the state must SHOW an RRR that contradicts the answer
+    if "risk-reward ratio" in q:
+        ns = re.sub(r"RRR=[\d.]+", "RRR=2.0", r.state)
+        below = next((o for o in opts if "below" in str(o).lower()), None)
+        if ns == r.state or below is None:
+            return None                      # nothing to corrupt -> SKIP
+        nq = re.sub(r"\b\d+(?:\.\d+)?\b(?=[^\d]*$)", "2.0", r.quote)
+        return ns, nq, below
+    # --- a yes/no floor question: the row's trailing RRR drops below the floor
+    if "above the operator floor" in q:
+        ns = re.sub(r"\b\d+\.\d+\b(?=[^\d]*$)", "2.0", r.state)
+        if ns == r.state:
+            return None                      # nothing to corrupt -> SKIP
+        return ns, ns, "no"
+    # --- a doctrine card: break the rule's numeric token, and carry that SAME
+    #     corruption into the state through the parent's own template.
+    broken = re.sub(r"\b(\d+(?:\.\d+)?)\b", "0", r.quote, count=1)
+    if broken == r.quote:
+        broken = r.quote[:-6] + " [TRUNCATED]"
+    ns = r.state.replace(r.quote, broken)
+    if ns == r.state:
+        return None                          # the corruption never reached it
+    if q.startswith("Does the state satisfy"):
+        return ns, broken, "no"
+    # a KIND question: altering the quote does NOT change a card's kind, so the
+    # refusal is any OTHER kind (the true kind stays available as a distractor).
+    other = next((o for o in opts if o != r.answer), None)
+    if other is None:
+        return None
+    return ns, broken, other
+
+
+def negative_records(cards: list[Record]) -> list[Record]:
+    """Each card/row yields a MISQUOTED variant whose answer is the refusal.
+
+    The audit found every yes/no record taught `answer="yes"`: a corpus with ONE
+    class trains a yes-sayer and the model can never learn to refuse.
+    """
+    out, skipped = [], 0
     for r in cards:
         if not r.quote or len(r.quote) < 12:
             continue
-        # a controlled corruption: drop the rule's numeric/threshold token,
-        # which is exactly what makes the card's rule no longer satisfied
-        import re as _re
-        broken = _re.sub(r"\b(\d+(?:\.\d+)?)\b", "0", r.quote, count=1)
-        if broken == r.quote:
-            broken = r.quote[:-6] + " [TRUNCATED]"
-        # CRITICAL FIX (audit round 3): the negative answer must be a SELECTABLE
-        # option. The first version emitted answer="fail" while reusing the
-        # parent's options (["yes","no"]), so the label was out of vocabulary and
-        # the record was unusable for option-grounded training. The option set is
-        # now derived from the parent's own options: the FIRST option is the
-        # "affirmative" one, so the negative answer is the LAST option.
         opts = list(r.options)
         if len(opts) < 2:
             continue
-        # AUDIT FIX: opts[-1] is "golden" for a 4-way KIND record, so an altered
-        # MECHANISM card was taught as GOLDEN — altering the quote does not
-        # change its kind. The negative label is chosen from the QUESTION's own
-        # semantics: a VERIFY question's refusal is "no"; a KIND question's
-        # refusal is any OTHER kind (the record keeps its true kind as the
-        # distractor, never as the answer).
-        if r.question.startswith("Does the state satisfy"):
-            neg_answer = "no"
-        elif r.question.startswith("What kind of doctrine"):
-            # AUDIT FIX (round 6): altering a quote does NOT change a card's
-            # kind, so a KIND negative was WRONG supervision (an altered
-            # MECHANISM card taught as "ruling"). A KIND record yields no
-            # negative at all.
+        variant = _negative_variant(r, opts)
+        if variant is None:
+            skipped += 1                     # NEVER emit a mislabeled record
             continue
-        else:
-            neg_answer = next((o for o in opts if o != r.answer), opts[-1])
-        out.append(Record(
-            id=r.id + "-neg", source=r.source, quote=broken,
-            # AUDIT FIX (round 9): every negative carried "(altered)" while no
-            # positive did, so a model could reach perfect refusal accuracy by
-            # matching that token ALONE without learning the rule. The negative
-            # now uses the PARENT's own state template.
-            state=(f"DOCTRINE {r.id.rsplit('-', 1)[0]}: {broken}"
-                   if r.kind != "golden" else f"GOLDEN (restated) {broken}"),
-            question=r.question, options=opts, answer=neg_answer, kind=r.kind))
+        ns, nq, neg_answer = variant
+        out.append(Record(id=r.id + "-neg", source=r.source, quote=nq,
+                          state=ns, question=r.question, options=opts,
+                          answer=neg_answer, kind=r.kind))
+    if skipped:
+        print(f"  negatives SKIPPED (no valid corruption): {skipped}")
     return out
 
 

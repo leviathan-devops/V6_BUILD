@@ -148,6 +148,14 @@ class Circuit:
         # distance). The default made every candidate violate LAW 2 by the width
         # of its own reward. The default is now the risk.
         zone_w = bars_by_tf.get("zone_width_pips", sl_d)
+        # AUDIT FIX (round 10): a degenerate stop (entry == sl, or a sub-pip
+        # stop) reached the L3 shadow, whose ZeroDivisionError escaped as an
+        # UNNAMED crash — while this module's contract is a NAMED ValueError
+        # refusal. The degeneracy is now refused by name, before the shadow.
+        if sl_d < 0.1:
+            raise ValueError(
+                f"RRR_SL_TOO_TIGHT: the stop is {sl_d:.4f} pips from entry "
+                f"(< 0.1) — not a tradeable risk")
         rrr_code = code_truth("L3", entry=entry, sl=sl, tp=tp, pair=pair)
         stage["limite_ms"] = round((time.perf_counter() - t) * 1000, 3)
 

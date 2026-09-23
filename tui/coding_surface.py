@@ -75,8 +75,9 @@ _POST = "(?![0-9A-Za-z_])"
 # now also matches a newline preceded by a backslash.
 _WS = "[ \t]*(?:[" + chr(92) + chr(92) + "][" + chr(10) + chr(13) + "][ \t]*)?"
 
-# AUDIT FIX: `os[.]write` required a LITERAL dot, but Python allows whitespace
-# around the dot (`os . write(...)`). _DOT tolerates it.
+# AUDIT FIX: the dotted write form originally required a LITERAL dot, but
+# Python permits whitespace around the dot. _DOT tolerates it. (This comment
+# shows no call form: the self-scan below runs over this region.)
 _DOT = "[ \t]*[.][ \t]*"
 
 
@@ -109,7 +110,13 @@ def _qualified(word: str) -> str:
 # METHOD name. That WILL flag a legitimate `.loads(` or `.execute(` on some
 # object — and that is the correct trade for a read-only audit whose only cost
 # is a review item. A false positive is cheap; a missed spawn is not.
-_ALIAS = _f("(?<![", "0-9A-Za-z_.", "])", "[A-Za-z_][A-Za-z0-9_]*", _WS, "[.]")
+# AUDIT FIX (round 10): the receiver pattern ended at a bare literal dot, so it
+# matched an adjacent-dot call but MISSED one written with legal Python
+# whitespace around the dot — which evaded every -any-receiver rule. _DOT
+# tolerates whitespace on both sides, so both spellings match.
+# (This comment deliberately shows NO call form: the self-scan below runs over
+#  exactly this region, and quoting an evasion here would trip the scan.)
+_ALIAS = _f("(?<![", "0-9A-Za-z_.", "])", "[A-Za-z_][A-Za-z0-9_]*", _WS, _DOT)
 
 # TWO CONFIDENCE CLASSES (audit round 8). A regex cannot do the dataflow needed
 # to tell `pickle.loads` from `json.loads` when the receiver is an alias — the
@@ -132,6 +139,10 @@ _ALIASED = [
     # so `import builtins as b; b.compile(...)` and `import pickle as p;
     # p.Unpickler(f)` matched nothing.
     (_f("builtins.compile", "-any-receiver"), _f(_ALIAS, "com", "pile", _WS, "[(]")),
+    # AUDIT FIX (round 10): `import builtins as b; b.exec(...)` matched NEITHER
+    # the bare form (dot-guarded by _PRE) nor the qualified form (which needs the
+    # literal module name), so an aliased exec evaded the scan entirely.
+    (_f("builtins.exec", "-any-receiver"), _f(_ALIAS, "ex", "ec", _WS, "[(]")),
     (_f("pickle.Unpickler", "-any-receiver"), _f(_ALIAS, "Un", "pickler", _WS, "[(]")),
     (_f("tempfile", "-any-receiver"),
      _f(_ALIAS, "Temporary", "File", _WS, "[(]")
@@ -143,7 +154,9 @@ _EXEC_NAMES = _ALIASED + [
     # AUDIT FIX: the dotted-only forms were bypassed by a from-import
     # (importing the name directly and calling it). Each name now also matches
     # its BARE call form, so the alias/import route is caught too.
-    (_f("os.", "sy", "s", "tem"), _f("os[.]", "sy", "s", "tem", _WS, "[(]") + "|"
+    # AUDIT FIX (round 10): the literal `os[.]` here required an adjacent dot,
+    # so `os . system(...)` evaded it while the neighbouring rules used _DOT.
+    (_f("os.", "sy", "s", "tem"), _f("os", _DOT, "sy", "s", "tem", _WS, "[(]") + "|"
                                  + _bare(_f("sy", "s", "tem"))),
     (_f("os.", "ex", "ec"),      _f("os", _DOT, "ex", "ec", "[0-9A-Za-z_]*", _WS, "[(]") + "|"
                                  + "|".join(_bare(_f("ex", "ec") + v)
@@ -173,7 +186,9 @@ _EXEC_NAMES = _ALIASED + [
     (_f("shell", "=True"),       _f("shell", "[ \t\n]*=", _WS, "True")),
     (_f("run", "py"),            _f(_PRE, "run", "py", _POST)),
     (_f("importlib.", "import_module"),
-     _f("importlib[.]import_module", _WS, "[(]") + "|" + _bare(_f("import_module"))),
+     # AUDIT FIX (round 10): same literal-dot defect as os.system above.
+     _f("importlib", _DOT, "import_module", _WS, "[(]")
+     + "|" + _bare(_f("import_module"))),
 ]
 EXEC_FORBIDDEN = {n: p for n, p in _EXEC_NAMES}
 

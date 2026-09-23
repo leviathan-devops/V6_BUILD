@@ -48,7 +48,25 @@ REQUIRED_KEYS = ("pair", "direction", "entry", "sl", "tp", "rrr",
 
 
 def _missing(c: dict) -> list:
-    return [k for k in REQUIRED_KEYS if k not in c]
+    """Fields that are ABSENT **or** not usable numbers.
+
+    AUDIT FIX (round 10): the first version checked only KEY PRESENCE, so a
+    candidate carrying `rrr=None` or `entry="abc"` passed the guard and then
+    raised TypeError out of the predicates (`c['rrr'] >= ...`, `abs(e-sl)/pip`)
+    instead of yielding a fail-closed verdict. A guard that lets a bad value
+    through is not a guard.
+    """
+    bad = []
+    for k in REQUIRED_KEYS:
+        if k not in c or c[k] is None:
+            bad.append(k)
+        elif k not in ("pair", "direction"):
+            v = c[k]
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                bad.append(k)
+            elif v != v or abs(v) == float("inf"):
+                bad.append(k)
+    return bad
 
 
 def _guard(c: dict, name: str):

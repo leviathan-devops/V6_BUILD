@@ -282,3 +282,30 @@ _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-2
   container: 16/16.
 - LESSON: verify the instrument before trusting its verdict. A probe that has
   never produced its passToken on a known-positive is not a test.
+
+## EN-021 · the zero-coding scanner's SUSPECT tier was whitespace-evadable (2026-09-24)
+- FINDING (audit round 10): `_ALIAS` tolerated whitespace BEFORE the dot but
+  ended at a bare `[.]` with no trailing whitespace, so every `-any-receiver`
+  pattern MISSED a call written with legal Python whitespace after the dot.
+- THE HONEST SCOPE, MEASURED BEFORE AND AFTER (not assumed):
+    - The EXACT tier was NOT evaded: `pickle.load` and `os.system` carry BARE
+      alternatives (`loads?(` guarded by a non-dot lookbehind), which caught the
+      spaced spellings. So the audit's "evades the EXACT match" is true of the
+      SUB-PATTERN, not of the entry.
+    - The hole was REAL in the `-any-receiver` (SUSPECT/review) tier, which is
+      the tier that catches what the bare forms cannot.
+    - `builtins.exec` had NO any-receiver rule at all: an aliased exec was caught
+      only as a PROXY by `os.exec-any-receiver`, i.e. under the wrong label.
+- FIX: `_ALIAS` ends with `_DOT`; the two literal-dot sub-patterns (`os.system`,
+  `importlib.import_module`) use `_DOT`; `builtins.exec` gains its own
+  any-receiver rule.
+- MEASURED AFTER: an aliased exec now matches `builtins.exec-any-receiver`
+  directly (was: misattributed to os.exec); spaced spellings match the SUSPECT
+  tier as well as the EXACT tier.
+- THE SELF-SCAN TRAP (worth recording): documenting an evasion by QUOTING it in
+  a comment trips the scanner's own self-scan — two comments had to be rephrased
+  to show no call form. A scanner that scans itself has a documented-region
+  constraint on its own prose.
+- LESSON: two tiers covering one class must both be whitespace-consistent; a
+  sibling alternative can mask a broken sub-pattern in testing while leaving the
+  other tier open.

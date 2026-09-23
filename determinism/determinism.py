@@ -32,14 +32,19 @@ def canonical(obj) -> str:
     """
     obj = _freeze(obj)
 
-    def strip(o):
+    def strip(o, depth=0):
         if isinstance(o, dict):
-            # a non-str key would make json.dumps fail; normalise it
-            return {str(k): strip(v) for k, v in
+            # AUDIT FIX (round 10): VOLATILE was filtered at EVERY depth, so a
+            # legitimate DECISION field named `ts`/`host`/`pid` inside a nested
+            # payload was silently discarded and two genuinely different runs
+            # digested identically. The run metadata lives at the TOP level, so
+            # the filter applies only there.
+            drop = VOLATILE if depth == 0 else frozenset()
+            return {str(k): strip(v, depth + 1) for k, v in
                     sorted(o.items(), key=lambda kv: str(kv[0]))
-                    if str(k) not in VOLATILE}
+                    if str(k) not in drop}
         if isinstance(o, (list, tuple)):
-            return [strip(x) for x in o]
+            return [strip(x, depth + 1) for x in o]
         if isinstance(o, float):
             return round(o, 10)
         return o

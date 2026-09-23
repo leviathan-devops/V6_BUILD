@@ -10,11 +10,12 @@ Source: Plutus_V6_Master_Blueprint_v1.md §2.3 (the 5 math calls) + the
 pipeline's 6th (TP distance), giving L1..L6.
 """
 from __future__ import annotations
+from types import MappingProxyType
 from dataclasses import dataclass
 from typing import Callable
 import re
 
-PIP = {"EUR/USD": 0.0001, "GBP/USD": 0.0001, "DXY": 0.01}
+_PIP_MUTABLE = {"EUR/USD": 0.0001, "GBP/USD": 0.0001, "DXY": 0.01}
 
 
 @dataclass(frozen=True)
@@ -156,6 +157,11 @@ QUERIES: dict[str, MathQuery] = {
 
 class UnknownPair(ValueError):
     """A pair with no declared pip scale. Loud, never defaulted."""
+
+
+# AUDIT FIX (round 10): the authority itself was mutable, so a consumer could
+# rebind a pair's pip scale process-wide. It is now a read-only view.
+PIP = MappingProxyType(_PIP_MUTABLE)
 
 
 def pip_for(pair: str) -> float:

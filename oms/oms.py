@@ -14,6 +14,7 @@ Worked example from the blueprint: 100000 * 0.001 * 2 = $200 = 20.0 pips at
 $10/pip, so 28.5 gross -> 8.5 net. This module reproduces that exactly.
 """
 from __future__ import annotations
+from types import MappingProxyType
 from dataclasses import dataclass, field
 
 PIP = {"EUR/USD": 0.0001, "GBP/USD": 0.0001, "DXY": 0.01}
@@ -26,7 +27,12 @@ PIP = {"EUR/USD": 0.0001, "GBP/USD": 0.0001, "DXY": 0.01}
 # the derivation above is the single source.
 
 DEFAULT_UNITS = 100_000
-PIP_VALUE_PER_UNIT = {pair: DEFAULT_UNITS * pip for pair, pip in PIP.items()}
+# AUDIT FIX (round 10): PIP and PIP_VALUE_PER_UNIT were two MUTABLE dicts for
+# one quantity, so a post-import mutation (or a pair added to only one) made
+# equity and cost_pips disagree silently — the same 1000x class as before, but
+# undetectable. Both are now read-only views.
+PIP_VALUE_PER_UNIT = MappingProxyType(
+    {pair: DEFAULT_UNITS * pip for pair, pip in PIP.items()})
 # NOTE: no flat EQUITY_PER_PIP constant. $/pip is per-pair AND per-size; a flat
 # value is the DXY 1000x error waiting to happen. Portfolio._equity_per_pip
 # derives it.
