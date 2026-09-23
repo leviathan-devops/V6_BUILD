@@ -173,11 +173,31 @@ def render_state(pair: str, anchor_ms: int, feeds: dict[tuple[str, str], list[Ba
     module's own TEMPORAL LAW. The check is now enforced at render time too.
     """
     for (p, tf), bars in feeds.items():
+        # AUDIT FIX (round 15): the render path ASSUMED ascending order and only
+        # checked the anchor — and my round-14 edit silently no-op'd (its anchor
+        # did not match this code), so nothing sorted. `atr()`,
+        # `render_feed_block()` and `swing_levels()` all slice the TAIL, so an
+        # unsorted or mutated feed silently described the WRONG era. The feed is
+        # now sorted here (a total, stable fix) and each bar is revalidated, so
+        # every downstream slice is chronological by construction.
+        bars = sorted(bars, key=lambda b: b.ts)
+        for b in bars:
+            if b.ts <= 0:
+                raise ValueError(
+                    f"BAR_NON_POSITIVE_TS: {p} {tf} has ts={b.ts} — not a positive epoch")
+            if not all(v == v and abs(v) != float("inf")
+                       for v in (b.open, b.high, b.low, b.close)):
+                raise ValueError(
+                    f"BAR_NON_FINITE: {p} {tf} bar ts={b.ts} carries a non-finite OHLC")
+            if b.high < b.low:
+                raise ValueError(
+                    f"BAR_INVERTED: {p} {tf} bar ts={b.ts} high={b.high} < low={b.low}")
         over = [b for b in bars if b.ts > anchor_ms]
         if over:
             raise FutureBarLeak(
                 f"FUTURE_BAR_LEAK: {p} {tf} has {len(over)} bar(s) past anchor "
                 f"{anchor_ms} at RENDER time (first ts={over[0].ts})")
+        feeds[(p, tf)] = bars
     blocks = []
     for (p, tf), bars in sorted(feeds.items()):
         if not bars: continue

@@ -259,7 +259,19 @@ def geometry_witness(c) -> bool:
     d = c.get("direction")
     if d not in ("long", "short"):
         return False
-    e, sl, tp = c["entry"], c["sl"], c["tp"]
+    # AUDIT FIX (round 15): the witness indexed entry/sl/tp directly, so a
+    # DIRECT call (not via _guard) raised KeyError/TypeError instead of returning
+    # the fail-closed False the module's contract promises. `pair` also needs a
+    # hashable check before `not in PIP`.
+    try:
+        e, sl, tp = c["entry"], c["sl"], c["tp"]
+    except (KeyError, TypeError):
+        return False
+    if not all(isinstance(v, (int, float)) and not isinstance(v, bool)
+               and v == v and abs(v) != float("inf") for v in (e, sl, tp)):
+        return False
+    if not isinstance(c.get("pair"), str):
+        return False
     sign_ok = (tp > e > sl) if d == "long" else (sl > e > tp)
     dist_ok = abs(e-sl) > 0 and abs(tp-e) > 0
     # AUDIT FIX (round 9): an UNKNOWN pair fell into the `else` branch and got

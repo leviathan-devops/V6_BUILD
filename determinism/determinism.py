@@ -40,6 +40,16 @@ def canonical(obj) -> str:
             # digested identically. The run metadata lives at the TOP level, so
             # the filter applies only there.
             drop = VOLATILE if depth == 0 else frozenset()
+            # AUDIT FIX (round 15): `str(k)` COLLAPSES distinct keys — {1:'a',
+            # '1':'b'} is two entries in Python but one after normalization, so
+            # two genuinely different payloads digested identically. JSON cannot
+            # represent such a dict, so this is a LOUD refusal, not a silent
+            # merge.
+            keys = [str(k) for k in o]
+            if len(set(keys)) != len(keys):
+                raise ValueError(
+                    "CANONICAL_KEY_COLLISION: two distinct keys normalize to the "
+                    "same string — the payload cannot be rendered deterministically")
             return {str(k): strip(v, depth + 1) for k, v in
                     sorted(o.items(), key=lambda kv: str(kv[0]))
                     if str(k) not in drop}

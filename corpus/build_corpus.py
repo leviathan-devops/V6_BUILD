@@ -238,9 +238,18 @@ def harvest_gap_analysis(master: Path) -> list[Record]:
             # AUDIT FIX (round 6): the harvester taught EVERY matching row as
             # above-floor without parsing the RRR. A row below the operator's
             # floor was a false positive. The value is now compared.
+            # AUDIT FIX (round 15): the parsed value was the number after an
+            # `a/b/c` triple ANYWHERE in the line, while the floor check was a
+            # line-global `\bRRR\b` — so `1.1/2.2/3.3 10 lots ... RRR 2.0`
+            # taught "yes" (10 >= 3.5) for a trade whose RRR is 2.0. The value is
+            # now taken from the token BESIDE the RRR label.
+            _rm = re.search(r"\bRRR\b[^\d]{0,6}([\d.]+)|([\d.]+)[^\d]{0,6}\bRRR\b", line)
             _m = re.search(r"(\d+\.\d+)/(\d+\.\d+)/(\d+\.\d+)\s+([\d.]+)", line)
             try:
-                _rrr = float(_m.group(4)) if _m else None
+                if _rm:
+                    _rrr = float(_rm.group(1) or _rm.group(2))
+                else:
+                    _rrr = float(_m.group(4)) if _m else None
             except ValueError:
                 # AUDIT FIX: `[\d.]+` can match a bare "." (an ellipsis in prose)
                 # and float(".") aborted the whole harvest.
@@ -253,6 +262,16 @@ def harvest_gap_analysis(master: Path) -> list[Record]:
                     question="Is this trade's RRR above the operator floor?",
                     options=["yes", "no"], answer="yes", kind="golden"))
     return recs
+
+
+# THE BOUND VOCABULARY — the words that actually sit beside a number in the
+# mechanism cards, MEASURED from the corpus (pips/pip 36, within 10, trades 6,
+# days 5, setups 5, ...). A negative may only corrupt a number that carries one
+# of these, because only then is the number a BOUND the rule asserts; zeroing an
+# incidental number leaves the rule satisfied and the "no" label would be a
+# mislabel (audit rounds 13-15).
+_BOUND = (r"pips?|%|percent|ratio|RRR|buffer|ATR|trades?|bars?|setups?|"
+          r"days?|hours?|minutes?|candles?|lots?|points?|within")
 
 
 def _negative_variant(r, opts):
@@ -332,16 +351,36 @@ def _negative_variant(r, opts):
         # corpus spells its bounds that way. Anything else is SKIPPED, which
         # costs coverage and never emits wrong supervision.
         _thresh = re.search(
-            r"\b(\d+(?:\.\d+)?)\s*(?:pips?|%|percent|ratio|RRR|buffer|ATR|trades?|bars?)\b"
-            r"|\b(?:pips?|%|percent|ratio|RRR|buffer|ATR|trades?|bars?)\s*(\d+(?:\.\d+)?)\b",
+            r"\b(\d+(?:\.\d+)?)\s*(?:" + _BOUND + r")\b"
+            r"|\b(?:" + _BOUND + r")\s*(\d+(?:\.\d+)?)\b",
             r.quote, re.I)
         if not _thresh:
             return None                      # no THRESHOLD token -> no negative
         _tok = _thresh.group(1) or _thresh.group(2)
         if _tok is None:
             return None
-        # zero the VERIFIED threshold token, not merely the first number
-        broken = r.quote.replace(_tok, "0", 1)
+        # AUDIT FIX (round 15): zeroing the token only CONTRADICTS a LOWER-BOUND
+        # rule (`at least N`, `min RRR`). For an UPPER bound (`max N trades`,
+        # `<= N pips`) zero still SATISFIES it, so labelling `no` inverted the
+        # supervision. The direction is read from the rule's own wording, and the
+        # corruption is chosen to violate THAT bound.
+        _lower = re.search(r"\b(at least|minimum|min\b|>=|no fewer than|"
+                           r"must exceed|greater than)\b", r.quote, re.I)
+        _upper = re.search(r"\b(at most|maximum|max\b|<=|no more than|"
+                           r"must not exceed|never (?:more|above)|fewer than|"
+                           r"within)\b",
+                           r.quote, re.I)
+        if _upper and not _lower:
+            # raise the value above an upper bound: multiply it out of range
+            try:
+                _raised = str(float(_tok) * 10 + 1)
+            except ValueError:
+                return None
+            broken = r.quote.replace(_tok, _raised, 1)
+        elif _lower:
+            broken = r.quote.replace(_tok, "0", 1)
+        else:
+            return None                  # no stated bound -> no verified negative
         ns = r.state.replace(r.quote, broken)
         if ns == r.state:
             return None
@@ -357,9 +396,21 @@ def _negative_variant(r, opts):
         # bound (every LAW 1..7 in the corpus does: a pip buffer, a ratio, a
         # count). Without a number there is nothing to contradict, so SKIP
         # rather than emit an unverified refusal.
-        if not re.search(r"\b\d+(?:\.\d+)?\b", body):
+        # AUDIT FIX (round 15): `re.sub(count=1)` zeroed the FIRST decimal in the
+        # body, which may be a date, a count, or an example — leaving the law's
+        # asserted bound intact, so the "no" label was a false refusal. The
+        # corruption now targets the number beside a BOUND WORD, the same rule the
+        # VERIFY branch uses.
+        _bm = re.search(
+            r"\b(\d+(?:\.\d+)?)\s*(?:" + _BOUND + r"|min|max|pairs?)\b"
+            r"|\b(?:" + _BOUND + r"|min|max|pairs?)\s*(\d+(?:\.\d+)?)\b",
+            body, re.I)
+        if not _bm:
+            return None                  # no bound in the body -> no negative
+        _btok = _bm.group(1) or _bm.group(2)
+        if _btok is None:
             return None
-        nbody = re.sub(r"\b\d+(?:\.\d+)?\b", "0", body, count=1)
+        nbody = body.replace(_btok, "0", 1)
         if nbody == body:
             return None
         return f"{head}\n{nbody}", nbody, "no"
@@ -429,11 +480,18 @@ def build(out_path: Path) -> dict:
     all_recs = cards + negatives + golden + forensic
     seen, uniq = set(), []
     for r in all_recs:
-        # the dedup key is (source, quote, QUESTION): the same card legitimately
-        # yields several distinct training signals, but the same card found in
-        # two roots yields only one. Keying on source+quote alone would collapse
-        # the intentional multi-signal records into one.
-        h = hashlib.sha256((r.source + r.quote + r.question).encode()).hexdigest()
+        # THE DEDUP KEY IS (source, quote, question, STATE).
+        #
+        # AUDIT FIX (round 15, CRITICAL): round 14 made a negative keep its
+        # PARENT's verbatim `quote`/`source`/`question` (the corruption lives in
+        # `state` only, to preserve D13 provenance). That made the negative's key
+        # IDENTICAL to its positive's — so this dedup DELETED 46 of the 66
+        # negatives, destroying 70% of the refusal supervision. The `state` is
+        # what distinguishes the two records and it is what the model reads, so
+        # it belongs in the key. The same card in two roots still yields one
+        # record, because such a duplicate shares its state as well.
+        h = hashlib.sha256(
+            (r.source + r.quote + r.question + r.state).encode()).hexdigest()
         if h in seen: continue
         seen.add(h); uniq.append(r)
     out_path.parent.mkdir(parents=True, exist_ok=True)

@@ -32,6 +32,20 @@ CT_DIR = "/work/p3/plutus-ct"
 CAPTURE = Path("/work/p3/ct-capture.json")
 
 
+def _evidence(out: str, token: str, window: int = 1500) -> str:
+    """The persisted evidence, GUARANTEED to contain `token` when it is present.
+
+    AUDIT FIX (round 15): a fixed tail slice could cut the deciding line out of
+    the record, so the host assembler refused a legitimate PASS. If the token is
+    in the output, a window AROUND it is persisted; otherwise the tail is kept.
+    """
+    i = out.find(token)
+    if i < 0:
+        return out[-window:]
+    lo = max(0, i - window // 3)
+    return out[lo: lo + window]
+
+
 def run(cmd: str, timeout: int = 900) -> tuple[int, str, float]:
     # AUDIT FIX (round 11): `bash -lc` sources login profiles, so PATH and env
     # could differ between hosts and inject noise into token matching; and the
@@ -84,11 +98,16 @@ def main() -> int:
             "id": sid, "name": name, "kind": "adversarial",
             "exitCode": rc, "passToken": pass_tok, "passTokenMatch": pm,
             "failToken": fail_tok, "failTokenAbsent": fa,
-            "toolResultContext": out[-1500:], "durationMs": ms,
+            "toolResultContext": _evidence(out, pass_tok), "durationMs": ms,
             "verdict": "PASS" if (pm and fa and rc == 0) else "FAIL"})
     # THE HAPPY PATH RUNS LAST (the post-debug confirmation).
     for sid, name, test in HAPPY:
         rc, out, ms = run(f"cd {CT_DIR} && PLUTUS_PY=python3 bash tests/run.sh {test}")
+        # AUDIT FIX (round 15): the verdict was computed on the FULL output while
+        # only `out[-1500:]` was persisted, and the host assembler requires the
+        # passToken to appear IN the persisted context — so a verbose PASS whose
+        # token scrolled out of the tail was rejected as unsupported evidence.
+        # The persisted context now GUARANTEES it contains the deciding line.
         pm = f"RESULT: PASS {test}" in out
         # AUDIT FIX (round 11): the failToken was the literal "[TOKEN-ABSENT]",
         # which never appears in real output — so failTokenAbsent was ALWAYS true
@@ -97,10 +116,14 @@ def main() -> int:
               and "Traceback (most recent call last)" not in out)
         results.append({
             "id": sid, "name": name, "kind": "happy_path",
-            "exitCode": rc, "passToken": test, "passTokenMatch": pm,
+            # AUDIT FIX (round 15): the stored token was the bare test NAME while
+            # the verdict matched the full "RESULT: PASS <test>" line — so a
+            # FAILURE output mentioning the name would satisfy the downstream
+            # evidence check. The stored token is the line that actually decided.
+            "exitCode": rc, "passToken": f"RESULT: PASS {test}", "passTokenMatch": pm,
             "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
             "failTokenAbsent": fa,
-            "toolResultContext": out[-1500:], "durationMs": ms,
+            "toolResultContext": _evidence(out, f"RESULT: PASS {test}"), "durationMs": ms,
             "verdict": "PASS" if (pm and fa and rc == 0) else "FAIL"})
 
     # AUDIT FIX (round 11): a kill mid-write left a truncated capture. Write to a

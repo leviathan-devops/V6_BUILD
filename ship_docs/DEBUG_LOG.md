@@ -447,3 +447,28 @@ _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-2
      edit tool.
 - LESSON: a validation that refuses LEGITIMATE behaviour is as wrong as one that
   admits illegitimate behaviour. Both of my bad fixes refused correct inputs.
+
+## EN-027 · my round-14 provenance fix DELETED the refusal supervision (CRITICAL)
+- FINDING (audit round 15): round 14 made a negative keep its PARENT's verbatim
+  `quote`/`source`/`question` (correct, for D13 provenance) and put the corruption
+  in `state` only. But the dedup key was `(source, quote, question)` — so a
+  negative hashed IDENTICALLY to its positive and the dedup DELETED it.
+- MEASURED: `negative_records()` produced 66; dedup dropped 46; 20 survived.
+  **70% of the refusal supervision was silently destroyed by a fix I made to
+  satisfy the previous round.** The corpus still built "successfully".
+- FIX: the dedup key is `(source, quote, question, STATE)`. The `state` is what
+  distinguishes the records AND what the model actually reads, so it belongs in
+  the key. VERIFIED: 21 produced -> 21 survive (then 33 after widening the bound
+  vocabulary); 0 dropped.
+- THE CLASS: two invariants pulling against each other — "keep the quote
+  verbatim" (provenance) vs "dedup on quote" (uniqueness). Satisfying one broke
+  the other, and NEITHER the test nor the build noticed. A fix must be checked
+  against the invariants it does NOT name.
+- ALSO IN THIS ROUND: my round-14 edit to `render_state` SILENTLY NO-OP'D (the
+  anchor did not match the code), so the feed was never sorted — an unverified
+  `str.replace` is a silent failure. Every replace in this round ASSERTS it
+  applied; one did not, and the assert caught it.
+- The corpus after the fixes: 1309 records (33 verified negatives, 1243 skipped).
+  The refusal class is IMBALANCED (33 vs 1276) — a documented residual. Widening
+  the bound vocabulary with the MEASURED corpus words (within 10, trades 6,
+  days 5, setups 5) raised the verified count from 21 to 33.

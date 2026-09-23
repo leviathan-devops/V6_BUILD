@@ -367,6 +367,16 @@ def scan_tree(root: str, include_tests: bool = True) -> list:
         # a test file is not a licence to write.
         if rel not in WRITE_ALLOWED_PATHS:
             violations += _scan(f, root_p, src, WRITE_FORBIDDEN, "write")
+        # AUDIT FIX (round 15): the WRITE_SUSPECT tier was defined but NEVER
+        # wired into the tree audit — so the aliased-receiver evasion the
+        # round-14 comment claims is closed (`import os as o; o.makedirs(p)`)
+        # was still invisible to scan_tree. The suspects are emitted as
+        # REVIEW ITEMS (confidence="suspect"), never as violations.
+        for name, m in scan_write_suspects(src):
+            line = src[:m.start()].count(chr(10)) + 1
+            violations.append({
+                "file": rel, "line": line, "capability": name, "text": m.group(0),
+                "kind": "write", "in_test": is_test, "confidence": "suspect"})
     return violations
 
 
