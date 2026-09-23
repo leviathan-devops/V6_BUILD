@@ -219,3 +219,36 @@ fixed buffer is constant, a structural SL varies. Corrected, LAW 2 is OBEYED 30/
 HONEST SCOPE: 4 of the 7 laws have no column in the row data and are reported
 NOT CLASSIFIABLE, never as passes. The 38 IMAGES exist (3.0MB, v4.5.1) and a VLM
 pass would be needed to classify LAWS 1/3/4/5 from pixels.
+
+## THE AUDIT GATE — SEVEN ROUNDS (the full record)
+| round | tree | crit | high | the headline finding |
+|---|---|---|---|---|
+| 1 | 49c68b2 | 1 | 35 | the zero-coding allowlist was BASENAME-keyed |
+| 2 | 0b447e4 | 0 | 20 | NaN fail-open in EVERY threshold gate |
+| 3 | 135bf6e | 2 | 17 | bare `pickle.load`; an out-of-vocabulary negative label |
+| 4 | bf04465 | 0 | 21 | the `ANSWER:` regex truncated scientific notation; the OMS assumed a WIN |
+| 5 | (post-4) | 0 | 28 | round-4's own fixes' edge cases (`|=` bypassed the frozen dict) |
+| 6 | 75fe448 | 2 | 25 | `_finite` coerced numeric STRINGS; the ATR read the OLDEST bars |
+| 7 | (post-6) | 2 | 25 | **`_guard` was DEAD CODE** (`Verdict.__bool__` swallowed it); aliased-module evasion |
+
+THE TWO ROUND-7 CRITICALS ARE THE MOST INSTRUCTIVE:
+1. **`_guard` never fired.** It returned `Verdict(passed=False)` to signal "the
+   candidate is missing a field", and `Verdict.__bool__` returns `passed` — so
+   the caller's `if g: return g` was FALSY and the guard was unreachable. A
+   helper whose SIGNAL is the same object it uses for its own truthiness is a
+   trap; the fix returns a tuple.
+2. **`import os as o; o.system(...)` evaded the scanner.** The dotted branch
+   needs the literal module name; the bare branch is dot-guarded. Two branches,
+   and the alias fell between them. The first fix over-corrected (a bare
+   `.loads(` is an ordinary method) and the second under-corrected (a leading
+   dot was required, so nothing matched). The third attempt — an alias-shaped
+   receiver plus a safe-receiver exclusion — catches 4/4 evasions with 0 false
+   positives, verified both directions.
+
+THE TREADMILL, RESTATED WITH THE NUMBERS: the HIGH count across seven rounds is
+35 → 20 → 17 → 21 → 28 → 25 → 25. It has NOT trended to zero and is not going
+to. The criticals are now zero in most rounds because the critical CLASS
+(an unreachable guard, a two-branch gap) was closed by fixing the ARCHITECTURE —
+but each fix adds surface, and the surface is what gets audited. A "GATE: PASS"
+is not reachable by iterating; the honest report is the verdict WITH the round
+count and the SHA.
