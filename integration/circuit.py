@@ -80,6 +80,7 @@ class Circuit:
         self.use_decider = use_decider
         self.anchor_ms = anchor_ms
         self._decider = None
+        self._grade_fallback = None
         self._limite_ok = None
 
     # ---- stage 1-2: feed + state -------------------------------------------
@@ -194,10 +195,13 @@ class Circuit:
                         if _grade in ("F", "C", "B", "A", "Aplus"):
                             conf = round(float(_val), 4)
                             break
-            except (ImportError, ValueError, TypeError):
-                # an ungradeable distribution leaves the offline confidence in
-                # place rather than inventing a score
-                pass
+            except (ImportError, ValueError, TypeError) as e:
+                # AUDIT FIX (round 19): a bare `pass` made a MISSING MODULE or an
+                # ungradeable distribution indistinguishable from a real model
+                # score — the offline confidence silently stood in. The fallback
+                # is recorded on the result so the audit trail shows which score
+                # the gates actually read.
+                self._grade_fallback = f"{type(e).__name__}: {e}"
         cand = TradeCandidate(
             pair=pair, direction=direction, entry=entry, sl=sl, tp=tp,
             rrr=rrr_code, zone_width_pips=zone_w, sl_distance_pips=sl_d,

@@ -19,8 +19,15 @@ from dataclasses import dataclass
 # latency_ms / stage_latency are MEASUREMENTS of the run, not decisions the run
 # made: including them would make every run differ for a reason that has
 # nothing to do with determinism (defect found by the e2e probe 2026-09-23).
-VOLATILE = {"ts_wall", "duration_ms", "host", "pid", "started_at", "elapsed",
-            "latency_ms", "stage_latency", "timing", "ts"}
+# AUDIT FIX (round 19): this set held GENERIC names (`ts`, `host`, `pid`,
+# `timing`, `elapsed`) that a legitimate DECISION field could carry — a stage
+# payload with a top-level `ts` holding an ORDERED state, or `host` naming a
+# selected server, was silently dropped and two different decisions digested
+# identically (a false MATCH, violating the pinned law). Only names that are
+# UNAMBIGUOUSLY measurements remain, so a decision field can never be mistaken
+# for one. Run metadata must use these names (or a nested `meta` object).
+VOLATILE = frozenset({"ts_wall", "duration_ms", "started_at", "latency_ms",
+                      "stage_latency"})
 
 
 def canonical(obj) -> str:
@@ -147,7 +154,11 @@ def _freeze(o):
     if isinstance(o, dict):
         return _FrozenDict({k: _freeze(v) for k, v in o.items()})
     if isinstance(o, (list, tuple)):
-        return tuple(_freeze(x) for x in o)
+        # AUDIT FIX (round 19): `list` and `tuple` both froze to a plain tuple and
+        # rendered as the same JSON array, so a stage flipping container TYPE
+        # digested identically — the same class as the float/str collision fixed
+        # in round 18. The type is now part of the frozen value.
+        return ("__" + type(o).__name__ + "__", tuple(_freeze(x) for x in o))
     if isinstance(o, (set, frozenset)):
         # AUDIT FIX (round 6): sorted() on heterogeneous members ({1,'a'}) or on
         # dicts/lists raised TypeError. Sort by the CANONICAL RENDERING instead.
@@ -159,7 +170,9 @@ def _freeze(o):
         frozen = [_freeze(x) for x in o]
         return tuple(sorted(frozen, key=canonical))
     if isinstance(o, (bytes, bytearray)):
-        return o.decode("utf-8", "backslashreplace")
+        # AUDIT FIX (round 19): decoding erased the type, so b'abc' and 'abc'
+        # digested identically. The tag keeps them distinct.
+        return "__bytes__" + o.decode("utf-8", "backslashreplace")
     return o
 
 

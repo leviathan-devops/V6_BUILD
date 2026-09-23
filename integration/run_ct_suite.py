@@ -205,7 +205,12 @@ def main() -> int:
     if claimed is not None and (not isinstance(claimed, list)
                                 or not all(isinstance(x, str) for x in claimed)
                                 or sorted(claimed) != sorted(EXCLUDED)):
-        print(f"CT_EXCLUSION_TAMPERED: the capture claims {sorted(claimed)} but the "
+        # AUDIT FIX (round 19): the message called sorted(claimed) UNCONDITIONALLY,
+        # so a non-list claim (int/dict) raised TypeError INSIDE the refusal —
+        # crashing while refusing, which is the one thing a validator must never
+        # do. The claim is rendered defensively.
+        _shown = sorted(claimed) if isinstance(claimed, list) else repr(claimed)
+        print(f"CT_EXCLUSION_TAMPERED: the capture claims {_shown} but the "
               f"local authority is {sorted(EXCLUDED)} — refusing")
         return 2
     # AUDIT FIX (round 18): the evidence check was SELF-REFERENTIAL — a capture

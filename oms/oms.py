@@ -61,7 +61,7 @@ PIP_VALUE_PER_UNIT = _DerivedPipValue()
 # derives it.
 
 
-@dataclass
+@dataclass(frozen=True)
 class TradeDecision:
     """The typed output of the circuit — the only thing OMS consumes."""
     pair: str
@@ -100,7 +100,7 @@ class TradeDecision:
                 f"sl={self.sl} entry={self.entry} tp={self.tp}")
 
 
-@dataclass
+@dataclass(frozen=True)
 class Fill:
     """One executed trade. The pair travels WITH the fill (pip source)."""
     pair: str
@@ -184,7 +184,7 @@ class Fill:
         return round(self.gross_pips - self.cost_pips, 4)
 
 
-@dataclass
+@dataclass(frozen=True)
 class TradeResult:
     # AUDIT FIX (round 17 H8): nothing checked that `outcome` was one of
     # ('tp','sl') nor that the fill's exit MATCHED the level that outcome names —
@@ -228,7 +228,13 @@ class TradeResult:
     def net_pips(self) -> float: return self.fill.net_pips
 
 
-@dataclass
+# AUDIT FIX (round 19): all four were MUTABLE dataclasses, so the eager
+# __post_init__ validation was bypassable by post-construction assignment
+# (`fill.entry = nan`, `d.tp = <inverted>`, `pf.starting_equity = nan`) — the
+# invariants held only until someone reassigned a field. Frozen dataclasses make
+# the validated state the ONLY state. (The `trades` LIST is still mutable, which
+# is what `pf.trades.append` needs.)
+@dataclass(frozen=True)
 class Portfolio:
     starting_equity: float = 100_000.0
     trades: list[TradeResult] = field(default_factory=list)
