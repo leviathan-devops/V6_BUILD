@@ -122,3 +122,39 @@ trainer. Reported as BLOCKED with the arithmetic, not as skipped.
 
 ---
 _ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._
+
+## THE AUDIT GATE — FIVE ROUNDS, AND THE TREADMILL IS REAL
+| round | tree | crit | high | the headline finding |
+|---|---|---|---|---|
+| 1 | 49c68b2 | 1 | 35 | the zero-coding allowlist was BASENAME-keyed |
+| 2 | 0b447e4 | 0 | 20 | NaN fail-open in EVERY threshold gate |
+| 3 | 135bf6e | 2 | 17 | a bare `pickle.load` bypass; an out-of-vocabulary negative label |
+| 4 | bf04465 | 0 | 21 | the `ANSWER:` regex truncated scientific notation; the OMS assumed a WIN |
+| 5 | (post-4) | 0 | 28 | my own round-4 fixes' edge cases (`|=` bypassed the frozen dict; `_freeze` did not recurse tuples) |
+
+**THE HONEST FINDING ABOUT THE GATE ITSELF.** Across five rounds the critical
+count went 1 → 0 → 2 → 0 → 0 and the HIGH count went 35 → 20 → 17 → 21 → 28.
+The class of finding did not shrink; it MOVED. Round 4's fixes produced round
+5's findings (the immutable dict's `|=` slot, the freeze function's tuple
+blindness). This is the shape of an adversarial reviewer against a codebase with
+a large defensive surface: each fix adds surface, and the surface is what gets
+audited.
+
+That is a REAL property of the method, not an excuse. It means:
+  - the gate is a genuine defect-finder (it found the ANSWER truncation, the
+    assumed WIN, the render-time anchor gap — all real);
+  - "GATE: PASS" is not reachable by iterating, because iteration is what
+    creates the next finding;
+  - the honest position is to report the gate's verdict WITH the round count and
+    the tree SHA, and to say plainly that a PASS has not been achieved.
+
+WHAT WAS ACTUALLY FIXED ACROSS THE FIVE ROUNDS (real defects, all re-verified):
+  the ANSWER truncation (a 10000x arithmetic error on scientific notation)
+  the OMS defaulting to a WIN for an unlabelled trade
+  NaN passing every threshold gate
+  the session gate reading the UTC offset as the local time
+  the circuit hardcoding one pip scale for every pair (a 100x DXY error)
+  render_state never enforcing the temporal anchor
+  the zero-coding scanner's basename bypass
+  the memory digest omitting source and never being verified on read
+  the circuit importing stale pre-merge modules through hardcoded paths
