@@ -1,6 +1,6 @@
 import _boot, sys, json, pathlib
 sys.path.insert(0, "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD/.wt/wa-decider/decider")
-from client import Decider, health, choice, noul, score, DeciderUnavailable
+from decider_client import Decider, health, choice, noul, score, DeciderUnavailable
 
 # THE PUBLISHED DECIDER (not a hand-built head).
 # Probe evidence (2026-09-23):

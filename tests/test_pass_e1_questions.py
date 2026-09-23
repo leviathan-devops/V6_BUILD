@@ -1,7 +1,7 @@
 import _boot, sys, json
 sys.path.insert(0, "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD/.wt/wa-decider/decider")
 from question_templates import ALL_QUESTIONS, CALLS, E1, E2, E3, PVE, expected_level
-from client import Decider, choice, noul, score
+from decider_client import Decider, choice, noul, score
 
 # ---- PART 1: the template contract (17 questions in 4 calls) ----------------
 ok_shape = (len(ALL_QUESTIONS) == 17 and len(E1) == 5 and len(E2) == 4
