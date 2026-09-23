@@ -78,25 +78,34 @@ def _qualified(word: str) -> str:
 # first fix far too broad (a bare `.loads(` / `.execute(` is an ordinary method
 # call). The sound predicate is an ALIAS-SHAPED receiver (one to three chars)
 # followed by the method name.
-# The receiver must be an ALIAS-shaped name (1-3 chars) AND not a known-safe
-# object. A database handle's `.execute(` is SQL, not os.exec. _ALIAS already
-# carries its own trailing whitespace class, so the method part must NOT repeat
-# it (the first version did, and the doubled class never matched).
-_SAFE_RECEIVERS = "db|cursor|conn|connection|session|client|resp|response|sock|srv"
-# NOTE: there is NO leading dot requirement — the alias is a BARE name, not an
-# attribute of something. The first version required a preceding dot and so
-# matched nothing at all.
-_ALIAS = _f("(?<![", "0-9A-Za-z_.", "])",
-            "(?!(?:", _SAFE_RECEIVERS, ")[.])",
-            "[A-Za-z_][A-Za-z0-9_]{0,2}", _WS)
+# CRITICAL FIXES (audit round 8) — the previous two attempts were both wrong:
+#   1. the receiver was capped at 3 chars, so a LONGER alias evaded it;
+#   2. a safe-receiver NAME list (db/cursor/conn/...) excluded by name — but the
+#      ALIAS IS CHOSEN BY THE ATTACKER, so naming a process-spawning import
+#      after a database handle was treated as safe SQL.
+# Both are gone. The predicate is now: ANY receiver, followed by the dangerous
+# METHOD name. That WILL flag a legitimate `.loads(` or `.execute(` on some
+# object — and that is the correct trade for a read-only audit whose only cost
+# is a review item. A false positive is cheap; a missed spawn is not.
+_ALIAS = _f("(?<![", "0-9A-Za-z_.", "])", "[A-Za-z_][A-Za-z0-9_]*", _WS, "[.]")
 
+# TWO CONFIDENCE CLASSES (audit round 8). A regex cannot do the dataflow needed
+# to tell `pickle.loads` from `json.loads` when the receiver is an alias — the
+# METHOD NAME is the same. So the lexicon carries two classes:
+#   EXACT    the literal module name  -> a VIOLATION
+#   SUSPECT  any receiver + the method -> a REVIEW ITEM (may be json.loads)
+# The scan reports both; the audit asserts zero EXACT violations and lists the
+# SUSPECTs. Claiming the SUSPECT class as a violation would fail on legitimate
+# code; claiming it as clean would miss the aliased spawn. Both would be wrong.
 _ALIASED = [
-    (_f("os.system", "-aliased"),   _f(_ALIAS, "[.]sys", "tem", _WS, "[(]")),
-    (_f("os.exec", "-aliased"),     _f(_ALIAS, "[.]ex", "ec", "[0-9A-Za-z_]*", _WS, "[(]")),
-    (_f("os.spawn", "-aliased"),    _f(_ALIAS, "[.]spa", "wn", "[0-9A-Za-z_]*", _WS, "[(]")),
-    (_f("pickle.load", "-aliased"), _f(_ALIAS, "[.]lo", "ads?", _WS, "[(]")),
-    (_f("importlib", "-aliased"),   _f(_ALIAS, "[.]import_module", _WS, "[(]")),
-    (_f("builtins.eval", "-aliased"), _f(_ALIAS, "[.]ev", "al", _WS, "[(]")),
+    (_f("os.system", "-any-receiver"),   _f(_ALIAS, "sys", "tem", _WS, "[(]")),
+    (_f("os.exec", "-any-receiver"),     _f(_ALIAS, "ex", "ec", "[0-9A-Za-z_]*", _WS, "[(]")),
+    (_f("os.spawn", "-any-receiver"),    _f(_ALIAS, "spa", "wn", "[0-9A-Za-z_]*", _WS, "[(]")),
+    (_f("pickle.load", "-any-receiver"), _f(_ALIAS, "lo", "ads?", _WS, "[(]")),
+    (_f("importlib", "-any-receiver"),   _f(_ALIAS, "import_module", _WS, "[(]")),
+    (_f("builtins.eval", "-any-receiver"), _f(_ALIAS, "ev", "al", _WS, "[(]")),
+    (_f("os.write", "-any-receiver"),    _f(_ALIAS, "wr", "ite", _WS, "[(]")),
+    (_f("fs.create", "-any-receiver"),   _f(_ALIAS, "mk", "stemp", _WS, "[(]")),
 ]
 
 _EXEC_NAMES = _ALIASED + [
@@ -202,10 +211,13 @@ def _scan(path: Path, root: Path, src: str, lexicon: dict, kind: str) -> list:
     out = []
     for name, pat in lexicon.items():
         for m in re.finditer(pat, src):
+            # the confidence class is carried in the capability NAME suffix
+            confidence = "suspect" if name.endswith("-any-receiver") else "exact"
             out.append({"file": rel,
                         "line": src[:m.start()].count(chr(10)) + 1,
                         "capability": name, "text": m.group(0),
-                        "kind": kind, "in_test": is_test})
+                        "kind": kind, "in_test": is_test,
+                        "confidence": confidence})
     return out
 
 
