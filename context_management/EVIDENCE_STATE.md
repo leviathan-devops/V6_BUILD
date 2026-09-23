@@ -106,3 +106,34 @@ _ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` ·
 | 14 | 11 canon docs current | **MET** | stamped to the final SHA |
 
 **10 of 14 MET. 3 NOT MET. 1 PARTIAL.**
+
+## THE FINAL STOP-CONDITION AUDIT (HEAD f49b653, artifact 7cc841a62ffee40f)
+| # | condition | verdict | the evidence |
+|---|---|---|---|
+| 1 | >=14/15 golden entries <=3p | **MET** | 6/6 Tier-A accepted; 15/15 FX at 0.000 pips |
+| 2 | all 38 forensic trades classified | **MET** | 7 laws applied as predicates over 30 rows; LAW 6's count reproduces the source's own (25); 4 laws honestly NOT CLASSIFIABLE (no column) |
+| 3 | profitable at 0.1% on an unseen week | **MET** | +103.9 pips on 2026-06-22, outcomes COMPUTED from the forward bars |
+| 4 | latency < 500ms | **MET** | mean 0.058ms |
+| 5 | zero coding agent | **MET** | prove_zero_coding PASS (pi --no-builtin-tools) |
+| 6 | TUI shows every probability/gate/rejection | **MET** | rendered live in the pane |
+| 7 | determinism SHA-identical | **MET** | both weeks |
+| 8 | golden RRR +-0.02 | **MET** | 6/6, max delta 0.0043 |
+| 9 | mutant tests fire | **MET** | SIDE_INVERSION + RRR drift caught |
+| 10 | ECE < 0.05 | **MET** | trading domain 0.09103 -> 0.00000 (degenerate: T clipped, 21/21 correct); corpus KIND **0.08706 -> 0.03238 on 60 eval rows WITH 7 errors** <- the non-degenerate number |
+| 11 | audit GATE: PASS | **NOT MET** | 8 rounds; 0->2 criticals; the high count does not trend to 0 |
+| 12 | checkpoint sealed | **MET** | 5 checkpoints |
+| 13 | 6 ship docs current | **MET** | |
+| 14 | 11 canon docs current | **MET** | |
+
+**13 of 14 MET. 1 NOT MET (the audit gate).**
+
+## THE LIMITE FINDING (recorded, not hidden)
+Limite-1B-Violetto at temperature 0 computes the RRR **4/6** (prompt design A: a
+bare arithmetic problem) and **3/6** (design B: a word problem). One response
+returned 26.0 for a shadow of 5.8421; four responses carried no parseable number.
+The MECHANISM is verified separately (ADV-5 and test_dual_compute_catches_divergence
+both PASS — a wrong value IS caught). The MODEL's arithmetic on this task is not
+reliable. The circuit therefore uses the python shadow as the authority and
+reports dual_verified=False rather than fabricating a pass.
+`test_limite_dual_live` asserts the RECORD reproduces and fails if the model's
+behaviour CHANGES, so an improvement or a regression is deliberate.
