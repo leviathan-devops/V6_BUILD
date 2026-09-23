@@ -379,3 +379,29 @@ distributions, they agree to 1e-9 (`GRADE_VALUE` is exactly `0.45 + 0.1*index`).
 The DUPLICATION was real; the DIVERGENCE was not. The circuit now calls the
 authority for the right reason — one scorer, so a future edit cannot desync two
 copies. An audit finding is a claim; it gets measured before it gets fixed.
+
+
+## THE AUDIT GATE — THE FINAL RULING (six rounds, then the doctrine)
+Six rounds ran on this change set. **Criticals reached 0 at round 12 and stayed 0
+through rounds 13 and 14.** The HIGH count does not fall because each fix wave is
+new code = new scan surface, and the highs oscillate (round 14: two of my own
+fixes were WRONG — a bracket check that refused every losing trade, and write
+patterns that flagged `text.replace(`).
+
+**ACCEPTANCE — 0 CRITICAL + 0 REGRESSION: MET.** The highs are logged as
+operator-review debt per the anti-treadmill doctrine, not chased further.
+
+**ROUND 15 IS BLOCKED, NOT PASSED:** `PROVIDER_QUOTA_EXHAUSTED`. The gate could
+not run. **The ship gate has not passed, and is not reported as passing.**
+
+### THE HONEST SCORECARD
+| claim | verdict |
+|---|---|
+| 31/31 host tests | PROVEN (this session) |
+| 16/16 container scenarios | PROVEN, and now REPRODUCIBLE |
+| 13/13 container runtime suite | PROVEN |
+| the runtime seat renders live | PROVEN (pi TUI pane) |
+| the CT capture resists spoofing | PROVEN by 4 constructed attacks |
+| the corpus negatives are correctly labelled | PROVEN by re-parsing each |
+| the scanner catches the 5 evasion vectors | PROVEN by construction |
+| **the audit gate PASSES** | **NOT PROVEN — 0 critical, gate UNRUN (quota)** |
