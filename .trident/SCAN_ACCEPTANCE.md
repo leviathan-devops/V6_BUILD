@@ -44,3 +44,34 @@ PROVEN (this session, mechanically):
 NOT PROVEN:
   - the audit gate has never returned PASS on this tree. The criticals are 0, but
     the gate itself is UNRUN since round 14.
+
+
+## ADDENDUM — ROUNDS 15, 16, 17 (the stop, executed)
+
+| round | critical | high | the substance |
+|---|---|---|---|
+| 15 | **1** | 9 | MY round-14 fix broke the dedup key: 46 of 66 negatives silently deleted |
+| 16 | **1** | 8 | MY round-15 fix crashed the tree audit (`(name, str)` vs Match) |
+| 17 | **0** | 11 | the verification run: the round-16 critical is GONE |
+
+**THE STOP SIGNAL, IN DATA.** Rounds 15 and 16 each produced EXACTLY ONE
+critical, and BOTH were defects I introduced while fixing the previous round:
+
+    r14 -> r15 : keeping the verbatim quote broke the dedup key (46 negatives lost)
+    r15 -> r16 : the suspect helper's return shape broke its consumer (a crash)
+
+The criticals did not converge — they became a FUNCTION OF MY OWN FIXES. That is
+the doctrine's convergence signal inverted: further rounds have NEGATIVE expected
+value. The waves stopped at round 16; round 17 was a VERIFICATION run only (to
+confirm the critical was gone), not a chase, and it returned 0 critical.
+
+**THE FINAL ACCEPTANCE — 0 CRITICAL: MET** (round 17: 0 critical).
+**THE HIGHS: 11 open, operator-review debt.** Their sets are disjoint between
+rounds (the doctrine's documented non-convergence), so chasing them is a loop.
+
+**WHAT THE AUDIT GATE HAS AND HAS NOT DONE**
+- it has NOT returned PASS on this tree;
+- it HAS found, across nine rounds, defects that no test in the suite caught —
+  three real gate bypasses, a corpus that supervised the wrong labels, a runner
+  that could not reproduce its own artifact, probes that tested nothing, and two
+  crashes. The treadmill is not worthless; it is just not CONVERGENT.

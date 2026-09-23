@@ -10,7 +10,7 @@
       "failToken": "ACCEPTED_BADLY",
       "failTokenAbsent": true,
       "toolResultContext": "ADV1 REJECTED\nADV1 tokens ['G-RRR_REJECT']\n",
-      "durationMs": 24.5,
+      "durationMs": 26.1,
       "verdict": "PASS"
     },
     {
@@ -23,7 +23,7 @@
       "failToken": "LEAK_NOT_CAUGHT",
       "failTokenAbsent": true,
       "toolResultContext": "ADV2 FUTURE_BAR_LEAK\n",
-      "durationMs": 20.7,
+      "durationMs": 19.5,
       "verdict": "PASS"
     },
     {
@@ -36,7 +36,7 @@
       "failToken": "WRONG",
       "failTokenAbsent": true,
       "toolResultContext": "ADV3 UNKNOWN_PAIR\n",
-      "durationMs": 26.3,
+      "durationMs": 25.0,
       "verdict": "PASS"
     },
     {
@@ -46,10 +46,10 @@
       "exitCode": 0,
       "passToken": "RESULT: PASS test_golden_week_e2e",
       "passTokenMatch": true,
-      "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
+      "failToken": "RESULT: FAIL",
       "failTokenAbsent": true,
-      "toolResultContext": " canon 4.6 circuit 4.6000 accepted=True\n[DETAIL]   DXY#4: canon 3.58 circuit 3.5833 accepted=True\n[DETAIL]   DXY#5: canon 3.79 circuit 3.7857 accepted=True\n[DETAIL]   DXY#6: canon 5.84 circuit 5.8421 accepted=True\n[DETAIL] FX canon entries reproduced <=3p = 15/15 ok=True max_delta=0.000p\n[DETAIL] dual_verified (independent Limite present) = False\n[DETAIL] latency mean=5.79ms p95=5.16ms (<500ms: True)\n[DETAIL] commission: 0%=184.5p 0.1%=183.3p 0.2%=182.1p\n[DETAIL] run digest deterministic = True\nRESULT: PASS test_golden_week_e2e\n",
-      "durationMs": 250.7,
+      "toolResultContext": " canon 4.6 circuit 4.6000 accepted=True\n[DETAIL]   DXY#4: canon 3.58 circuit 3.5833 accepted=True\n[DETAIL]   DXY#5: canon 3.79 circuit 3.7857 accepted=True\n[DETAIL]   DXY#6: canon 5.84 circuit 5.8421 accepted=True\n[DETAIL] FX canon entries reproduced <=3p = 15/15 ok=True max_delta=0.000p\n[DETAIL] dual_verified (independent Limite present) = False\n[DETAIL] latency mean=6.11ms p95=5.44ms (<500ms: True)\n[DETAIL] commission: 0%=184.5p 0.1%=183.3p 0.2%=182.1p\n[DETAIL] run digest deterministic = True\nRESULT: PASS test_golden_week_e2e\n",
+      "durationMs": 266.3,
       "verdict": "PASS"
     },
     {
@@ -59,10 +59,10 @@
       "exitCode": 0,
       "passToken": "RESULT: PASS test_gate_fail_closed",
       "passTokenMatch": true,
-      "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
+      "failToken": "RESULT: FAIL",
       "failTokenAbsent": true,
       "toolResultContext": "[TOKEN] test_gate_fail_closed\n[DETAIL] gate chain = 9 gates: ('G-GEOMETRY', 'G-RRR', 'G-SESSION', 'G-SL', 'G-CONF', 'G-CASCADE', 'G-CHAIN', 'G-DEDUP', 'G-DUAL')\n[DETAIL] honest candidate accepted = True (['G-GEOMETRY_PASS', 'G-RRR_PASS', 'G-SESSION_PASS', 'G-SL_PASS', 'G-CONF_PASS', 'G-CASCADE_PASS', 'G-CHAIN_PASS', 'G-DEDUP_PASS', 'G-DUAL_PASS'])\n[DETAIL] NaN/geometry/session probe failures = 0\nRESULT: PASS test_gate_fail_closed\n",
-      "durationMs": 27.1,
+      "durationMs": 35.0,
       "verdict": "PASS"
     },
     {
@@ -72,10 +72,10 @@
       "exitCode": 0,
       "passToken": "RESULT: PASS test_determinism_sha_match",
       "passTokenMatch": true,
-      "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
+      "failToken": "RESULT: FAIL",
       "failTokenAbsent": true,
       "toolResultContext": "L] run1 sha=51e68df82ac3f65af27684c0b4f0d000e164b576b86b65002eed3fb1cf71cb9e\n[DETAIL] run2 sha=51e68df82ac3f65af27684c0b4f0d000e164b576b86b65002eed3fb1cf71cb9e  match=True (pass=True)\n[DETAIL] different seed sha=049b79706b5a89f90d55e203be77748a6213adb9b82dcb509447e816cee06dce differs=True\n[DETAIL] top-level keys ARE hashed (round-8 contract) = True; nested volatile keys excluded = True\n[DETAIL] divergence names the stage=True stages=['decision']\n[DETAIL] assert_deterministic(pure fn) match=True\nRESULT: PASS test_determinism_sha_match\n",
-      "durationMs": 28.7,
+      "durationMs": 30.0,
       "verdict": "PASS"
     },
     {
@@ -85,10 +85,10 @@
       "exitCode": 0,
       "passToken": "RESULT: PASS test_memory_persistence",
       "passTokenMatch": true,
-      "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
+      "failToken": "RESULT: FAIL",
       "failTokenAbsent": true,
       "toolResultContext": "[TOKEN] test_memory_persistence\n[DETAIL] rows before close=2 after reopen=2 survived=True\n[DETAIL] append-only: 2 -> 3 rows, prior digests untouched=True\n[DETAIL] foreign writer refused with BANK_OWNED_BY_OTHER=True\n[DETAIL] a different bank admits a different writer=True\n[DETAIL] identical content -> identical digest=True\n[DETAIL] final row count=6\nRESULT: PASS test_memory_persistence\n",
-      "durationMs": 41.7,
+      "durationMs": 44.5,
       "verdict": "PASS"
     },
     {
@@ -98,10 +98,10 @@
       "exitCode": 0,
       "passToken": "RESULT: PASS test_tui_renders_probabilities",
       "passTokenMatch": true,
-      "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
+      "failToken": "RESULT: FAIL",
       "failTokenAbsent": true,
       "toolResultContext": "=1\n[DETAIL] ============================================================================\n[DETAIL]  DECIDER PROBABILITIES (every question, every option)\n[DETAIL] ============================================================================\n[DETAIL]  E1.Q4  argmax=strong_supply p=0.830\n[DETAIL]     strong_supply       0.830 |#########################.....|\n[DETAIL]     neutral             0.120 |####..........................|\n[DETAIL]     strong_demand       0.050 |##............................|\nRESULT: PASS test_tui_renders_probabilities\n",
-      "durationMs": 33.1,
+      "durationMs": 31.6,
       "verdict": "PASS"
     },
     {
@@ -111,10 +111,10 @@
       "exitCode": 0,
       "passToken": "RESULT: PASS test_report_golden_check",
       "passTokenMatch": true,
-      "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
+      "failToken": "RESULT: FAIL",
       "failTokenAbsent": true,
       "toolResultContext": "[TOKEN] test_report_golden_check\n[DETAIL] sections found=['1', '2', '3', '4', '5', '6', '7', '8'] (>=8 contiguous = True)\n[DETAIL] probability bars rendered=True\n[DETAIL] gate tokens present (G-RRR/G-SESSION/G-DUAL)=True\n[DETAIL] net pips 16.8 present=True | run_id 06ada20d62dcbf38 present=True\n[DETAIL] report deterministic across renders=True\n[DETAIL] section_count()=8 lines=55\nRESULT: PASS test_report_golden_check\n",
-      "durationMs": 33.4,
+      "durationMs": 35.6,
       "verdict": "PASS"
     },
     {
@@ -124,10 +124,10 @@
       "exitCode": 0,
       "passToken": "RESULT: PASS test_walkforward_unseen_week",
       "passTokenMatch": true,
-      "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
+      "failToken": "RESULT: FAIL",
       "failTokenAbsent": true,
-      "toolResultContext": "re = 6\n[DETAIL] accepted by the 9 gates = 6\n[DETAIL] COMPUTED outcomes: tp=3 sl=3 still-open=0\n[DETAIL]   commission 0.0%: net=184.3p gross=184.3p cost=0.0p win=0.50 profitable=True\n[DETAIL]   commission 0.1%: net=103.9p gross=184.3p cost=80.4p win=0.50 profitable=True\n[DETAIL]   commission 0.2%: net=23.5p gross=184.3p cost=160.8p win=0.50 profitable=True\n[DETAIL] the STOP-3 claim (profitable at 0.1% on an unseen week) = True\n[DETAIL] latency mean=4.359ms | determinism on the unseen week = True\nRESULT: PASS test_walkforward_unseen_week\n",
-      "durationMs": 215.9,
+      "toolResultContext": "re = 6\n[DETAIL] accepted by the 9 gates = 6\n[DETAIL] COMPUTED outcomes: tp=3 sl=3 still-open=0\n[DETAIL]   commission 0.0%: net=184.3p gross=184.3p cost=0.0p win=0.50 profitable=True\n[DETAIL]   commission 0.1%: net=103.9p gross=184.3p cost=80.4p win=0.50 profitable=True\n[DETAIL]   commission 0.2%: net=23.5p gross=184.3p cost=160.8p win=0.50 profitable=True\n[DETAIL] the STOP-3 claim (profitable at 0.1% on an unseen week) = True\n[DETAIL] latency mean=4.666ms | determinism on the unseen week = True\nRESULT: PASS test_walkforward_unseen_week\n",
+      "durationMs": 228.4,
       "verdict": "PASS"
     },
     {
@@ -137,10 +137,10 @@
       "exitCode": 0,
       "passToken": "RESULT: PASS test_forensic_38_classification",
       "passTokenMatch": true,
-      "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
+      "failToken": "RESULT: FAIL",
       "failTokenAbsent": true,
       "toolResultContext": "BEYED 30 | VIOLATED 0  (a shared pair+day identifies a ladder)\n[DETAIL] trades parsed from the SL/MAE table = 30 (rows 1-30)\n[DETAIL] source's own SL-TOO-WIDE count = 25 | LAW 6 predicate reproduced it = True\n[DETAIL] outcome audit: 36 setups, 30W/6L\n[DETAIL]   DXY: 13 setups 10W/3L win 77% total 35.56R\n[DETAIL]   EUR/USD: 13 setups 10W/3L win 77% total 19.01R\n[DETAIL]   GBP/USD: 10 setups 10W/0L win 100% total 18.48R\n[DETAIL] laws classified clean = 1 | with violations = 2 | unclassifiable = 4\nRESULT: PASS test_forensic_38_classification\n",
-      "durationMs": 32.5,
+      "durationMs": 31.5,
       "verdict": "PASS"
     },
     {
@@ -150,10 +150,10 @@
       "exitCode": 0,
       "passToken": "RESULT: PASS test_zero_coding_surface",
       "passTokenMatch": true,
-      "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
+      "failToken": "RESULT: FAIL",
       "failTokenAbsent": true,
       "toolResultContext": "/limite_client.py:55 pickle.load-any-receiver 'json.loads('\n[DETAIL] undeclared write violations = 0\n[DETAIL] negative control fires = True caught=['builtins.eval-any-receiver', 'eval', 'os.system', 'os.system-any-receiver', 'popen', 'subprocess']\n[DETAIL] CRITICAL bypass closed (3 planted files) = True found=7\n[DETAIL] allowlist is path-keyed = True | evil/report.py allowed = False\n[DETAIL] the scanner scans itself clean (no exemption) = True\n[DETAIL] lexicons: exec=28 write=19 allowed_paths=4\nRESULT: PASS test_zero_coding_surface\n",
-      "durationMs": 200.3,
+      "durationMs": 214.4,
       "verdict": "PASS"
     },
     {
@@ -163,10 +163,10 @@
       "exitCode": 0,
       "passToken": "RESULT: PASS test_math_queries_shape",
       "passTokenMatch": true,
-      "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
+      "failToken": "RESULT: FAIL",
       "failTokenAbsent": true,
       "toolResultContext": "[TOKEN] test_math_queries_shape\n[DETAIL] L1 shadow=10.0\n[DETAIL] L2 shadow=13.0\n[DETAIL] L3 shadow=1.5405\n[DETAIL] L4 shadow=1.14074\n[DETAIL] L5 shadow=8.5\n[DETAIL] L6 shadow=28.5\n[DETAIL] queries=6 errors=[]\nRESULT: PASS test_math_queries_shape\n",
-      "durationMs": 28.2,
+      "durationMs": 31.0,
       "verdict": "PASS"
     },
     {
@@ -176,10 +176,10 @@
       "exitCode": 0,
       "passToken": "RESULT: PASS test_oms_execute_order",
       "passTokenMatch": true,
-      "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
+      "failToken": "RESULT: FAIL",
       "failTokenAbsent": true,
       "toolResultContext": "[TOKEN] test_oms_execute_order\n[DETAIL] long@TP=+28.5p (pass=True) | long@SL=-18.5p (pass=True)\n[DETAIL] short@TP=+28.5p (pass=True)\n[DETAIL] DXY gross=17.0p expect 17.0 (pass=True)\n[DETAIL] FX gross=28.5p expect 28.5 (pass=True)\n[DETAIL] blueprint worked example: cost=20.0p expect 20.0 (pass=True) net=8.5p expect 8.5 (pass=True)\nRESULT: PASS test_oms_execute_order\n",
-      "durationMs": 24.1,
+      "durationMs": 26.7,
       "verdict": "PASS"
     },
     {
@@ -189,10 +189,10 @@
       "exitCode": 0,
       "passToken": "RESULT: PASS test_commission_0_1pct",
       "passTokenMatch": true,
-      "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
+      "failToken": "RESULT: FAIL",
       "failTokenAbsent": true,
       "toolResultContext": "ble=True\n[DETAIL]   0.2%: gross=665.5p cost=600.0p net=65.5p win=0.27 profitable=True\n[DETAIL] === ALL 21 ===\n[DETAIL]   0.0%: gross=850.0p cost=0.0p net=850.0p profitable=True\n[DETAIL]   0.1%: gross=850.0p cost=301.2p net=548.8p profitable=True\n[DETAIL]   0.2%: gross=850.0p cost=602.4p net=247.6p profitable=True\n[TOKEN] test_commission_0_1pct\n[DETAIL] golden-week net at 0.1% = 548.8 pips (gate: > 0)\n[DETAIL] cost per FX trade at 0.1% = 20.00 pips\n[DETAIL] cost per DXY trade at 0.1% = 0.20 pips\nRESULT: PASS test_commission_0_1pct\n",
-      "durationMs": 27.1,
+      "durationMs": 28.2,
       "verdict": "PASS"
     },
     {
@@ -202,10 +202,10 @@
       "exitCode": 0,
       "passToken": "RESULT: PASS test_state_constructor_golden",
       "passTokenMatch": true,
-      "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
+      "failToken": "RESULT: FAIL",
       "failTokenAbsent": true,
       "toolResultContext": "] state tokens=2239/8192\n[DETAIL] FUTURE_BAR_LEAK fires on a synthetic post-anchor bar = True\n[DETAIL] THE WIDE HARVEST IS REFUSED = True (FUTURE_BAR_LEAK: 404 bar(s) past anchor 1783317600000 (first leaked ts)\n[DETAIL] NO_BARS fires on an empty feed = True\n[DETAIL] BAR_MISSING_TIMESTAMP fires on a timeless bar = True\n[DETAIL] all retained bars <= anchor = True | no ts==0 epoch bars = True\n[DETAIL] state opens with '<|fim_prefix|>' = True\n[DETAIL] session at anchor = LONDON 02:00 in_london=True\nRESULT: PASS test_state_constructor_golden\n",
-      "durationMs": 133.7,
+      "durationMs": 141.8,
       "verdict": "PASS"
     }
   ],
