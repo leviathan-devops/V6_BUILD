@@ -1,0 +1,1 @@
+{"class":"tolerance-drift","data":{"claimedTolerancePips":30,"sanctionedTolerancePips":3},"description":"The 30-pip-tolerance coverage claim: 30-pip tolerance is BANNED and 3-pip is the only metric (spec D.2 mutant 7; T5 tolerance drift).","expect":"FIRE","id":"tolerance-drift","predicateTargets":["tolerance-drift"]}

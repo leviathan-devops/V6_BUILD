@@ -1,0 +1,1 @@
+{"class":"mirror-floor","data":{"day":"Wednesday","expectedSetups":24,"setupCount":13},"description":"The Wednesday D3 undergeneration: the same NL mirror rule produced 13 setups against the f(T)=N x (1+P)=24 truth (spec D.2 mutant 2; wave-plan O-0.6).","expect":"CONTRADICTED","id":"mirror-floor-13","predicateTargets":["mirror-floor"]}

@@ -1,0 +1,1 @@
+{"class":"rrr-drift","data":{"claimedFloor":1.0,"priorFloor":1.5,"sanctionedFloor":2.5},"description":"The RRR floor drift 1.5->1.0 against the ratified RRR_FLOOR=2.5 (D-R1, spec D.4): the RRR floor predicate must FIRE (spec D.2 mutant 8).","expect":"FIRE","id":"rrr-drift","predicateTargets":["rrr-floor"]}

@@ -1,0 +1,1 @@
+{"class":"shape-gate","data":{"day":"Wednesday","direction":"LONG","entry":1.1402,"nature":"DEEP demand (vs EU #2 Mon LONG = NEAR demand rung)","pair":"EUR/USD"},"description":"The EU #4 deep-rung entry 1.14020 — a legal deep demand entry (spec D.2 mutant 6): the shape-gate predicate must stay SILENT.","expect":"SILENT","id":"eu4-deep","predicateTargets":["shape-gate"]}

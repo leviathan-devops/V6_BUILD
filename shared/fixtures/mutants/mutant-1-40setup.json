@@ -1,0 +1,1 @@
+{"class":"mirror-floor","data":{"day":"Tuesday","expectedSetups":24,"setupCount":40},"description":"The Tuesday D2 overgeneration: the NL mirror rule admitted many readings and produced 40 setups against the f(T)=N x (1+P)=24 truth (spec D.2 mutant 1; wave-plan O-0.6).","expect":"CONTRADICTED","id":"mirror-floor-40","predicateTargets":["mirror-floor"]}

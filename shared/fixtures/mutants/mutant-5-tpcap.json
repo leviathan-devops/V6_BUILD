@@ -1,0 +1,1 @@
+{"class":"tp-cap","data":{"degenerateTp":101.071,"entry":100.918,"pair":"DXY","riskPips":36.4,"sl":100.553,"slCeilingPips":36},"description":"The DEGENERATE_TP_CAP WAL row: entry 100.918 / SL 100.553 / risk 36.4p / TP 101.071 — the 36p ceiling predicate (SL_CEILING_PIPS, spec D.4) must FIRE (spec D.2 mutant 5).","expect":"FIRE","id":"tp-cap","predicateTargets":["tp-cap"]}
