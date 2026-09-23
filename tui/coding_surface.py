@@ -97,8 +97,12 @@ _EXEC_NAMES = [
     # CRITICAL FIX (audit round 3): the bare form matched only `loads`, so
     # `from pickle import load; load(...)` executed identical deserialization
     # undetected. Both bare names are matched.
+    # CRITICAL FIX (audit round 6): `from pickle import Unpickler; Unpickler(f)`
+    # matched NEITHER branch — the qualified form needs a pickle. prefix and the
+    # bare forms are dot-guarded. The bare class name is now matched.
     (_f("pickle.", "lo", "ad"),  _f("_?pickle", _DOT, "(?:lo", "ads?|Unpickler)", _WS, "[(]") + "|"
-                                 + _bare(_f("lo", "ad")) + "|" + _bare(_f("lo", "ads"))),
+                                 + _bare(_f("lo", "ad")) + "|" + _bare(_f("lo", "ads"))
+                                 + "|" + _bare(_f("Un", "pickler"))),
     (_f("mar", "sh", "al"),      _f(_PRE, "mar", "sh", "al", _POST)),
     (_f("shell", "=True"),       _f("shell", "[ \t\n]*=", _WS, "True")),
     (_f("run", "py"),            _f(_PRE, "run", "py", _POST)),
@@ -118,15 +122,18 @@ _WRITE_NAMES = [
     # a write violation. Only w/a/x (and the + modes) are writes; a leading 'r'
     # is a read unless followed by '+'.
     (_f("open", "-write-mode"),
-     _f("open", _WS, "[(](?s:.*?)['", '"', "][wax][bt]?[+]?['", '"', "][ \t\n]*[,)]")
-     + "|" + _f("open", _WS, "[(](?s:.*?)['", '"', "][rwax][bt]?[+]['", '"', "][ \t\n]*[,)]")),
+     # AUDIT FIX (round 6): the mode class required b/t BEFORE +, so the
+     # docs-canonical "w+b" never matched, and a leading "b" (rb+/wb+) was missed.
+     # The class now accepts the mode letters in any order plus a sign.
+     _f("open", _WS, "[(](?s:.*?)['", '"', "][rwaxtb]*[+][rwaxtb]*['", '"', "][ \t\n]*[,)]")
+     + "|" + _f("open", _WS, "[(](?s:.*?)['", '"', "][wax][rwaxtb]*['", '"', "][ \t\n]*[,)]")),
     (_f("os.", "wr", "ite"),    _f("os", _DOT, "wr", "ite", _WS, "[(]")),
     (_f("os.", "op", "en"),     _f("os", _DOT, "op", "en", _WS, "[(]")),
     (_f("os.", "re", "name"),   _f("os", _DOT, "re", "name", _WS, "[(]")),
     (_f("os.", "un", "link"),   _f("os", _DOT, "un", "link", _WS, "[(]")),
     (_f("os.", "re", "move"),   _f("os", _DOT, "re", "move", _WS, "[(]")),
     (_f("shu", "til"),          _f(_PRE, "shu", "til", _POST)),
-    (_f("Path.", "write"),      _f("[.]write_", "text", _WS, "[(]|[.]write_", "bytes", _WS, "[(]")),
+    (_f("Path.", "write"),      _f(_DOT, "write_", "text", _WS, "[(]|", _DOT, "write_", "bytes", _WS, "[(]")),
     (_f("Named", "TemporaryFile"), _f("Named", "Temporary", "File")),
 ]
 WRITE_FORBIDDEN = {n: p for n, p in _WRITE_NAMES}
@@ -170,7 +177,17 @@ def scan_tree(root: str, include_tests: bool = True) -> list:
         is_test = bool(TEST_PATH_RE.search(rel))
         if is_test and not include_tests:
             continue
-        src = f.read_text(errors="ignore")
+        # AUDIT FIX: read_text(errors="ignore") ignores DECODE errors only, so a
+        # permission-denied / broken-symlink / raced-delete file raised OSError
+        # out of scan_tree and discarded the whole audit. An unreadable file is
+        # recorded and skipped.
+        try:
+            src = f.read_text(errors="ignore")
+        except (OSError, UnicodeError) as e:
+            violations.append({"file": rel, "line": 0, "capability": "UNREADABLE",
+                               "text": f"{type(e).__name__}: {e}", "kind": "scan",
+                               "in_test": is_test})
+            continue
         violations += _scan(f, root_p, src, EXEC_FORBIDDEN, "exec")
         if rel not in WRITE_ALLOWED_PATHS and not is_test:
             violations += _scan(f, root_p, src, WRITE_FORBIDDEN, "write")

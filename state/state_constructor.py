@@ -101,8 +101,17 @@ def parse_bars(raw: list[dict], anchor_ms: int) -> list[Bar]:
 
 
 def atr(bars: list[Bar], period: int = 14) -> float:
-    if len(bars) < 2: return 0.0
-    trs = [abs(bars[i].high - bars[i].low) for i in range(1, min(len(bars), period + 1))]
+    """Average True Range over the MOST RECENT `period` bars.
+
+    AUDIT FIX (round 6): the first version sliced `range(1, period+1)` — the
+    HEAD of an ascending list — so on a 6,000-bar feed the ATR described bars
+    from weeks earlier while the swing levels beside it used the tail. Two
+    numbers in the same header described different eras.
+    """
+    if len(bars) < 2:
+        return 0.0
+    w = bars[-(period + 1):]              # the trailing window
+    trs = [abs(w[i].high - w[i].low) for i in range(1, len(w))]
     return round(sum(trs) / len(trs), 5) if trs else 0.0
 
 

@@ -8,12 +8,18 @@ D13 QUOTE LAW: every record's state text carries the card's quote VERBATIM
 plus its source file:line. Nothing is synthesized, nothing paraphrased.
 """
 from __future__ import annotations
-import json, re, hashlib
+import json, re, hashlib, os
 from pathlib import Path
 from dataclasses import dataclass, asdict
 
-MASTER = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/MASTER_CONTEXT")
-V5 = Path("/home/leviathan/.omp/wt/plutus-main-66dfa4c/PLUTUS/agent")
+# AUDIT FIX (round 6): the roots were hardcoded absolute paths, so the builder
+# was non-portable and a moved checkout silently produced an EMPTY corpus.
+# They are env-overridable and resolved with an explicit existence check.
+_PLUTUS = Path(os.environ.get(
+    "PLUTUS_HOME", "/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS"))
+MASTER = Path(os.environ.get("PLUTUS_MASTER", _PLUTUS / "MASTER_CONTEXT"))
+V5 = Path(os.environ.get(
+    "PLUTUS_V5", "/home/leviathan/.omp/wt/plutus-main-66dfa4c/PLUTUS/agent"))
 
 STATE_DELIM = "<|fim_prefix|>"
 QUESTION_DELIM = "<|fim_middle|>"
@@ -99,6 +105,8 @@ def harvest_golden_trades(v5_root: Path) -> list[Record]:
                     # AUDIT FIX: the correct RRR was ALWAYS options[0], so a
                     # model could learn a positional shortcut. Rotate so the
                     # correct answer's index varies deterministically.
+                    # (the golden-trade harvester rotates; the cascade one did
+                    #  not — AUDIT FIX round 6 applied the same rotation here)
                     opts = [rrr, "below_floor", "no_trade"]
                     rot = len(recs) % len(opts)
                     opts = opts[rot:] + opts[:rot]
@@ -206,7 +214,12 @@ def harvest_gap_analysis(master: Path) -> list[Record]:
         if not f.exists(): continue
         text = f.read_text(errors="ignore")
         for ln, line in enumerate(text.splitlines(), 1):
-            if re.search(r"\bRRR\b", line) and re.search(r"\d+\.\d+/\d+\.\d+/\d+\.\d+", line):
+            # AUDIT FIX (round 6): the harvester taught EVERY matching row as
+            # above-floor without parsing the RRR. A row below the operator's
+            # floor was a false positive. The value is now compared.
+            _m = re.search(r"(\d+\.\d+)/(\d+\.\d+)/(\d+\.\d+)\s+([\d.]+)", line)
+            _rrr = float(_m.group(4)) if _m else None
+            if _rrr is not None and _rrr >= 3.5 and re.search(r"\bRRR\b", line):
                 recs.append(Record(
                     id=f"gap-{f.stem}-{ln}", source=f"{f}:{ln}", quote=line.strip(),
                     state=f"DOCUMENTED TRADE ROW: {line.strip()[:300]}",
@@ -250,6 +263,12 @@ def negative_records(cards: list[Record]) -> list[Record]:
         # distractor, never as the answer).
         if r.question.startswith("Does the state satisfy"):
             neg_answer = "no"
+        elif r.question.startswith("What kind of doctrine"):
+            # AUDIT FIX (round 6): altering a quote does NOT change a card's
+            # kind, so a KIND negative was WRONG supervision (an altered
+            # MECHANISM card taught as "ruling"). A KIND record yields no
+            # negative at all.
+            continue
         else:
             neg_answer = next((o for o in opts if o != r.answer), opts[-1])
         out.append(Record(
@@ -261,8 +280,13 @@ def negative_records(cards: list[Record]) -> list[Record]:
 
 def build(out_path: Path) -> dict:
     cards = []
+    # AUDIT FIX: a missing root silently yielded zero cards and the build still
+    # "succeeded". Each root's contribution is now reported.
+    root_counts = {}
     for root in CARD_ROOTS:
-        cards += scan_cards(root)
+        got = scan_cards(root)
+        root_counts[str(root)] = len(got)
+        cards += got
     cards = card_records(cards)
     golden = harvest_golden_trades(V5)
     golden += harvest_golden_cascade(MASTER)
@@ -286,7 +310,16 @@ def build(out_path: Path) -> dict:
     with out_path.open("w") as fh:
         for r in uniq:
             fh.write(json.dumps({**asdict(r), "triple": r.to_triple()}) + "\n")
-    return {"total": len(uniq), "cards": len(cards), "golden": len(golden),
+    # AUDIT FIX: an empty harvest must be LOUD, not a silent success.
+    if not uniq:
+        raise ValueError(
+            f"EMPTY_CORPUS: every root produced nothing. roots={root_counts} "
+            f"— check PLUTUS_HOME / the harvest files")
+    if not cards:
+        raise ValueError(
+            f"NO_CARDS: the card scan found nothing. roots={root_counts}")
+    return {"total": len(uniq), "cards": len(cards), "root_counts": root_counts,
+            "golden": len(golden),
             "forensic": len(forensic), "negatives": len(negatives),
             "kinds": {k: sum(1 for r in uniq if r.kind == k)
                       for k in {r.kind for r in uniq}}}

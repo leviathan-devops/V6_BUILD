@@ -107,6 +107,13 @@ SCORE_LEVELS = {"E3.Q2": ("F", "C", "B", "A", "Aplus"),
 import math
 
 
+def render_question_only(q: "Question") -> str:
+    """A question WITHOUT its trailing DECIDE — for building a multi-question
+    packing where ONE DECIDE closes the whole call (render_call's grammar)."""
+    opts = "".join(f"{OPTION_OPEN}{o}{OPTION_CLOSE}" for o in q.options)
+    return f"{QUESTION_DELIM}{q.text}{opts}"
+
+
 def render_call(call: str, state: str) -> str:
     """Pack the state + one call's questions into a single Decider input.
 
@@ -152,7 +159,11 @@ def grade_from_probs(probs: dict[str, float], qid: str = "PVE.Q3") -> tuple[str,
     if qid not in SCORE_LEVELS:
         raise ValueError(f"NOT_A_SCORE_QUESTION: {qid!r} (known: {sorted(SCORE_LEVELS)})")
     lv = SCORE_LEVELS[qid]
-    total = sum(v for v in probs.values() if isinstance(v, (int, float)))
+    # AUDIT FIX (round 6): the guard summed EVERY key, so a WRONG-SCALE dict
+    # (F/C/B/A/Aplus passed with qid="PVE.Q1") passed with mass on keys the
+    # question does not have, then expected_level saw zero and returned level 0.
+    total = sum(float(probs.get(lv, 0.0)) for lv in lv_scale) if False else \
+            sum(float(probs.get(lv, 0.0)) for lv in lv)
     if total <= 0:
         raise ValueError(
             f"EMPTY_DISTRIBUTION: {qid} carries no probability mass "

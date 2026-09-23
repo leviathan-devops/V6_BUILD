@@ -57,7 +57,14 @@ VALID_DIRECTIONS = ("long", "short")
 
 
 def _finite(x) -> bool:
-    """A value is usable only if it is a real, finite number."""
+    """A value is usable only if it is a real, finite number.
+
+    AUDIT FIX (round 6): `float(x)` coerced a NUMERIC STRING ("3.0") to a pass,
+    but the gates then compared the ORIGINAL value — `"3.0" < 2.5` raised
+    TypeError instead of failing closed. A string is not a number here.
+    """
+    if isinstance(x, bool) or isinstance(x, str):
+        return False
     try:
         return math.isfinite(float(x))
     except (TypeError, ValueError, OverflowError):

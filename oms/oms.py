@@ -124,15 +124,20 @@ class Portfolio:
         return round(sum(1 for t in self.trades if t.net_pips > 0) / len(self.trades), 4)
 
     def _equity_per_pip(self, t) -> float:
-        """$/pip is a property of the PAIR, not a global 10.0 (DXY's pip is 0.01).
-        AUDIT FIX: the `.get(pair, 10.0)` fallback was inconsistent with
-        Fill.pip, which RAISES on an unknown pair. Fail the same way."""
+        """$/pip for this FILL.
+
+        AUDIT FIX (round 6): $/pip scales LINEARLY with size — a 10k lot moves
+        equity 10x less than a 100k lot. The first version returned a fixed
+        $/pip per pair, so any Fill not at DEFAULT_UNITS silently misstated
+        equity and drawdown. The size is now part of the conversion.
+        """
         pair = t.fill.pair
         if pair not in PIP_VALUE_PER_UNIT:
             raise ValueError(
                 f"UNKNOWN_PIP_VALUE: {pair!r} has no PIP_VALUE_PER_UNIT entry "
                 f"(known: {sorted(PIP_VALUE_PER_UNIT)})")
-        return PIP_VALUE_PER_UNIT[pair]
+        base = PIP_VALUE_PER_UNIT[pair]         # $/pip at DEFAULT_UNITS
+        return base * (t.fill.units / DEFAULT_UNITS)
 
     @property
     def max_drawdown(self) -> float:

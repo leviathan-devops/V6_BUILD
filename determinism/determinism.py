@@ -24,7 +24,14 @@ VOLATILE = {"ts_wall", "duration_ms", "host", "pid", "started_at", "elapsed",
 
 
 def canonical(obj) -> str:
-    """A canonical JSON rendering: sorted keys, no whitespace, no volatile fields."""
+    """A canonical JSON rendering: sorted keys, no whitespace, no volatile fields.
+
+    AUDIT FIX (round 6): a raw `set`/`bytes` reached json.dumps and raised
+    TypeError, so digest() crashed while RunDigest (which freezes first)
+    succeeded — the two entry points disagreed. Everything is frozen first.
+    """
+    obj = _freeze(obj)
+
     def strip(o):
         if isinstance(o, dict):
             return {k: strip(v) for k, v in sorted(o.items()) if k not in VOLATILE}
@@ -73,7 +80,12 @@ def _freeze(o):
     if isinstance(o, (list, tuple)):
         return tuple(_freeze(x) for x in o)
     if isinstance(o, (set, frozenset)):
-        return tuple(sorted(_freeze(x) for x in o))
+        # AUDIT FIX (round 6): sorted() on heterogeneous members ({1,'a'}) or on
+        # dicts/lists raised TypeError. Sort by the CANONICAL RENDERING instead.
+        frozen = [_freeze(x) for x in o]
+        return tuple(sorted(frozen, key=lambda x: json.dumps(x, sort_keys=True, default=str)))
+    if isinstance(o, (bytes, bytearray)):
+        return o.decode("utf-8", "backslashreplace")
     return o
 
 

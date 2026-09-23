@@ -99,7 +99,10 @@ def fit(pairs, lo: float = 0.05, hi: float = 5.0, steps: int = 500) -> FittedTem
     # CLIPS at its bounds reported an endpoint T as if it were the minimum.
     if lo <= 0 or hi <= lo or steps < 1:
         raise ValueError(f"INVALID_FIT_GRID: lo={lo} hi={hi} steps={steps}")
-    best_T, best = 1.0, nll(pairs, 1.0)
+    # AUDIT FIX (round 6): seeding best at T=1.0 could return a T OUTSIDE
+    # [lo,hi] when the grid excludes 1.0, and report it as unclipped. The seed
+    # is now a grid point.
+    best_T, best = lo, nll(pairs, lo)
     for i in range(steps + 1):
         T = lo + (hi - lo) * i / steps
         v = nll(pairs, T)

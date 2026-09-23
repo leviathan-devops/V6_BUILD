@@ -238,11 +238,16 @@ def trust(predicate: Callable, c: dict) -> TrustVerdict:
     if subject == "GEOMETRY" or subject is None:
         votes["GEOMETRY"] = geometry_witness(c)
     voting = [x for x in votes.values() if x is not None]
+    # AUDIT FIX (round 6): the PASS path required a FULL panel while the FAIL
+    # path did not, so an abstained witness gave TRUSTED_REJECT on a failure but
+    # INCONCLUSIVE on a pass. Abstention is now symmetric: any abstention means
+    # the panel is incomplete and the verdict is INCONCLUSIVE either way.
     if not voting:
         status = INCONCLUSIVE
+    elif len(voting) < len(votes):
+        status = INCONCLUSIVE
     elif all(voting):
-        # unanimous PASS, with no dissenting voter
-        status = TRUSTED if len(voting) == len(votes) else INCONCLUSIVE
+        status = TRUSTED
     elif not any(voting):
         # unanimous FAIL: the witnesses AGREE that the predicate fails. That is
         # a TRUSTED rejection, not an inconclusive one (audit fix: the first
