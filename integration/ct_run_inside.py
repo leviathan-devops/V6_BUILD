@@ -46,8 +46,14 @@ def run(cmd: str, timeout: int = 900) -> tuple[int, str, float]:
         # AUDIT FIX (round 11): the partial stdout/stderr ride on the EXCEPTION,
         # and the first version discarded them — losing the evidence of exactly
         # how far a timed-out scenario got.
-        part = ((e.stdout or b"").decode(errors="replace")
-                + (e.stderr or b"").decode(errors="replace"))
+        # AUDIT FIX (round 12): with text=True the partial output on the
+        # exception is STR, so `.decode()` raised AttributeError — inside the
+        # exception handler, losing the evidence entirely. Both shapes handled.
+        def _as_text(v):
+            if v is None:
+                return ""
+            return v if isinstance(v, str) else v.decode(errors="replace")
+        part = _as_text(e.stdout) + _as_text(e.stderr)
         rc = -1
         out = f"EXEC_ERROR: TimeoutExpired after {timeout}s\n{part}"
     except Exception as e:                                     # noqa: BLE001

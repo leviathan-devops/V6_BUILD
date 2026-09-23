@@ -106,7 +106,17 @@ def render_gates(gates) -> list[str]:
         if not isinstance(g, dict):
             out.append(f" [????  ] <malformed gate entry {type(g).__name__}>")
             continue
-        mark = "PASS  " if g.get("passed") else "REJECT"
+        # AUDIT FIX (round 12): truthiness misreports a malformed feed as an
+        # authoritative decision — `"false"` and `"0"` are TRUTHY (rendered
+        # PASS) while 0/""/None render REJECT. A gate verdict must be a real
+        # bool; anything else is flagged as malformed, never decided.
+        _p = g.get("passed")
+        if _p is True:
+            mark = "PASS  "
+        elif _p is False:
+            mark = "REJECT"
+        else:
+            mark = "????  "
         out.append(f" [{mark}] {str(g.get('gate','?')):<10} {g.get('token','')}")
         out.append(f"            {g.get('detail','')}")
     return out

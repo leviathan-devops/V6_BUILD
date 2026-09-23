@@ -15,14 +15,21 @@ $10/pip, so 28.5 gross -> 8.5 net. This module reproduces that exactly.
 """
 from __future__ import annotations
 from types import MappingProxyType
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 # AUDIT FIX (round 11): the round-10 fix made PIP_VALUE_PER_UNIT read-only but
 # left PIP a plain MUTABLE dict — so `PIP['EUR/USD'] = 9.9` after import still
 # desynced cost_pips from equity, and the comment claimed otherwise. Both maps
 # now derive from ONE read-only source.
-_PIP_MUTABLE = {"EUR/USD": 0.0001, "GBP/USD": 0.0001, "DXY": 0.01}
-PIP = MappingProxyType(_PIP_MUTABLE)
+# AUDIT FIX (round 12): `PIP` was a LIVE view over the mutable source while
+# PIP_VALUE_PER_UNIT was an IMPORT-TIME SNAPSHOT — so mutating the source (or
+# adding a pair) changed cost_pips but left equity stale, re-creating the exact
+# desync by another route. Both are now LIVE views over ONE frozen source, and
+# PIP_VALUE_PER_UNIT is DERIVED at access time so it cannot drift.
+_PIP_SOURCE = MappingProxyType({"EUR/USD": 0.0001, "GBP/USD": 0.0001,
+                                "DXY": 0.01})
+PIP = _PIP_SOURCE
 # $/pip at DEFAULT_UNITS (100k). DERIVED, not asserted: units * pip.
 #   EUR/USD  100_000 * 0.0001 =    10.0
 #   DXY      100_000 * 0.01   = 1_000.0
@@ -36,8 +43,19 @@ DEFAULT_UNITS = 100_000
 # one quantity, so a post-import mutation (or a pair added to only one) made
 # equity and cost_pips disagree silently — the same 1000x class as before, but
 # undetectable. Both are now read-only views.
-PIP_VALUE_PER_UNIT = MappingProxyType(
-    {pair: DEFAULT_UNITS * pip for pair, pip in PIP.items()})
+class _DerivedPipValue(Mapping):
+    """$/pip, DERIVED from PIP and DEFAULT_UNITS at ACCESS time.
+
+    A snapshot would silently desync from PIP the moment either input changes
+    (audit round 12); deriving on access makes drift impossible by construction.
+    """
+    def __getitem__(self, pair): return DEFAULT_UNITS * PIP[pair]
+    def __iter__(self): return iter(PIP)
+    def __len__(self): return len(PIP)
+    def __contains__(self, pair): return pair in PIP
+
+
+PIP_VALUE_PER_UNIT = _DerivedPipValue()
 # NOTE: no flat EQUITY_PER_PIP constant. $/pip is per-pair AND per-size; a flat
 # value is the DXY 1000x error waiting to happen. Portfolio._equity_per_pip
 # derives it.

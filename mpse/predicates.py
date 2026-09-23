@@ -60,7 +60,16 @@ def _missing(c: dict) -> list:
     for k in REQUIRED_KEYS:
         if k not in c or c[k] is None:
             bad.append(k)
-        elif k not in ("pair", "direction"):
+        elif k == "pair":
+            # AUDIT FIX (round 12): `pair not in PIP` requires HASHING, so a list
+            # or dict raised TypeError out of AT-07/AT-09/geometry_witness
+            # instead of failing closed.
+            if not isinstance(c[k], str):
+                bad.append(k)
+        elif k == "direction":
+            if not isinstance(c[k], str):
+                bad.append(k)
+        else:
             v = c[k]
             if isinstance(v, bool) or not isinstance(v, (int, float)):
                 bad.append(k)
@@ -194,6 +203,13 @@ def at_10_session_valid(c) -> Verdict:
     g = _guard(c, 'AT-10')
     if g: return g[0]
     s = c.get("session_utc", "")
+    # AUDIT FIX (round 12): the round-11 edit targeted `c.get("session_utc")` but
+    # the code reads `c.get("session_utc", "")`, so the replace MISSED and a
+    # truthy non-string (int/list/dict) still crashed on `s[-5:]`. A missing or
+    # non-string session is a fail-closed verdict.
+    if not isinstance(s, str):
+        return _v("AT-10", False, "AT10_SESSION_INVALID",
+                  f"session_utc is not a string: {type(s).__name__}")
     ok = bool(s) and "02:00" <= s[-5:] <= "05:00"
     return _v("AT-10", ok, "AT10_PASS" if ok else "AT10_SESSION_INVALID",
               f"session {s[-5:] if s else '<none>'}")

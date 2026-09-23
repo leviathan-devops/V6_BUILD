@@ -180,14 +180,24 @@ class Circuit:
         # for the offline path.
         conf = bars_by_tf["confidence"]
         if self.use_decider and decider_out:
-            for _qid in ("PVE.Q3", "E3.Q2"):
-                _d = decider_out.get(_qid) or {}
-                if isinstance(_d, dict) and _d:
-                    _top = max(_d, key=_d.get)
-                    _lv = ("F", "C", "B", "A", "Aplus")
-                    if _top in _lv:
-                        conf = round(0.45 + 0.1 * _lv.index(_top), 4)
-                        break
+            # AUDIT FIX (round 12): this block duplicated the canonical scorer —
+            # an inline grade table plus ARGMAX, while the authority
+            # (question_templates.grade_from_probs) uses the EXPECTED LEVEL and
+            # raises EMPTY_DISTRIBUTION. Two scorers for one quantity silently
+            # disagree. The authority is now the only scorer.
+            try:
+                from question_templates import grade_from_probs
+                for _qid in ("PVE.Q3", "E3.Q2"):
+                    _d = decider_out.get(_qid)
+                    if isinstance(_d, dict) and _d:
+                        _grade, _val = grade_from_probs(_d, _qid)
+                        if _grade in ("F", "C", "B", "A", "Aplus"):
+                            conf = round(float(_val), 4)
+                            break
+            except (ImportError, ValueError, TypeError):
+                # an ungradeable distribution leaves the offline confidence in
+                # place rather than inventing a score
+                pass
         cand = TradeCandidate(
             pair=pair, direction=direction, entry=entry, sl=sl, tp=tp,
             rrr=rrr_code, zone_width_pips=zone_w, sl_distance_pips=sl_d,

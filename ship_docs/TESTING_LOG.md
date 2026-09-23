@@ -346,3 +346,36 @@ correctly skipped instead of mislabelled.
 
 The CT capture was also spoofable four ways; all four are now refused, PROVEN BY
 CONSTRUCTING THE ATTACKS rather than by reading the validator.
+
+
+## ROUND 12 — THE CORPUS GETS HONEST, AND ONE AUDIT CLAIM GETS REFUTED
+Round 12 came back **0 critical** (from 2). The highs were largely regressions I
+introduced in round 11, plus one claim that MEASUREMENT REFUTED.
+
+**The corpus, under the verification requirement:**
+
+| | round 11 | round 12 |
+|---|---|---|
+| records | 2516 | 1616 |
+| negatives | 1254 | **354 verified** |
+| skipped | 8 | **908** |
+| mislabelled | 0 (by my check) | 0 (by re-parsing each negative) |
+
+The negative count FELL because ~900 of them were unverified — a negative whose
+corruption never reached the quantity the question asks about is a mislabel
+wearing a negative's clothes. Refusing to emit them is the fix.
+
+**RESIDUALS, stated not hidden:**
+- the refusal class is now IMBALANCED (354 negatives vs 1262 positives);
+- the KIND class has NO negative at all — a corrupted quote cannot change a
+  card's kind, and a valid one needs a cross-record builder that does not exist;
+- the VERIFY/FORENSIC negatives rest on the assumption that a card's numeric
+  token IS its threshold (true for the mechanisms corpus, unprovable without
+  parsing the rule).
+
+**THE REFUTED CLAIM:** the audit reported the circuit's inline grade table as
+diverging from `question_templates.grade_from_probs`. Measured across three
+distributions, they agree to 1e-9 (`GRADE_VALUE` is exactly `0.45 + 0.1*index`).
+The DUPLICATION was real; the DIVERGENCE was not. The circuit now calls the
+authority for the right reason — one scorer, so a future edit cannot desync two
+copies. An audit finding is a claim; it gets measured before it gets fixed.

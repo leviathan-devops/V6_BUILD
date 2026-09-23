@@ -82,7 +82,12 @@ _WS = "[ \t]*(?:[" + chr(92) + chr(92) + "][" + chr(10) + chr(13) + "][ \t]*)?"
 # BACKSLASH-NEWLINE continuation, which Python's tokenizer ignores — so a dotted
 # call split across a line continuation matched neither the dotted rule nor the
 # bare/any-receiver forms. _DOT now tolerates the same continuation as _WS.
-_DOT = "[ \t]*(?:[\\][\n\r][ \t]*)?[.][ \t]*(?:[\\][\n\r][ \t]*)?"
+# AUDIT FIX (round 12): the literal `"[\\]"` is a THREE-character class `[\]`
+# (an escaped bracket), NOT a backslash class — so the pattern silently matched
+# the wrong characters. Built with chr(92) exactly as _WS is, which removes the
+# escaping layer entirely.
+_CONT = "[" + chr(92) + chr(92) + "][" + chr(10) + chr(13) + "][ \t]*"
+_DOT = "[ \t]*(?:" + _CONT + ")?[.][ \t]*(?:" + _CONT + ")?"
 
 
 def _bare(word: str) -> str:
@@ -243,6 +248,17 @@ _WRITE_NAMES = [
      + "|" + _f(_DOT, "un", "link", _WS, "[(]")
      + "|" + _f(_DOT, "re", "name", _WS, "[(]")),
 ]
+# AUDIT FIX (round 12): the WRITE lexicon carried only DOTTED `os.*` forms, so a
+# FROM-IMPORT evaded it — `from os import write; write(...)` has no `os.`
+# substring at the call site. _EXEC_NAMES had already closed this hole for the
+# exec names; each write name now also matches its BARE call form.
+for _n, _pat in list(_WRITE_NAMES):
+    if _n.startswith(("os.", "tempfile.")) and "." in _n:
+        _word = _n.split(".", 1)[1]
+        if _word in ("write", "open", "rename", "unlink", "remove",
+                     "mkstemp", "mkdtemp"):
+            _WRITE_NAMES.append((_n + "-bare", _pat + "|" + _bare(_f(_word))))
+
 WRITE_FORBIDDEN = {n: p for n, p in _WRITE_NAMES}
 
 # FULL-PATH prefixes whose write authority is declared (the artifact writers).

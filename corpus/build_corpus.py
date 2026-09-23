@@ -295,9 +295,18 @@ def _negative_variant(r, opts):
     # --- (3) a VERIFY question: the rule's own numeric token is broken, and the
     #         corruption is carried into the state through the card's template.
     if q.startswith("Does the state satisfy"):
+        # AUDIT FIX (round 12): the TRUNCATION fallback emitted a negative whose
+        # state does NOT contradict the question (a truncated quote need not
+        # break the rule) — an unverified negative. And zeroing an INCIDENTAL
+        # number (a date, a count) leaves the rule satisfied. Both are now
+        # refused: a negative requires a NUMERIC token, and the corruption must
+        # land in the state. The residual is named: "a number present" does not
+        # PROVE it is the rule's threshold, so these negatives rest on the
+        # assumption that a mechanism card's numeric token IS its threshold —
+        # true for the mechanisms corpus, unverifiable without parsing the rule.
+        if not re.search(r"\b\d+(?:\.\d+)?\b", r.quote):
+            return None                      # no numeric token -> no negative
         broken = re.sub(r"\b(\d+(?:\.\d+)?)\b", "0", r.quote, count=1)
-        if broken == r.quote:
-            broken = r.quote[:-6] + " [TRUNCATED]"
         ns = r.state.replace(r.quote, broken)
         if ns == r.state:
             return None
@@ -308,6 +317,13 @@ def _negative_variant(r, opts):
     #         first number in the BODY, which is what the law asserts.
     if q.startswith("Does the setup obey"):
         head, _, body = r.state.partition("\n")
+        # AUDIT FIX (round 12): same verification requirement as the VERIFY
+        # branch — a forensic law is only contradicted if it states a numeric
+        # bound (every LAW 1..7 in the corpus does: a pip buffer, a ratio, a
+        # count). Without a number there is nothing to contradict, so SKIP
+        # rather than emit an unverified refusal.
+        if not re.search(r"\b\d+(?:\.\d+)?\b", body):
+            return None
         nbody = re.sub(r"\b\d+(?:\.\d+)?\b", "0", body, count=1)
         if nbody == body:
             return None

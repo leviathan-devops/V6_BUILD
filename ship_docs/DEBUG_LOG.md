@@ -349,3 +349,37 @@ _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-2
   ALL FOUR are now rejected (substituted id, short capture, unsupported PASS,
   hidden coverage). A fifth run with the real capture passes.
 - LESSON: a validation that only checks SHAPE validates nothing about IDENTITY.
+
+## EN-024 · round-11 regressions I introduced, and one audit claim REFUTED (2026-09-24)
+- THE REGRESSIONS (mine, from round 11 — all real):
+  1. `_DOT` was built as `"[\\]"`, which in Python is the THREE-character class
+     `[\]` (an escaped bracket), NOT a backslash class — so every `_DOT`-based
+     rule silently matched the wrong characters. Rebuilt with `chr(92)`, the same
+     technique `_WS` already used, which removes the escaping layer entirely.
+  2. the `session_utc` type check MISSED: the replace targeted
+     `c.get("session_utc")` while the code reads `c.get("session_utc", "")`.
+     A truthy non-string still crashed. Found by reading the line the auditor
+     named, not by trusting my own patch.
+  3. `PIP` was a LIVE view over the mutable source while `PIP_VALUE_PER_UNIT`
+     was an IMPORT-TIME SNAPSHOT — the desync survived by another route. Both are
+     now live views over one frozen source, with the value DERIVED on access.
+  4. the `TimeoutExpired` handler assumed `bytes`, but `text=True` stores `str`
+     on the exception — so the handler itself raised, inside the handler.
+- THE CLAIM I REFUTED BY MEASUREMENT: the audit said the circuit's inline decider
+  grade "diverges from the authority" (argmax vs expected-level). It does NOT:
+  `GRADE_VALUE = {F:0.45, C:0.55, B:0.65, A:0.75, Aplus:0.85}` is exactly
+  `0.45 + 0.10 * index`, and `grade_from_probs` returns `GRADE_VALUE[grade]` for a
+  confidence question. Measured across three distributions (skewed, corpus-shape,
+  bimodal) the two agree to 1e-9. **The DUPLICATION was real; the divergence was
+  not.** The circuit now calls the authority anyway — the fix is right for the
+  reason the auditor did not give: ONE scorer, so a future edit to GRADE_VALUE
+  cannot desync two copies.
+- THE CORPUS, AFTER THE VERIFICATION REQUIREMENT: 1616 records, **354 negatives,
+  908 SKIPPED**, 0 mislabelled (verified by re-parsing each negative's own
+  quantity). The negative count fell from 1254 because ~900 of those were
+  UNVERIFIED — emitting them was the defect. The refusal class is now honest but
+  IMBALANCED (354 vs 1262), and the KIND class has no negative at all: a
+  corrupted quote cannot change a card's kind, and a valid one needs a
+  cross-record builder that does not exist yet. Recorded as a residual.
+- LESSON: an audit finding is a CLAIM. Measure it before fixing, or you fix the
+  wrong thing — and measure it before AGREEING, or you ship a false rationale.

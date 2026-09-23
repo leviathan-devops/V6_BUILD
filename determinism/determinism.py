@@ -63,8 +63,19 @@ def digest(stages: dict) -> str:
     WHERE THE VOLATILE FILTER APPLIES (corrected in round 11 — the round-6 text
     here claimed "every depth including depth 0", which round 8 deliberately
     reversed and tests/test_determinism_sha_match.py now PINS):
-      - INSIDE each stage's payload: canonical() strips VOLATILE at every depth,
-        so a measurement nested in a decision never enters the digest.
+      - AT THE TOP OF each stage's payload (depth 0 of canonical's input):
+        VOLATILE is stripped. This is the case the probe found — a stage payload
+        like {"decided": 1, "duration_ms": 5} digests identically whatever the
+        measurement says.
+      - DEEPER than that: NOT stripped. A field named `ts` three levels down is
+        hashed, because at that depth the name is as likely to be a decision as
+        a measurement.
+      - THE ACCEPTED RESIDUAL, stated plainly: a stage payload whose OWN
+        top-level field is a legitimate decision named `ts`/`host`/`pid`/
+        `timing` IS filtered and therefore unhashed. The names are generic
+        enough that this is a real possibility; the fix is for the caller to
+        put run metadata in a nested `meta` object, or to rename a decision
+        field that collides. This is a deliberate trade, not an oversight.
       - At the TOP level: keys are STAGE NAMES, i.e. labels the caller chose. A
         stage literally named `ts`/`timing` is a REAL stage and IS hashed —
         silently dropping it would hide a stage from the digest.

@@ -65,6 +65,13 @@ def parse_bars(raw: list[dict], anchor_ms: int) -> list[Bar]:
         except (TypeError, ValueError):
             bad_ts.append(r)
             continue
+        # AUDIT FIX (round 12): an EXPLICIT ts of 0 / -1 / "0" passed the anchor
+        # check and sorted to the FRONT of the state — re-introducing the exact
+        # silent-epoch pollution the missing-key fix closed (a 0 sentinel is a
+        # missing timestamp wearing a value). A real epoch is POSITIVE.
+        if ts <= 0:
+            bad_ts.append(f"bar ts={raw_ts!r} is not a positive epoch")
+            continue
         if ts > anchor_ms:
             leaks.append(ts)
             continue

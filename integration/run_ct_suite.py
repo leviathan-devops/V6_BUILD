@@ -16,13 +16,19 @@ COMMAND OUTPUT. This runner records the container exec result verbatim.
 """
 from __future__ import annotations
 import json
+import os
 import subprocess
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-R = Path("/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/V6_BUILD")
+# AUDIT FIX (round 12): the repo root was a HARDCODED absolute path, so the
+# runner could only ever work on one checkout — which contradicts the very
+# hermeticity claim it exists to verify. Derived from this file's location, with
+# an env override for a relocated tree.
+R = Path(os.environ.get("PLUTUS_ROOT")
+         or Path(__file__).resolve().parent.parent)
 OUT = R / ".trident/ct-results.json"
 CT_DIR = "/work/p3/plutus-ct"
 
