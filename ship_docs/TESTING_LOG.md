@@ -255,3 +255,22 @@ count and the SHA.
 
 ---
 _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-23._
+
+
+## THE AUDIT GATE — ROUND 9, AND WHAT IT FOUND
+The gate has now run NINE rounds. Round 9 produced **0 critical, 21 high** — and
+three of those highs were REAL GATE BYPASSES, the class that matters most:
+
+1. **G-RRR trusted the caller's RRR.** The floor was compared against a value the
+   caller supplied, not against the trade's geometry. A gate reading a
+   model-supplied number as fact is precisely the bypass the pin's
+   "DECIDER SCORES, NEVER EDITS" law exists to prevent.
+2. **LAW 2 was unenforced.** zone_width and sl_distance were validated
+   independently; a candidate claiming zone=10p / sl=50p passed both.
+3. **The session gate ignored the offset.** `...T03:00:00Z` is 23:00 ET and it
+   PASSED the London window.
+
+All three are now fixed with regression pins. This is the strongest argument for
+the treadmill: the audit's HIGH count stopped trending down because it moved from
+surface defects (a missing guard) to SEMANTIC ones (a gate that reads the wrong
+subject). That class is worth every round.

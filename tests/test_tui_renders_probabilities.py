@@ -4,8 +4,8 @@ from pane import (PaneModel, render, render_probabilities, has_probability_bars,
 from gates import TradeCandidate, evaluate
 
 cand = TradeCandidate(pair="DXY", direction="long", entry=100.945, sl=100.905,
-                      tp=101.115, rrr=4.25, zone_width_pips=10.0, sl_distance_pips=4.0,
-                      confidence=0.78, session_utc="2026-07-06T02:30:00-04:00",
+                      tp=101.115, rrr=4.25, zone_width_pips=4.0, sl_distance_pips=4.0,
+                      confidence=0.78, session_utc="LONDON 02:00",
                       dedup_key="DXY#1", limite_rrr=4.25)
 v = evaluate(cand)
 

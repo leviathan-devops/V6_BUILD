@@ -3,7 +3,7 @@ from predicates import (at_03_direction_sign, at_01_rrr_floor, at_09_rrr_recompu
                         PREDICATES, trust, trust_all, TrustVerdict)
 
 BASE = dict(pair="EUR/USD", direction="long", entry=1.14110, sl=1.13925, tp=1.14395, rrr=1.5405,
-            zone_width_pips=10.0, sl_distance_pips=18.5, confidence=0.72,
+            zone_width_pips=18.5, sl_distance_pips=18.5, confidence=0.72,
             session_utc="2026-07-06T02:30:00-04:00", limite_rrr=1.5405)
 
 # AT-03 is the SIDE-INVERSION predicate — the V5 mutant class.

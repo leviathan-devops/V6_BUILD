@@ -1,12 +1,25 @@
 import _boot, sys
 from gates import TradeCandidate, evaluate, g_rrr, RRR_FLOOR
 
-BASE = dict(pair="EUR/USD", direction="long", entry=1.14110, sl=1.13925, tp=1.14395,
-            zone_width_pips=10.0, sl_distance_pips=18.5, confidence=0.72,
+BASE = dict(pair="EUR/USD", direction="long", entry=1.14110, sl=1.14070, tp=1.14210,
+            zone_width_pips=4.0, sl_distance_pips=4.0, confidence=0.72,
             session_utc="2026-07-06T02:30:00-04:00", dedup_key="EU#1")
 
+# AUDIT ROUND 9: the gates now RECOMPUTE the RRR from the geometry and reject a
+# stated value that disagrees. A candidate is therefore built by MOVING THE
+# STOP, not by typing an rrr — the geometry is the input and the rrr follows.
 def cand(rrr, limite=None):
-    return TradeCandidate(rrr=rrr, limite_rrr=rrr if limite is None else limite, **BASE)
+    """Build a candidate whose GEOMETRY yields `rrr` (tp_d = rrr * 4.0 pips)."""
+    sl_pips = 4.0
+    sl = BASE["entry"] - sl_pips * 0.0001
+    tp = BASE["entry"] + rrr * sl_pips * 0.0001
+    # NOTE: no rounding of sl/tp. A 5-decimal round makes an RRR of 2.499 and
+    # one of 2.5 the SAME geometry, so a "just below the floor" probe could not
+    # be distinguished from the boundary. The helper keeps the full precision so
+    # the probe means what it says.
+    d = {**BASE, "sl": sl, "tp": tp,
+         "sl_distance_pips": sl_pips, "zone_width_pips": sl_pips}
+    return TradeCandidate(rrr=rrr, limite_rrr=rrr if limite is None else limite, **d)
 
 # ADVERSARIAL 1: RRR below floor -> G-RRR must reject with its named token
 v_low = evaluate(cand(1.54))

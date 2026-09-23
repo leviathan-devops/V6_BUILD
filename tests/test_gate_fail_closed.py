@@ -1,8 +1,11 @@
 import _boot, sys, math
 from gates import TradeCandidate, evaluate, g_sl, g_rrr, g_conf, g_dual, g_geometry, GATES, GATE_NAMES
 
-BASE = dict(pair="EUR/USD", direction="long", entry=1.14110, sl=1.13925, tp=1.14395,
-            rrr=4.25, zone_width_pips=10.0, sl_distance_pips=18.5, confidence=0.75,
+# A COHERENT candidate: sl_d = 4.0 pips, tp_d = 17.0 pips -> RRR 4.25, and the
+# zone width EQUALS the SL distance (LAW 2, buffer 0). Every field agrees with
+# the geometry, which is the only kind of candidate the gates should accept.
+BASE = dict(pair="EUR/USD", direction="long", entry=1.14110, sl=1.14070, tp=1.14280,
+            rrr=4.25, zone_width_pips=4.0, sl_distance_pips=4.0, confidence=0.75,
             session_utc="LONDON 02:00", dedup_key="X", limite_rrr=4.25)
 
 def cand(**over):

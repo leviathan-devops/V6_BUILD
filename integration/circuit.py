@@ -142,8 +142,12 @@ class Circuit:
             # defaulted to 0.0001, silently mispricing DXY-style instruments.
             raise ValueError(f"UNKNOWN_PAIR: {pair!r} has no declared pip scale")
         pip = PIP_SCALE[pair]
-        zone_w = bars_by_tf.get("zone_width_pips", abs(tp - entry) / pip)
         sl_d = abs(entry - sl) / pip
+        # AUDIT FIX (round 9): the default zone width was `abs(tp-entry)/pip` —
+        # the TP DISTANCE — while LAW 2 says the zone width IS the risk (the SL
+        # distance). The default made every candidate violate LAW 2 by the width
+        # of its own reward. The default is now the risk.
+        zone_w = bars_by_tf.get("zone_width_pips", sl_d)
         rrr_code = code_truth("L3", entry=entry, sl=sl, tp=tp, pair=pair)
         stage["limite_ms"] = round((time.perf_counter() - t) * 1000, 3)
 

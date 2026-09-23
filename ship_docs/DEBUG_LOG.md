@@ -201,3 +201,45 @@ _ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` ·
 
 ---
 _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-23._
+
+## EN-016 · G-RRR trusted the caller's RRR instead of the trade's (2026-09-23)
+- FINDING (audit round 9): `g_rrr` compared `t.rrr` — a value the CALLER
+  supplied — against the floor. A candidate with coherent prices but an inflated
+  `rrr` passed.
+- WHY IT IS THE MOST DANGEROUS CLASS: the pin's own law is "DECIDER SCORES,
+  NEVER EDITS" and the gates are "THE LAW". A gate that reads a model-supplied
+  number as fact is the exact bypass the law exists to prevent: the floor was
+  being checked against a CLAIM, not against the trade.
+- FIX: `recompute_rrr(t)` derives the RRR from entry/sl/tp and the pip
+  authority. G-RRR applies the floor to the DERIVED value, and a stated value
+  that disagrees with the geometry is its own rejection.
+- VERIFICATION: `test_gate_rrr_rejects` now BUILDS candidates by MOVING THE
+  STOP rather than by typing an rrr — the geometry is the input and the rrr
+  follows. The 5 adversarial RRR shapes pass.
+- LESSON: a gate must read only what it can VERIFY. Anything the caller hands
+  it is a claim.
+
+## EN-017 · LAW 2 was stated in the header and enforced nowhere (2026-09-23)
+- FINDING: `_geometry_ok` validated `zone_width_pips > 0` and `g_sl` validated
+  `sl_distance_pips in (0, 55]` — INDEPENDENTLY. A candidate claiming zone=10p
+  and sl_distance=50p passed both. LAW 2 (the SL sits at the structural
+  invalidation point, so the SL DISTANCE IS THE ZONE WIDTH) had two authorities
+  and no check that they agreed.
+- THE SAME DEFECT IN THE CIRCUIT: `zone_width` defaulted to `abs(tp-entry)/pip`
+  — the TP DISTANCE — so every candidate the circuit built violated LAW 2 by
+  the width of its own reward. The default is now the RISK.
+- FIX: `g_sl` requires |sl_distance − zone_width| ≤ 5 pips (the operator's own
+  documented buffer range).
+- LESSON: a law written in a docstring is not a law. If two fields describe one
+  quantity, a gate must compare them.
+
+## EN-018 · the session gate ignored the timezone offset (2026-09-23)
+- FINDING: `_local_hhmm` took the wall-clock after `T` verbatim and compared it
+  to the ET window. `2026-07-06T03:00:00Z` is 23:00 ET — OUTSIDE the window —
+  and it PASSED. Every non-ET timestamp was read as if it were already ET.
+- FIX: an offset-bearing stamp (Z or ±HH:MM) is CONVERTED to ET. Both the EDT
+  and EST offsets are tried, because a bare timestamp carries no date to decide
+  DST; the stamp is accepted only if it lands inside a window.
+- VERIFICATION: `test_session_london_window` (7 cases + inclusive boundaries +
+  the DST offset check) passes.
+- LESSON: a wall-clock without its offset is half a value.

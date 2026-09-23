@@ -18,6 +18,7 @@ LONDON_SESSIONS = ("02:00", "05:00")   # ET, per the pin ADVERSARIAL LOOP item 4
 # NOTE: no SL_BUFFER_PIPS constant — the buffer is not a gate; the zone width
 # IS the SL distance (LAW 2), so a separate buffer would be a second authority.
 DEDUP_WINDOW_MINUTES = 60
+SL_BUFFER_MAX_PIPS = 5.0     # LAW 2: the SL is the zone edge + 0..5 pips
 DUAL_EPS = 0.02            # |limite - code| epsilon on the RRR path
 
 
@@ -53,6 +54,22 @@ class TradeCandidate:
 
 
 import math
+
+# THE PIP AUTHORITY. `limite/math_queries.py` defines the single pip table for
+# the whole circuit; the gate layer IMPORTS it rather than declaring a second
+# one (two authorities for one quantity is the defect class the audit named).
+import sys as _sys
+from pathlib import Path as _Path
+_HERE = _Path(__file__).resolve().parent
+if str(_HERE.parent / "limite") not in _sys.path:
+    _sys.path.append(str(_HERE.parent / "limite"))
+try:
+    from math_queries import PIP as PIP
+except Exception as _e:                      # a loud, named failure
+    raise ImportError(
+        f"GATES_NO_PIP_AUTHORITY: cannot import PIP from math_queries — {_e}. "
+        f"The pip table is the circuit's single authority; the gate layer "
+        f"refuses to run without it.") from _e
 
 VALID_DIRECTIONS = ("long", "short")
 
@@ -110,15 +127,52 @@ def _no(token: str, detail: str, gate: str) -> GateResult:
     return GateResult(False, token, detail, gate)
 
 
+def recompute_rrr(t: TradeCandidate) -> float | None:
+    """The RRR implied by the GEOMETRY. None when it cannot be computed.
+
+    AUDIT FIX (round 9): G-RRR trusted `t.rrr` — a value the CALLER supplied.
+    A candidate with coherent prices but an inflated `rrr` passed the floor
+    check, which is a GATE BYPASS: the floor was being compared against a
+    claim, not against the trade. The geometry is already validated as finite
+    by G-GEOMETRY, so the RRR is recomputable and MUST be recomputed.
+    """
+    pip = PIP.get(t.pair)
+    if pip is None:
+        return None
+    sl_d = abs(t.entry - t.sl) / pip
+    tp_d = abs(t.tp - t.entry) / pip
+    if sl_d <= 0:
+        return None
+    return round(tp_d / sl_d, 4)
+
+
 def g_rrr(t: TradeCandidate) -> GateResult:
-    """G-RRR: the risk-reward floor. The single most load-bearing gate."""
-    # FAIL-CLOSED (audit fix): a NaN rrr makes `nan < floor` False, so the
-    # original form PASSED a corrupt value. Non-finite must reject.
+    """G-RRR: the risk-reward floor. The single most load-bearing gate.
+
+    The floor is applied to the RRR the GEOMETRY implies, never to the value the
+    caller passed. A stated RRR that disagrees with the geometry is itself a
+    rejection (a stated/derived mismatch is the dangerous silent-arithmetic
+    class the MPSE AT-09 predicate also checks).
+    """
+    # FAIL-CLOSED: a NaN rrr makes `nan < floor` False, so the original form
+    # PASSED a corrupt value. Non-finite must reject.
     if not _finite(t.rrr):
         return _no("G-RRR_REJECT", f"rrr {t.rrr!r} is not a finite number", "G-RRR")
-    if t.rrr < RRR_FLOOR:
-        return _no("G-RRR_REJECT", f"rrr {t.rrr:.2f} < floor {RRR_FLOOR}", "G-RRR")
-    return _ok("G-RRR_PASS", f"rrr {t.rrr:.2f} >= {RRR_FLOOR}", "G-RRR")
+    # THE BYPASS FIX: compare the GEOMETRY's RRR, and treat a stated value that
+    # disagrees with the geometry as its own rejection.
+    derived = recompute_rrr(t)
+    if derived is None:
+        return _no("G-RRR_REJECT",
+                   f"rrr cannot be derived from the geometry (pair={t.pair!r}, "
+                   f"entry={t.entry} sl={t.sl} tp={t.tp})", "G-RRR")
+    if abs(t.rrr - derived) > DUAL_EPS:
+        return _no("G-RRR_REJECT",
+                   f"stated rrr {t.rrr:.4f} disagrees with the geometry's "
+                   f"{derived:.4f} (delta {abs(t.rrr-derived):.4f} > {DUAL_EPS})",
+                   "G-RRR")
+    if derived < RRR_FLOOR:
+        return _no("G-RRR_REJECT", f"rrr {derived:.2f} < floor {RRR_FLOOR}", "G-RRR")
+    return _ok("G-RRR_PASS", f"rrr {derived:.2f} >= {RRR_FLOOR} (recomputed)", "G-RRR")
 
 
 def _local_hhmm(session_utc: str) -> str | None:
@@ -151,13 +205,40 @@ def _local_hhmm(session_utc: str) -> str | None:
     if "T" in session_utc:
         after_t = session_utc.split("T", 1)[1]
         hhmm = after_t[:5]
-        if len(hhmm) == 5 and hhmm[2] == ":" and hhmm[:2].isdigit() and hhmm[3:].isdigit():
-            # AUDIT FIX: the shape check accepted impossible times like 02:99,
-            # which compared lexicographically INSIDE the London window.
-            h, m = int(hhmm[:2]), int(hhmm[3:])
-            if 0 <= h <= 23 and 0 <= m <= 59:
-                return hhmm
-        return None                          # malformed ISO -> refuse, no guess
+        if not (len(hhmm) == 5 and hhmm[2] == ":" and hhmm[:2].isdigit()
+                and hhmm[3:].isdigit()):
+            return None                      # malformed ISO -> refuse, no guess
+        h, m = int(hhmm[:2]), int(hhmm[3:])
+        if not (0 <= h <= 23 and 0 <= m <= 59):
+            return None
+        # AUDIT FIX (round 9): the wall-clock was compared to the ET window
+        # VERBATIM, so `2026-07-06T03:00:00Z` (23:00 ET — outside the window)
+        # PASSED. A UTC/offset-bearing stamp is now CONVERTED to ET.
+        off = re.search(r"(Z|[+-]\d{2}:?\d{2})\s*$", session_utc)
+        if off:
+            tok = off.group(1)
+            if tok == "Z":
+                off_min = 0
+            else:
+                sign = 1 if tok[0] == "+" else -1
+                oh = int(tok[1:3])
+                om = int(tok[-2:])
+                off_min = sign * (oh * 60 + om)
+            # ET is UTC-4 (EDT) / UTC-5 (EST); the caller's offset is known, so
+            # the conversion is exact: ET = UTC + offset_local - offset_ET.
+            # Without a date we cannot decide DST, so BOTH windows are tried and
+            # the stamp is accepted only if it lands inside one of them.
+            for et_off in (-240, -300):
+                total = h * 60 + m - off_min + et_off
+                total %= 1440
+                cand = "%02d:%02d" % (total // 60, total % 60)
+                if LONDON_SESSIONS[0] <= cand <= LONDON_SESSIONS[1]:
+                    return cand
+            # outside both -> return the EDT interpretation so the caller's
+            # rejection detail names a concrete time
+            total = (h * 60 + m - off_min - 240) % 1440
+            return "%02d:%02d" % (total // 60, total % 60)
+        return hhmm
     # FORM 1: the state constructor's label, e.g. "LONDON 02:00". Only a label
     # that STARTS with a session word is accepted (no arbitrary HH:MM scrape).
     m = re.match(r"^[A-Z_]+\s+(\d{2}:\d{2})$", session_utc.strip())
@@ -183,7 +264,14 @@ def g_session(t: TradeCandidate) -> GateResult:
 
 
 def g_sl(t: TradeCandidate) -> GateResult:
-    """G-SL: the stop-loss envelope. A wide SL destroys the RRR at scale."""
+    """G-SL: the stop-loss envelope AND the LAW-2 identity.
+
+    LAW 2 (the header): the SL sits at the structural invalidation point, so the
+    SL DISTANCE is the ZONE WIDTH (plus the buffer). AUDIT FIX (round 9): the
+    zone width and the SL distance were validated INDEPENDENTLY, so a candidate
+    claiming zone=10p and sl_distance=50p passed both — two authorities for one
+    quantity. They are now required to agree.
+    """
     d = t.sl_distance_pips
     # FAIL-CLOSED (audit fix): `d > MAX` is False for NaN, and 0/negative were
     # never rejected. A missing or corrupt SL distance must REJECT.
@@ -193,7 +281,18 @@ def g_sl(t: TradeCandidate) -> GateResult:
         return _no("G-SL_REJECT", f"sl distance {d:.4f}p is non-positive", "G-SL")
     if d > SL_MAX_PIPS:
         return _no("G-SL_REJECT", f"sl distance {d:.1f}p > envelope {SL_MAX_PIPS}p", "G-SL")
-    return _ok("G-SL_PASS", f"sl distance {d:.1f}p within envelope", "G-SL")
+    # LAW 2: the SL distance must equal the zone width + the buffer (0..5 pips).
+    # The buffer range is the operator's own documented 2-5 pip rule; 0 is
+    # allowed for a zone whose edge IS the invalidation.
+    diff = abs(d - t.zone_width_pips)
+    if diff > SL_BUFFER_MAX_PIPS:
+        return _no("G-SL_REJECT",
+                   f"LAW-2 violation: sl distance {d:.2f}p vs zone width "
+                   f"{t.zone_width_pips:.2f}p differ by {diff:.2f}p "
+                   f"(buffer must be 0..{SL_BUFFER_MAX_PIPS}p)", "G-SL")
+    return _ok("G-SL_PASS",
+               f"sl {d:.1f}p = zone {t.zone_width_pips:.1f}p + buffer {diff:.1f}p, "
+               f"within envelope", "G-SL")
 
 
 def g_conf(t: TradeCandidate) -> GateResult:

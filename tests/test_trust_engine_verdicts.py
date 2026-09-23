@@ -3,7 +3,7 @@ from predicates import (trust, trust_all, geometry_witness, at_01_rrr_floor,
                         at_03_direction_sign, at_04_zone_positive, PREDICATE_SUBJECT)
 
 BASE = dict(pair="EUR/USD", direction="long", entry=1.14110, sl=1.13925, tp=1.14395,
-            rrr=4.25, zone_width_pips=10.0, sl_distance_pips=18.5, confidence=0.72,
+            rrr=4.25, zone_width_pips=18.5, sl_distance_pips=18.5, confidence=0.72,
             session_utc="LONDON 02:00", limite_rrr=4.25)
 
 # 1) all applicable witnesses agree -> TRUSTED
