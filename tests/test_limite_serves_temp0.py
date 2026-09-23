@@ -11,7 +11,7 @@ except Exception as e:
     print(f"RESULT: FAIL test_limite_serves_temp0"); sys.exit(1)
 
 # 2) the client HARD-CODES temperature=0 and refuses otherwise
-from client import TEMPERATURE
+from limite_client import TEMPERATURE
 temp_law = TEMPERATURE == 0.0
 
 # 3) a real completion at temperature=0 is deterministic across two calls
