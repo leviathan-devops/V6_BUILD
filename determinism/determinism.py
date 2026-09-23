@@ -34,13 +34,22 @@ def canonical(obj) -> str:
 
     def strip(o):
         if isinstance(o, dict):
-            return {k: strip(v) for k, v in sorted(o.items()) if k not in VOLATILE}
+            # a non-str key would make json.dumps fail; normalise it
+            return {str(k): strip(v) for k, v in
+                    sorted(o.items(), key=lambda kv: str(kv[0]))
+                    if str(k) not in VOLATILE}
         if isinstance(o, (list, tuple)):
             return [strip(x) for x in o]
         if isinstance(o, float):
             return round(o, 10)
         return o
-    return json.dumps(strip(obj), separators=(",", ":"), sort_keys=True)
+    # AUDIT FIX (round 9): a datetime/Decimal/custom object passed _freeze
+    # unchanged and then raised TypeError out of json.dumps, so digest() CRASHED
+    # where the gate should have produced a digest. `default=str` makes any
+    # remaining object render deterministically; a non-str dict KEY is
+    # normalised in strip().
+    return json.dumps(strip(obj), separators=(",", ":"), sort_keys=True,
+                      default=str)
 
 
 def digest(stages: dict) -> str:

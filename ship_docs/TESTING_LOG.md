@@ -274,3 +274,24 @@ All three are now fixed with regression pins. This is the strongest argument for
 the treadmill: the audit's HIGH count stopped trending down because it moved from
 surface defects (a missing guard) to SEMANTIC ones (a gate that reads the wrong
 subject). That class is worth every round.
+
+
+## THE CONTAINER SUITE, NOW GENUINELY REPRODUCIBLE (round 10)
+The container claim was 16/16 — and it was TRUE, but for the wrong reason: the
+host-side runner that asserted it shelled out to a CLI that does not exist
+(`omp ct exec --name`), so it could not reproduce a single scenario. Re-running
+it produced 0/16 and the two artifacts contradicted each other.
+
+The contradiction forced the fix:
+  - a container-side driver (`integration/ct_run_inside.py`) runs the scenarios
+    with plain subprocess INSIDE the container and writes a capture;
+  - the host-side runner is now an ASSEMBLER over that capture;
+  - the scenario list is imported from ONE authority, so it cannot drift.
+
+The adversarial half was ALSO broken by construction: all three probes embedded
+`\n` inside `python3 -c "..."`, so python died on a literal backslash-n and the
+probes tested NOTHING. Rewritten as heredocs, verified on the host, then
+re-run in the container.
+
+**THE RESULT, reproduced end to end through the sanctioned path:**
+  adversarial 3/3 PASS · happy path 13/13 PASS · overall PASS

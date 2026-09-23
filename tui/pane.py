@@ -61,7 +61,9 @@ def render_probabilities(decider) -> list[str]:
         return [rule("="), f" DECIDER PROBABILITIES (malformed: {type(decider).__name__})",
                 rule("=")]
     out = [rule("="), " DECIDER PROBABILITIES (every question, every option)", rule("=")]
-    for qid in sorted(decider):
+    # AUDIT FIX (round 9): sorted() on heterogeneous qids ({1:..., 'a':...})
+    # raised TypeError and crashed the seat. The key is the STRING form.
+    for qid in sorted(decider, key=str):
         dist = decider[qid]
         # AUDIT FIX: a non-dict DISTRIBUTION (None/list/str/float) crashed
         # .items() and took the seat down — the same class _num fixed for values.
@@ -83,7 +85,8 @@ def render_probabilities(decider) -> list[str]:
         top = max(dist, key=dist.get)
         out.append(f" {qid}  argmax={top} p={dist[top]:.3f}")
         for opt, p in sorted(dist.items(), key=lambda kv: -kv[1]):
-            out.append(f"    {opt:<18} {p:6.3f} |{_bar(p)}|")
+            # a non-str option name rejects a non-empty format spec -> coerce
+            out.append(f"    {str(opt):<18} {p:6.3f} |{_bar(p)}|")
     return out
 
 
@@ -98,7 +101,7 @@ def render_gates(gates) -> list[str]:
             out.append(f" [????  ] <malformed gate entry {type(g).__name__}>")
             continue
         mark = "PASS  " if g.get("passed") else "REJECT"
-        out.append(f" [{mark}] {g.get('gate','?'):<10} {g.get('token','')}")
+        out.append(f" [{mark}] {str(g.get('gate','?')):<10} {g.get('token','')}")
         out.append(f"            {g.get('detail','')}")
     return out
 
@@ -131,7 +134,16 @@ def render_rejections(rejections) -> list[str]:
 
 
 def render(m: PaneModel) -> str:
-    lines = [rule("="), f" PLUTUS V6 — {m.pair}  {m.session}", rule("=")]
+    # AUDIT FIX (round 9): render() dereferenced the model's fields with no
+    # guard, so a None/wrong-type field raised AttributeError while every
+    # sub-renderer handled malformed input. The top level is guarded too.
+    if not isinstance(m, PaneModel):
+        return "\n".join([rule("="),
+                           f" PANE (malformed model: {type(m).__name__})",
+                           rule("=")])
+    pair = m.pair if isinstance(m.pair, str) else f"<{type(m.pair).__name__}>"
+    sess = m.session if isinstance(m.session, str) else f"<{type(m.session).__name__}>"
+    lines = [rule("="), f" PLUTUS V6 — {pair}  {sess}", rule("=")]
     lines += render_pnl(m.pnl_pips, m.open_positions)
     lines += render_probabilities(m.decider)
     lines += render_gates(m.gates)

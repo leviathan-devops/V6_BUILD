@@ -17,8 +17,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 PIP = {"EUR/USD": 0.0001, "GBP/USD": 0.0001, "DXY": 0.01}
-PIP_VALUE_PER_UNIT = {"EUR/USD": 10.0, "GBP/USD": 10.0, "DXY": 1.0}
+# $/pip at DEFAULT_UNITS (100k). DERIVED, not asserted: units * pip.
+#   EUR/USD  100_000 * 0.0001 =    10.0
+#   DXY      100_000 * 0.01   = 1_000.0
+# AUDIT FIX (round 9): DXY was 1.0, which DISAGREED with the cost model by
+# 1000x — `Fill.cost_pips` implies $/pip = units*pip = 1000 for DXY, while the
+# equity conversion used 1.0. Two conversions for one quantity must agree, and
+# the derivation above is the single source.
+
 DEFAULT_UNITS = 100_000
+PIP_VALUE_PER_UNIT = {pair: DEFAULT_UNITS * pip for pair, pip in PIP.items()}
 # NOTE: no flat EQUITY_PER_PIP constant. $/pip is per-pair AND per-size; a flat
 # value is the DXY 1000x error waiting to happen. Portfolio._equity_per_pip
 # derives it.

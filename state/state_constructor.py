@@ -49,7 +49,7 @@ def parse_bars(raw: list[dict], anchor_ms: int) -> list[Bar]:
     """Parse + TEMPORAL-FILTER. Any bar past the anchor raises FutureBarLeak."""
     if not raw:
         raise EmptyBars("NO_BARS: the feed returned an empty bar list")
-    bars, leaks, bad_ts = [], [], []
+    bars, leaks, bad_ts, bad_ohlc = [], [], [], []
     for r in raw:
         # AUDIT FIX: a missing timestamp became ts=0, which passes the anchor
         # check and sorts to the FRONT of the state, polluting the bar order.
@@ -76,19 +76,23 @@ def parse_bars(raw: list[dict], anchor_ms: int) -> list[Bar]:
             l = float(r["low"]);  cl = float(r["close"])
             v = float(r.get("volume") or 0.0)
         except KeyError as e:
-            raise ValueError(f"BAR_MISSING_FIELD: bar ts={ts} has no {e}") from e
+            bad_ohlc.append(f"bar ts={ts} has no {e}")
+            continue
         except (TypeError, ValueError) as e:
-            raise ValueError(f"BAR_BAD_FIELD: bar ts={ts} has a non-numeric OHLC — {e}") from e
-        for nm, val in (("open", o), ("high", h), ("low", l), ("close", cl)):
-            if not (val == val and abs(val) != float("inf")):
-                raise ValueError(f"BAR_NON_FINITE: bar ts={ts} {nm}={val!r}")
+            bad_ohlc.append(f"bar ts={ts} has a non-numeric OHLC — {e}")
+            continue
+        if not all(v == v and abs(v) != float("inf") for v in (o, h, l, cl)):
+            bad_ohlc.append(f"bar ts={ts} has a non-finite OHLC")
+            continue
         if h < l:
-            raise ValueError(f"BAR_INVERTED: bar ts={ts} high={h} < low={l}")
+            bad_ohlc.append(f"bar ts={ts} high={h} < low={l}")
+            continue
         bars.append(Bar(ts, o, h, l, cl, v))
-    # AUDIT FIX: the leak check ran SECOND, so a feed carrying both a bad
-    # timestamp and a future bar reported only the timestamp — the FUTURE_BAR_LEAK
-    # (the temporal law's named violation) was masked. The LEAK is reported
-    # first: it is the law, the timestamp is hygiene.
+    # AUDIT FIX (round 9): OHLC problems raised IMMEDIATELY inside the loop, so a
+    # feed carrying a future bar AND a bad-OHLC bar reported the OHLC error — the
+    # FUTURE_BAR_LEAK (the temporal law's named violation) was masked a SECOND
+    # time. Every per-bar problem is now COLLECTED, and the precedence is:
+    #   the LEAK (the law) > the timestamp > the OHLC (hygiene).
     if leaks:
         raise FutureBarLeak(
             f"FUTURE_BAR_LEAK: {len(leaks)} bar(s) past anchor {anchor_ms} "
@@ -97,6 +101,9 @@ def parse_bars(raw: list[dict], anchor_ms: int) -> list[Bar]:
     if bad_ts:
         raise ValueError(
             f"BAR_MISSING_TIMESTAMP: {len(bad_ts)} bar(s) carry no usable ts/time")
+    if bad_ohlc:
+        raise ValueError(
+            f"BAR_BAD_OHLC: {len(bad_ohlc)} bar(s) — first: {bad_ohlc[0]}")
     return sorted(bars, key=lambda b: b.ts)
 
 

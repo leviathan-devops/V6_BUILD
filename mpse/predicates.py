@@ -198,7 +198,13 @@ def geometry_witness(c) -> bool:
     e, sl, tp = c["entry"], c["sl"], c["tp"]
     sign_ok = (tp > e > sl) if d == "long" else (sl > e > tp)
     dist_ok = abs(e-sl) > 0 and abs(tp-e) > 0
-    scale_ok = c["entry"] > 10 if c["pair"] == "DXY" else c["entry"] < 10
+    # AUDIT FIX (round 9): an UNKNOWN pair fell into the `else` branch and got
+    # scale_ok=True — FAIL OPEN, undoing AT-07's fail-closed fix. The pip scale
+    # comes from the single authority; an unknown pair is not a pass.
+    if c.get("pair") not in PIP:
+        return False
+    pip = PIP[c["pair"]]
+    scale_ok = abs(e - round(e / pip) * pip) < pip / 2      # a whole number of pips
     return bool(sign_ok and dist_ok and scale_ok)
 
 

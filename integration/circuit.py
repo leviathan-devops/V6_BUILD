@@ -163,7 +163,23 @@ class Circuit:
         for k in ("confidence", "cascade_valid", "chain_integrity"):
             if k not in bars_by_tf:
                 raise ValueError(f"MISSING_CANDIDATE_FIELDS: {k!r} is required")
+        # AUDIT FIX (round 9): `decider_out` was computed, timed and stored but
+        # NEVER reached the gates — `TradeCandidate` took its confidence from
+        # `bars_by_tf` alone, so `use_decider=True` could not change a verdict.
+        # The Decider's own confidence now FEEDS the candidate when it ran, which
+        # is the whole point of having it in the loop: the model SCORES and the
+        # gates read that score. `bars_by_tf["confidence"]` remains the fallback
+        # for the offline path.
         conf = bars_by_tf["confidence"]
+        if self.use_decider and decider_out:
+            for _qid in ("PVE.Q3", "E3.Q2"):
+                _d = decider_out.get(_qid) or {}
+                if isinstance(_d, dict) and _d:
+                    _top = max(_d, key=_d.get)
+                    _lv = ("F", "C", "B", "A", "Aplus")
+                    if _top in _lv:
+                        conf = round(0.45 + 0.1 * _lv.index(_top), 4)
+                        break
         cand = TradeCandidate(
             pair=pair, direction=direction, entry=entry, sl=sl, tp=tp,
             rrr=rrr_code, zone_width_pips=zone_w, sl_distance_pips=sl_d,

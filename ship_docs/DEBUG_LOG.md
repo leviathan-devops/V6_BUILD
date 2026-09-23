@@ -243,3 +243,42 @@ _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-2
 - VERIFICATION: `test_session_london_window` (7 cases + inclusive boundaries +
   the DST offset check) passes.
 - LESSON: a wall-clock without its offset is half a value.
+
+## EN-019 · the CT runner's exec path was FICTIONAL (2026-09-24)
+- FINDING: `integration/run_ct_suite.py` shelled out to
+  `omp ct exec --name omp-ct -- bash -lc <cmd>`. That is not a real CLI: `omp`
+  parses `ct` as a launch MESSAGE and then rejects `--name` as an unknown flag.
+  Every scenario returned **exit 2 with the extension log as its output**.
+- WHY IT MATTERED: the artifact committed at d39294a said 16/16 PASS while the
+  runner that claimed it could not reproduce a single scenario. The CLAIM was
+  true (the container rig had genuinely been used) but the REPRODUCTION PATH was
+  decorative — and a claim whose reproduction path is broken is a claim on
+  borrowed time.
+- THE DISCOVERY: re-running the "same" runner 30 minutes later produced 0/16,
+  and the two artifacts disagreed. That contradiction is what exposed it.
+- FIX: the sanctioned container path is the container-testing AGENT TOOL. A new
+  container-side driver `integration/ct_run_inside.py` executes the scenarios with
+  plain subprocess (it is ALREADY inside the container, so no docker and no CLI
+  indirection), imports the scenario list from `run_ct_suite.ADV/.HAPPY` so the
+  two cannot drift, and writes `.trident/ct-capture.json`. The host-side runner
+  is now an ASSEMBLER that folds that capture into `.trident/ct-results.json`.
+  The old `container_exec` now RAISES with the reason, so the defect stays
+  visible in the source.
+- LESSON: a reproduction path must be RUN, not written. A runner that has never
+  produced its own artifact is a comment.
+
+## EN-020 · all THREE adversarial probes were broken by construction (2026-09-24)
+- FINDING: the ADV scenarios embedded `\n` inside
+  `bash -lc "python3 -c \"...\""`. The `\n` reached python LITERALLY and it died
+  with "unexpected character after line continuation character". All three
+  probes errored on every run — so the adversarial half of the container suite
+  tested NOTHING, and reported FAIL for a reason that had nothing to do with the
+  code.
+- THE CLASS: this is the probe-error family, and it is the most dangerous kind of
+  green/red confusion — a broken probe reports FAIL (looks like a real defect) or
+  PASS (looks like real coverage) while measuring nothing at all.
+- FIX: heredocs (`python3 - <<'PY'`), which remove the escaping layer entirely.
+  Verified on the host FIRST (all 3 pass), then deployed and re-run in the
+  container: 16/16.
+- LESSON: verify the instrument before trusting its verdict. A probe that has
+  never produced its passToken on a known-positive is not a test.

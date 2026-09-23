@@ -128,6 +128,14 @@ _ALIASED = [
     (_f("builtins.eval", "-any-receiver"), _f(_ALIAS, "ev", "al", _WS, "[(]")),
     (_f("os.write", "-any-receiver"),    _f(_ALIAS, "wr", "ite", _WS, "[(]")),
     (_f("fs.create", "-any-receiver"),   _f(_ALIAS, "mk", "stemp", _WS, "[(]")),
+    # AUDIT FIX (round 9): `compile` and `Unpickler` had no any-receiver form,
+    # so `import builtins as b; b.compile(...)` and `import pickle as p;
+    # p.Unpickler(f)` matched nothing.
+    (_f("builtins.compile", "-any-receiver"), _f(_ALIAS, "com", "pile", _WS, "[(]")),
+    (_f("pickle.Unpickler", "-any-receiver"), _f(_ALIAS, "Un", "pickler", _WS, "[(]")),
+    (_f("tempfile", "-any-receiver"),
+     _f(_ALIAS, "Temporary", "File", _WS, "[(]")
+     + "|" + _f(_ALIAS, "mk", "dtemp", _WS, "[(]")),
 ]
 
 _EXEC_NAMES = _ALIASED + [
@@ -196,6 +204,10 @@ _WRITE_NAMES = [
     # AUDIT FIX (round 7): the lexicon covered only NamedTemporaryFile, so
     # TemporaryFile / mkstemp / mkdtemp / mkdir / touch / unlink / replace /
     # symlink / truncate all created files undetected.
+    (_f("tempfile", "-creators-bare"),
+     _f(_PRE, "Temporary", "File", _WS, "[(]")
+     + "|" + _f(_PRE, "mk", "stemp", _WS, "[(]")
+     + "|" + _f(_PRE, "mk", "dtemp", _WS, "[(]")),
     (_f("tempfile", "-creators"),
      _f("[.]", "Temporary", "File", _WS, "[(]")
      + "|" + _f("[.]mk", "stemp", _WS, "[(]")

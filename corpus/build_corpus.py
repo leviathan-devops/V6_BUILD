@@ -280,7 +280,12 @@ def negative_records(cards: list[Record]) -> list[Record]:
             neg_answer = next((o for o in opts if o != r.answer), opts[-1])
         out.append(Record(
             id=r.id + "-neg", source=r.source, quote=broken,
-            state=f"DOCTRINE (altered) {broken}",
+            # AUDIT FIX (round 9): every negative carried "(altered)" while no
+            # positive did, so a model could reach perfect refusal accuracy by
+            # matching that token ALONE without learning the rule. The negative
+            # now uses the PARENT's own state template.
+            state=(f"DOCTRINE {r.id.rsplit('-', 1)[0]}: {broken}"
+                   if r.kind != "golden" else f"GOLDEN (restated) {broken}"),
             question=r.question, options=opts, answer=neg_answer, kind=r.kind))
     return out
 
