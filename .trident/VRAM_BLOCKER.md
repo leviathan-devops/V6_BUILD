@@ -1,4 +1,32 @@
-# BLOCKED — VRAM OVERFLOW (the pin's hard stop, with the mandated report)
+# RESOLVED — VRAM OVERFLOW (was BLOCKED; the hard stop is cleared)
+
+> **STATUS UPDATE (2026-09-24, later the same session): RESOLVED — and NO MODEL
+> SUBSTITUTION WAS NEEDED.** The blocker was NOT actually a model-size problem.
+> Three real defects were found and fixed instead, and the numbers below are the
+> ORIGINAL report, kept for the record.
+>
+> | | before | after |
+> |---|---|---|
+> | the state rendered | 12 blocks, 9452 chars, **9242 tok** | the spec's 30m/1H/4H + DXY ctx, 2350 chars, ~1400 tok |
+> | the token guard | 2238 by ESTIMATE (4.13x undershoot) | the real tokenizer, ratio **0.97** |
+> | `DECIDER_MAX_STATE_TOKENS` | unset -> 32768 | **8192** (the documented limit) |
+> | the server's footprint | 6587 MiB | **3827 MiB** (2.76 GB freed) |
+> | the real state | **OOM** | 17/17 answers |
+> | decision latency | OOM / 1259ms | **402ms** (budget 500ms) — **STOP 4 MET** |
+>
+> THE ROOT CAUSE WAS THE STATE, NOT THE MODEL: `render_state` rendered EVERY feed
+> (3 pairs x 4 timeframes = 12 blocks), 4x the blueprint's spec ("State: 30m/1H/4H
+> bars + pair + session + DXY ctx") and 13% OVER the blueprint's own 8,192-token
+> limit. The state size IS the VRAM AND the latency budget.
+>
+> THE MODEL-DOWNGRADE RECOMMENDATION BELOW IS THEREFORE **NOT NEEDED** and is
+> retained only as the option the hard stop asked for. The one remaining use for
+> it: if `DECIDER_WARMUP=1` (CUDA-graph capture, measured to OOM at the current
+> footprint) is wanted, a smaller model would give it room.
+
+---
+
+## THE ORIGINAL REPORT (BLOCKED, 2026-09-24)
 
 ## THE HARD STOP, QUOTED
 > "VRAM overflow: if the 3-model stack exceeds 12GB, BLOCKED + report which model
