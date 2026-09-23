@@ -194,7 +194,7 @@ def render_state(pair: str, anchor_ms: int, feeds: dict[tuple[str, str], list[Ba
 
 
 def count_tokens(text: str) -> int:
-    """A conservative token estimate: whitespace words PLUS the punctuation
+    r"""A conservative token estimate: whitespace words PLUS the punctuation
     attached to them.
 
     AUDIT FIX: `\S+` already consumes attached punctuation, so the `|[^\w\s]`

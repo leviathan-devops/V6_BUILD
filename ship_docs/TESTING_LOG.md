@@ -324,3 +324,25 @@ paths. `test_limite_dual_live`, `test_calibration_layer`,
 and `test_pass_e1_questions` require the LIVE Decider (127.0.0.1:8008) and Limite
 (127.0.0.1:8100). They are excluded BY NAME and the exclusion is recorded in the
 artifact — never hidden.
+
+
+## ROUND 11 — THE AUDIT CAUGHT MY OWN ROUND-10 FIX
+Round 10 closed three gate bypasses. Round 11 found that its corpus fix had
+introduced TWO MORE critical mislabels and left a third coverage hole — because
+it fixed the auditor's named INSTANCE instead of the invariant.
+
+The invariant: **a negative record is valid only if its STATE contradicts its
+LABEL**, which requires targeting the QUESTION'S OWN quantity and PARSING IT BACK.
+
+| class | round-10 state | round-11 |
+|---|---|---|
+| KIND | relabelled an unchanged-kind state (WRONG supervision) | SKIPPED — no valid single-record negative exists |
+| gap floor | corrupted the last decimal (often a date, not the RRR) | corrupts the `a/b/c RRR` group, re-parsed |
+| RRR | corrupted the last decimal | corrupts the `RRR=` field, re-parsed |
+| forensic | could NEVER be emitted (`replace` never matched) | corrupts the law's BODY, re-parsed |
+
+VERIFIED: 0 mislabels across the 25 RRR/floor negatives; 621 KIND records
+correctly skipped instead of mislabelled.
+
+The CT capture was also spoofable four ways; all four are now refused, PROVEN BY
+CONSTRUCTING THE ATTACKS rather than by reading the validator.

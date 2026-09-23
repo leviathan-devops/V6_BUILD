@@ -60,11 +60,16 @@ def canonical(obj) -> str:
 def digest(stages: dict) -> str:
     """The run digest over the ordered stage outputs.
 
-    DEFECT FIXED (found by the probe 2026-09-23): the volatile filter was
-    applied only INSIDE each stage (depth >= 1). A volatile key placed at the
-    TOP level therefore became a brand-new stage named "ts_wall", changing the
-    digest for a reason that has nothing to do with the decision. The filter
-    must apply at EVERY depth, including depth 0.
+    WHERE THE VOLATILE FILTER APPLIES (corrected in round 11 — the round-6 text
+    here claimed "every depth including depth 0", which round 8 deliberately
+    reversed and tests/test_determinism_sha_match.py now PINS):
+      - INSIDE each stage's payload: canonical() strips VOLATILE at every depth,
+        so a measurement nested in a decision never enters the digest.
+      - At the TOP level: keys are STAGE NAMES, i.e. labels the caller chose. A
+        stage literally named `ts`/`timing` is a REAL stage and IS hashed —
+        silently dropping it would hide a stage from the digest.
+    A caller holding run metadata puts it INSIDE a payload (where it is
+    filtered), never as a top-level key.
     """
     h = hashlib.sha256()
     # AUDIT FIX (round 8): filtering STAGE NAMES by VOLATILE silently dropped a

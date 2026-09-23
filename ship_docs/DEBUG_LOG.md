@@ -309,3 +309,43 @@ _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-2
 - LESSON: two tiers covering one class must both be whitespace-consistent; a
   sibling alternative can mask a broken sub-pattern in testing while leaving the
   other tier open.
+
+## EN-022 · the corpus negatives were STILL mislabelled (round 11, CRITICAL x2)
+- FINDING: my round-10 "fix" replaced one mislabel with two. Measured, both real:
+    1. a KIND negative relabelled an altered-quote card as a DIFFERENT kind — but a
+       corrupted quote is still a card of its true kind, so the record taught the
+       model to answer against its own state;
+    2. the gap-analysis negative corrupted the LAST decimal in the state via a
+       positional lookahead, which for a documented row is often a date or a count,
+       NOT the RRR — so the state still showed RRR>=3.5 while the answer was "no".
+  A third, found in the same pass: the FORENSIC negative could NEVER be emitted
+  (`state.replace(quote, ...)` never matches, because the state prefixes the quote),
+  so forensic yes/no records had ZERO refusal supervision and nobody noticed.
+- THE ROOT CAUSE (worth the whole round): I fixed the SYMPTOM the auditor named
+  instead of the INVARIANT. The invariant is "a negative is valid only if its
+  STATE contradicts its LABEL" — which requires (a) targeting the QUESTION'S OWN
+  quantity and (b) PARSING IT BACK to confirm the contradiction landed.
+- FIX: `_negative_variant` now dispatches per question type, corrupts that
+  question's own token (the `RRR=` field, the `a/b/c RRR` group, the forensic
+  BODY, the card quote), and RE-PARSES the result — returning None unless the
+  corrupted value actually contradicts the label. The KIND class emits NO
+  negative at all, with the coverage consequence stated in the source.
+- VERIFIED: 0 mislabels across the 25 RRR/floor negatives; 621 KIND negatives
+  correctly SKIPPED rather than mislabelled.
+- LESSON: when an audit names a defect, fix the CLASS INVARIANT, not the
+  instance. Two rounds of instance-fixing produced three more instances.
+
+## EN-023 · the CT capture was spoofable in four ways (2026-09-24)
+- FINDING: the assembler checked shape + count only, so a capture with the right
+  count but substituted ids/kinds tallied to PASS; the container-controlled
+  capture could REDEFINE the exclusion list (hiding skipped coverage); a scenario
+  marked PASS was never checked to carry its passToken; and the driver returned
+  exit 0 even when scenarios FAILED.
+- FIX: the exact id->kind map is derived from the scenario authority and every
+  scenario must match; the exclusion list comes from the LOCAL authority and a
+  capture CLAIMING a different one is refused as tampering; every PASS must carry
+  its passToken in the recorded output; the driver propagates its verdict.
+- PROVEN BY ATTACK, not by reading: four spoofed captures were constructed and
+  ALL FOUR are now rejected (substituted id, short capture, unsupported PASS,
+  hidden coverage). A fifth run with the real capture passes.
+- LESSON: a validation that only checks SHAPE validates nothing about IDENTITY.

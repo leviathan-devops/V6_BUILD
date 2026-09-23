@@ -78,7 +78,11 @@ _WS = "[ \t]*(?:[" + chr(92) + chr(92) + "][" + chr(10) + chr(13) + "][ \t]*)?"
 # AUDIT FIX: the dotted write form originally required a LITERAL dot, but
 # Python permits whitespace around the dot. _DOT tolerates it. (This comment
 # shows no call form: the self-scan below runs over this region.)
-_DOT = "[ \t]*[.][ \t]*"
+# AUDIT FIX (round 11): _DOT allowed only space/tab, but _WS also handles a
+# BACKSLASH-NEWLINE continuation, which Python's tokenizer ignores — so a dotted
+# call split across a line continuation matched neither the dotted rule nor the
+# bare/any-receiver forms. _DOT now tolerates the same continuation as _WS.
+_DOT = "[ \t]*(?:[\\][\n\r][ \t]*)?[.][ \t]*(?:[\\][\n\r][ \t]*)?"
 
 
 def _bare(word: str) -> str:

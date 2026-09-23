@@ -156,11 +156,45 @@ def main() -> int:
                 k in r for k in ("id", "name", "kind", "verdict")):
             print(f"CT_CAPTURE_MALFORMED: scenario[{i}] lacks id/name/kind/verdict")
             return 2
-    expected = len(ADV) + len(HAPPY)
-    if len(results) != expected:
-        print(f"CT_CAPTURE_COUNT: {len(results)} scenarios, expected {expected} — "
-              f"a short capture must not read as a pass")
+    # AUDIT FIX (round 11): shape + COUNT alone were checked, so a capture with
+    # the right count but wrong/duplicated/substituted ids or kinds still tallied
+    # to PASS. The EXPECTED id->kind map is derived from the scenario authority
+    # and every scenario must match it exactly.
+    expected_map = {sid: "adversarial" for sid, *_ in ADV}
+    expected_map.update({sid: "happy_path" for sid, _, _ in HAPPY})
+    if len(results) != len(expected_map):
+        print(f"CT_CAPTURE_COUNT: {len(results)} scenarios, expected "
+              f"{len(expected_map)} — a short capture must not read as a pass")
         return 2
+    seen = {}
+    for r in results:
+        seen[r["id"]] = r.get("kind")
+    if seen != expected_map:
+        missing = sorted(set(expected_map) - set(seen))
+        extra = sorted(set(seen) - set(expected_map))
+        wrong = sorted(k for k in seen if k in expected_map
+                       and seen[k] != expected_map[k])
+        print(f"CT_CAPTURE_IDENTITY: missing={missing} extra={extra} "
+              f"wrong-kind={wrong} — a substituted capture must not read as a pass")
+        return 2
+    # AUDIT FIX (round 11): the module header claims every passToken appears in a
+    # tool-result context, but main() only tallied `verdict`. The claim is now
+    # ENFORCED: a scenario whose recorded verdict is PASS must actually carry its
+    # passToken in the captured output.
+    # AUDIT FIX (round 11): the exclusion list comes from the LOCAL authority,
+    # so a capture cannot hide coverage — but a capture that CLAIMS a different
+    # list is evidence of tampering or of a drifted deployment, and must be LOUD
+    # rather than silently overruled.
+    claimed = cap.get("excludedByName")
+    if claimed is not None and sorted(claimed) != sorted(EXCLUDED):
+        print(f"CT_EXCLUSION_TAMPERED: the capture claims {sorted(claimed)} but the "
+              f"local authority is {sorted(EXCLUDED)} — refusing")
+        return 2
+    for r in results:
+        if r["verdict"] == "PASS" and r["passToken"] not in r.get("toolResultContext", ""):
+            print(f"CT_EVIDENCE_UNSUPPORTED: {r['id']} is marked PASS but its "
+                  f"passToken {r['passToken']!r} is absent from the recorded output")
+            return 2
     n_pass = sum(1 for r in results if r["verdict"] == "PASS")
     adv = [r for r in results if r["kind"] == "adversarial"]
     happy = [r for r in results if r["kind"] == "happy_path"]
@@ -173,8 +207,12 @@ def main() -> int:
         "plan": ".trident/ct-plan.md",
         "capture": ".trident/ct-capture.json",
         "driver": "integration/ct_run_inside.py (executed by the container-testing tool)",
-        "excludedByName": cap.get("excludedByName", EXCLUDED),
-        "exclusionReason": cap.get("exclusionReason", EXCLUSION_REASON),
+        # AUDIT FIX (round 11): the capture is CONTAINER-CONTROLLED, so letting
+        # it redefine the exclusion list let it hide skipped coverage. The LOCAL
+        # authority wins; the capture's copy is recorded only as a cross-check.
+        "excludedByName": EXCLUDED,
+        "exclusionReason": EXCLUSION_REASON,
+        "captureClaimedExclusions": cap.get("excludedByName", []),
         "scenarios": results,
         "summary": {
             "total": len(results), "pass": n_pass, "fail": len(results) - n_pass,

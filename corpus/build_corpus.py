@@ -248,50 +248,77 @@ def harvest_gap_analysis(master: Path) -> list[Record]:
 def _negative_variant(r, opts):
     """Return (state, quote, answer) for a VALID refusal, or None to SKIP.
 
-    THE INVARIANT (audit round 10, CRITICAL): a negative is only valid if its
-    STATE genuinely contradicts its LABEL. The old builder zeroed the first
-    number in the QUOTE and then relabelled — for a golden-cascade record the
-    STATE kept `RRR=4.25` while the answer taught a different option, so the
-    record supervised the model to IGNORE its own input. A corruption that does
-    not reach the state is not a negative; it is a mislabel. Hence: corrupt,
-    then VERIFY the state changed, else return None and the record is skipped.
-
-    THE TEMPLATE INVARIANT: the negative reuses the PARENT's template by
-    substituting into the parent's own state string. A distinct negative
-    template (`GOLDEN (restated)`, or dropping `({kind})`) leaks the label —
-    refusal would be learnable from the template token alone.
+    THE INVARIANT (audit rounds 10 and 11): a negative is valid ONLY if its
+    STATE genuinely contradicts its LABEL, and the contradiction must be
+    VERIFIED on the corrupted value — not merely that the string changed. The
+    round-10 version satisfied neither half: it corrupted a number chosen by a
+    POSITIONAL regex (the last decimal in the state, which for a documented row
+    is often a date or a count, not the RRR) and it relabelled KIND questions
+    whose kind a corrupted quote cannot change. Both supervised the model to
+    ignore its own input. Hence: target the QUESTION'S OWN quantity, then parse
+    the result back and confirm it now contradicts the label; otherwise SKIP.
     """
     q = r.question
-    # --- a RRR question: the state must SHOW an RRR that contradicts the answer
-    if "risk-reward ratio" in q:
-        ns = re.sub(r"RRR=[\d.]+", "RRR=2.0", r.state)
-        below = next((o for o in opts if "below" in str(o).lower()), None)
-        if ns == r.state or below is None:
-            return None                      # nothing to corrupt -> SKIP
-        nq = re.sub(r"\b\d+(?:\.\d+)?\b(?=[^\d]*$)", "2.0", r.quote)
-        return ns, nq, below
-    # --- a yes/no floor question: the row's trailing RRR drops below the floor
-    if "above the operator floor" in q:
-        ns = re.sub(r"\b\d+\.\d+\b(?=[^\d]*$)", "2.0", r.state)
-        if ns == r.state:
-            return None                      # nothing to corrupt -> SKIP
-        return ns, ns, "no"
-    # --- a doctrine card: break the rule's numeric token, and carry that SAME
-    #     corruption into the state through the parent's own template.
-    broken = re.sub(r"\b(\d+(?:\.\d+)?)\b", "0", r.quote, count=1)
-    if broken == r.quote:
-        broken = r.quote[:-6] + " [TRUNCATED]"
-    ns = r.state.replace(r.quote, broken)
-    if ns == r.state:
-        return None                          # the corruption never reached it
-    if q.startswith("Does the state satisfy"):
-        return ns, broken, "no"
-    # a KIND question: altering the quote does NOT change a card's kind, so the
-    # refusal is any OTHER kind (the true kind stays available as a distractor).
-    other = next((o for o in opts if o != r.answer), None)
-    if other is None:
+    floor = 3.5
+
+    def _rrr_of(text):
+        m = re.search(r"RRR\s*[=≥>=]{0,2}\s*([\d.]+)", text)
+        if m:
+            try:
+                return float(m.group(1))
+            except ValueError:
+                return None
         return None
-    return ns, broken, other
+
+    # --- (1) an RRR question: the state must SHOW a sub-floor RRR. The token is
+    #         the `RRR=` field the state template itself declares.
+    if "risk-reward ratio" in q:
+        below = next((o for o in opts if "below" in str(o).lower()), None)
+        if below is None:
+            return None
+        ns = re.sub(r"(RRR\s*=\s*)[\d.]+", r"\g<1>2.0", r.state)
+        got = _rrr_of(ns)
+        if ns == r.state or got is None or got >= floor:
+            return None                      # the corruption did not land
+        return ns, ns, below
+
+    # --- (2) a yes/no floor question: the state must SHOW a sub-floor RRR. A
+    #         documented row spells it `a/b/c RRR`, so the RRR is the number
+    #         AFTER the three-price group — never the last number in the line.
+    if "above the operator floor" in q:
+        ns = re.sub(r"(\d+\.\d+/\d+\.\d+/\d+\.\d+\s+)([\d.]+)",
+                    r"\g<1>2.0", r.state)
+        if ns == r.state:
+            return None
+        return ns, ns, "no"
+
+    # --- (3) a VERIFY question: the rule's own numeric token is broken, and the
+    #         corruption is carried into the state through the card's template.
+    if q.startswith("Does the state satisfy"):
+        broken = re.sub(r"\b(\d+(?:\.\d+)?)\b", "0", r.quote, count=1)
+        if broken == r.quote:
+            broken = r.quote[:-6] + " [TRUNCATED]"
+        ns = r.state.replace(r.quote, broken)
+        if ns == r.state:
+            return None
+        return ns, broken, "no"
+
+    # --- (4) a FORENSIC yes/no: the state carries the law's body (the template
+    #         prefixes it, so `replace(quote, ...)` never matches). Corrupt the
+    #         first number in the BODY, which is what the law asserts.
+    if q.startswith("Does the setup obey"):
+        head, _, body = r.state.partition("\n")
+        nbody = re.sub(r"\b\d+(?:\.\d+)?\b", "0", body, count=1)
+        if nbody == body:
+            return None
+        return f"{head}\n{nbody}", nbody, "no"
+
+    # --- (5) a KIND question: NO VALID single-record corruption exists. A
+    #         corrupted quote is still a card of its true kind, so relabelling it
+    #         teaches a WRONG label — the exact defect the round-6 and round-10
+    #         fixes each introduced. SKIP, and the coverage consequence is stated
+    #         in negative_records().
+    return None
 
 
 def negative_records(cards: list[Record]) -> list[Record]:
@@ -300,6 +327,11 @@ def negative_records(cards: list[Record]) -> list[Record]:
     The audit found every yes/no record taught `answer="yes"`: a corpus with ONE
     class trains a yes-sayer and the model can never learn to refuse.
     """
+    # COVERAGE NOTE: KIND questions ("what kind of doctrine is this?") emit NO
+    # negative. Their only valid negative would be a state of a DIFFERENT kind,
+    # which needs a cross-record builder — a corrupted quote cannot change a
+    # card's kind, so any single-record relabelling is wrong supervision. The
+    # KIND refusal class is therefore covered only by the positives' distractors.
     out, skipped = [], 0
     for r in cards:
         if not r.quote or len(r.quote) < 12:

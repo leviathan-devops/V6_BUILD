@@ -134,8 +134,16 @@ def at_06_dual_consistency(c) -> Verdict:
     if g: return g[0]
     """|model - code| <= eps on the RRR path."""
     m, k = c.get("limite_rrr"), c["rrr"]
+    # AUDIT FIX (round 11): only None was handled, so a non-numeric `limite_rrr`
+    # ('abc', a bool, a list) raised TypeError out of `abs(m - k)` instead of
+    # yielding a fail-closed verdict — and NaN silently produced a meaningless
+    # delta (NaN <= 0.02 is False, i.e. a "divergence" from nothing).
     if m is None:
         return _v("AT-06", False, "AT06_NO_MODEL_VALUE", "no Limite value to compare")
+    if isinstance(m, bool) or not isinstance(m, (int, float)) or m != m \
+            or abs(m) == float("inf"):
+        return _v("AT-06", False, "AT06_NO_MODEL_VALUE",
+                  f"limite_rrr is not a usable number: {m!r}")
     delta = abs(m - k)
     ok = delta <= 0.02
     return _v("AT-06", ok, "AT06_PASS" if ok else "LIMITE_CODE_DIVERGENCE",
@@ -265,8 +273,12 @@ def trust(predicate: Callable, c: dict) -> TrustVerdict:
     subject = PREDICATE_SUBJECT.get(v.name)
     votes = {"CODE": code_ok}
     if subject == "LIMITE" or subject is None:
-        votes["LIMITE"] = (abs(c["limite_rrr"] - c["rrr"]) <= 0.02
-                           if c.get("limite_rrr") is not None else None)
+        # AUDIT FIX (round 11): `limite_rrr` bypassed _missing's type guard (it is
+        # not a REQUIRED_KEY), so a string/bool raised TypeError out of `abs()`.
+        _m = c.get("limite_rrr")
+        votes["LIMITE"] = (abs(_m - c["rrr"]) <= 0.02
+                           if isinstance(_m, (int, float)) and not isinstance(_m, bool)
+                           and _m == _m and abs(_m) != float("inf") else None)
     if subject == "GEOMETRY" or subject is None:
         votes["GEOMETRY"] = geometry_witness(c)
     voting = [x for x in votes.values() if x is not None]

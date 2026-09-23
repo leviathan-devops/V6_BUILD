@@ -17,7 +17,12 @@ from __future__ import annotations
 from types import MappingProxyType
 from dataclasses import dataclass, field
 
-PIP = {"EUR/USD": 0.0001, "GBP/USD": 0.0001, "DXY": 0.01}
+# AUDIT FIX (round 11): the round-10 fix made PIP_VALUE_PER_UNIT read-only but
+# left PIP a plain MUTABLE dict — so `PIP['EUR/USD'] = 9.9` after import still
+# desynced cost_pips from equity, and the comment claimed otherwise. Both maps
+# now derive from ONE read-only source.
+_PIP_MUTABLE = {"EUR/USD": 0.0001, "GBP/USD": 0.0001, "DXY": 0.01}
+PIP = MappingProxyType(_PIP_MUTABLE)
 # $/pip at DEFAULT_UNITS (100k). DERIVED, not asserted: units * pip.
 #   EUR/USD  100_000 * 0.0001 =    10.0
 #   DXY      100_000 * 0.01   = 1_000.0
