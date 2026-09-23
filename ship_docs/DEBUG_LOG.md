@@ -472,3 +472,32 @@ _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-2
   The refusal class is IMBALANCED (33 vs 1276) — a documented residual. Widening
   the bound vocabulary with the MEASURED corpus words (within 10, trades 6,
   days 5, setups 5) raised the verified count from 21 to 33.
+
+## EN-028 · round 16: the crash I introduced, and the stop signal (2026-09-24)
+- CRITICAL (mine, from round 15): `scan_write_suspects` returned `(name, str)`
+  while its consumer `scan_tree` treats the second element as a Match — so the
+  FIRST write-suspect hit crashed the whole tree audit with AttributeError. A
+  helper and its consumer must agree on the shape. VERIFIED: returns Match.
+- THE TAUTOLOGY, MEASURED: the geometry scale witness was
+  `abs(e - round(e/pip)*pip) < pip/2` — the distance from any price to its
+  nearest grid point is <= pip/2 BY CONSTRUCTION, so it passed for EVERY input
+  (1.14110, 1.14115, 1.14113 all True). Replaced with a pip-COUNT band, which
+  DISCRIMINATES: a DXY quote of 100.945 on the FX scale (0.0001) is ~1,000,000
+  pips from zero and is now rejected, while the correct 0.01 scale passes.
+- ALSO: `session_utc` ignored the ISO offset (`02:30-04:00` read as 02:30 instead
+  of 06:30Z — the wrong session adjudicated); the happy-path `failToken` was a
+  display string that never occurs (a vacuous downstream check); the set-freeze
+  sort used `default=str`, re-introducing the round-14 heap-address
+  nondeterminism through the sort key; the cascade harvester lacked the float
+  guard; `has_gate_decisions` matched the always-emitted "REJECTION LOG" header.
+- **THE STOP SIGNAL.** Rounds 15 and 16 EACH produced exactly one CRITICAL, and
+  BOTH were defects I introduced while fixing the previous round:
+    r14 -> r15: keeping the verbatim quote broke the dedup key (46 negatives lost)
+    r15 -> r16: the suspect helper's return shape broke its consumer (a crash)
+  The criticals are NOT converging — they have become a FUNCTION OF MY OWN FIXES.
+  That is the doctrine's convergence signal inverted: further rounds now have a
+  NEGATIVE expected value, because each fix is new surface with a demonstrated
+  chance of introducing a critical.
+- THE RULING: the audit waves STOP here. The gate is reported FAIL (1 critical)
+  at round 16, and round 17 is NOT run — running it would be manufacturing the
+  next regression. The remaining findings are operator-review debt.

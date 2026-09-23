@@ -209,6 +209,15 @@ def harvest_golden_cascade(master: Path) -> list[Record]:
         (n, day, setup, entry, sl, tp, risk, reward, rrr) = m.groups()
         ln = text[:m.start()].count("\n") + 1
         row = m.group(0).strip()
+        # AUDIT FIX (round 16): `([\d.]+)` matches a bare `.`, so a malformed
+        # cascade cell became the CORRECT RRR (and its rotated distractors) —
+        # the same guard the golden/gap harvesters already carry.
+        try:
+            _cvals = [float(x) for x in (entry, sl, tp, rrr)]
+        except ValueError:
+            continue
+        if not all(v == v and abs(v) != float("inf") for v in _cvals):
+            continue
         recs.append(Record(
             id=f"cascade-{n}",
             source=f"{f}:{ln}", quote=row,

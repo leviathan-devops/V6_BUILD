@@ -112,6 +112,11 @@ def main() -> int:
         # AUDIT FIX (round 11): the failToken was the literal "[TOKEN-ABSENT]",
         # which never appears in real output — so failTokenAbsent was ALWAYS true
         # and the check was vacuous. A real failure marker is now asserted.
+        # AUDIT FIX (round 16): `failToken` was a DISPLAY STRING
+        # ("RESULT: FAIL | TOKEN-ABSENT | Traceback") that never occurs verbatim,
+        # so a downstream `failToken not in context` search always saw it absent —
+        # a vacuous pass. The token is now ONE real marker, and the extra checks
+        # live in `failTokenAbsent` where they belong.
         fa = ("RESULT: FAIL" not in out and "TOKEN-ABSENT" not in out
               and "Traceback (most recent call last)" not in out)
         results.append({
@@ -121,7 +126,8 @@ def main() -> int:
             # FAILURE output mentioning the name would satisfy the downstream
             # evidence check. The stored token is the line that actually decided.
             "exitCode": rc, "passToken": f"RESULT: PASS {test}", "passTokenMatch": pm,
-            "failToken": "RESULT: FAIL | TOKEN-ABSENT | Traceback",
+            # the SINGLE marker a downstream substring search can actually use
+            "failToken": "RESULT: FAIL",
             "failTokenAbsent": fa,
             "toolResultContext": _evidence(out, f"RESULT: PASS {test}"), "durationMs": ms,
             "verdict": "PASS" if (pm and fa and rc == 0) else "FAIL"})

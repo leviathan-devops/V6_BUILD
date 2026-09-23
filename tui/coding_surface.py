@@ -383,10 +383,14 @@ def scan_tree(root: str, include_tests: bool = True) -> list:
 def scan_write_suspects(src: str) -> list:
     """The WRITE review tier: an aliased receiver calling a write primitive.
     Reported, never asserted against (see WRITE_SUSPECT)."""
+    # AUDIT FIX (round 16, CRITICAL): this returned `(name, str)` while the
+    # caller (scan_tree) treats the second element as a Match — so the FIRST
+    # write-suspect hit crashed the whole tree audit with AttributeError. A
+    # helper and its consumer must agree on the shape; it returns Matches.
     out = []
     for name, pat in WRITE_SUSPECT:
         for m in re.finditer(pat, src):
-            out.append((name, m.group(0)))
+            out.append((name, m))
     return out
 
 

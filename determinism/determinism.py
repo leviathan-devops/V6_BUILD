@@ -143,8 +143,13 @@ def _freeze(o):
     if isinstance(o, (set, frozenset)):
         # AUDIT FIX (round 6): sorted() on heterogeneous members ({1,'a'}) or on
         # dicts/lists raised TypeError. Sort by the CANONICAL RENDERING instead.
+        # AUDIT FIX (round 16): the sort key used `default=str`, so an
+        # unfreezable element rendered via its `__repr__` — which embeds a HEAP
+        # ADDRESS — and the ORDER varied between runs (the round-14 bug,
+        # reintroduced through the sort). Elements are sorted by their canonical
+        # RENDERING, which refuses unfreezable values instead of str()-ing them.
         frozen = [_freeze(x) for x in o]
-        return tuple(sorted(frozen, key=lambda x: json.dumps(x, sort_keys=True, default=str)))
+        return tuple(sorted(frozen, key=canonical))
     if isinstance(o, (bytes, bytearray)):
         return o.decode("utf-8", "backslashreplace")
     return o

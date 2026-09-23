@@ -184,4 +184,10 @@ def has_probability_bars(text: str) -> bool:
 
 
 def has_gate_decisions(text: str) -> bool:
-    return "PASS" in text or "REJECT" in text
+    # AUDIT FIX (round 16): the REJECTION LOG header (always emitted by
+    # render_rejections) contains the substring "REJECT", so this returned True
+    # for ANY rendered pane — even one whose gate section had zero verdicts. It
+    # matches the rendered MARKER the gate renderer actually emits.
+    if not isinstance(text, str):
+        return False
+    return "[PASS  ]" in text or "[REJECT]" in text

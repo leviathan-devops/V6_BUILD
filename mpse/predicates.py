@@ -201,15 +201,34 @@ def at_09_rrr_recompute(c) -> Verdict:
               f"stated {c['rrr']:.4f} vs recomputed {recomputed:.4f}")
 
 def _session_hhmm(s: str):
-    """(hour, minute) from a session stamp, or None. Handles a bare `HH:MM`, a
-    label carrying one (`LONDON 02:00`), an ISO stamp (`...T02:30:00-04:00`) and
-    an unpadded hour (`3:00`) — compared NUMERICALLY, never as strings."""
-    m = re.search(r"(\d{1,2}):(\d{2})(?::\d{2})?", s)
+    """(hour, minute) in UTC from a session stamp, or None.
+
+    Handles a bare `HH:MM`, a label carrying one (`LONDON 02:00`), an ISO stamp
+    with an OFFSET (`...T02:30:00-04:00`) and an unpadded hour (`3:00`). The
+    field is `session_utc`, so an offset-bearing stamp is CONVERTED to UTC
+    before the window comparison — reading its wall-clock would place
+    02:30-04:00 at 06:30Z and adjudicate the wrong session (audit round 16).
+    """
+    m = re.search(r"(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(Z|[+-]\d{2}:?\d{2})?\s*$",
+                  s.strip())
     if not m:
-        return None
+        m = re.search(r"(\d{1,2}):(\d{2})(?::(\d{2}))?", s)
+        if not m:
+            return None
     h, mi = int(m.group(1)), int(m.group(2))
     if not (0 <= h <= 23 and 0 <= mi <= 59):
         return None
+    off = m.group(4) if m.re.groups >= 4 else None
+    if off:
+        if off == "Z":
+            delta = 0
+        else:
+            sign = -1 if off[0] == "-" else 1
+            oh, om = int(off[1:3]), int(off[3:].lstrip(":") or 0)
+            delta = sign * (oh * 60 + om)
+        total = (h * 60 + mi) - delta
+        total %= 1440
+        h, mi = divmod(total, 60)
     return (h, mi)
 
 
@@ -280,7 +299,14 @@ def geometry_witness(c) -> bool:
     if c.get("pair") not in PIP:
         return False
     pip = PIP[c["pair"]]
-    scale_ok = abs(e - round(e / pip) * pip) < pip / 2      # a whole number of pips
+    # AUDIT FIX (round 16): the old check was TAUTOLOGICAL — the distance from
+    # any price to its nearest pip grid point is <= pip/2 BY CONSTRUCTION, so it
+    # passed for every input (measured: 1.14110, 1.14115 and 1.14113 all passed).
+    # The real question is whether the pair's PIP SCALE suits the PRICE: a DXY
+    # quote of ~100 needs pip 0.01, and pricing it on the FX scale (0.0001) puts
+    # it ~1,000,000 pips from zero. The pip-count band is what discriminates.
+    _pips_from_zero = abs(e) / pip
+    scale_ok = 10.0 <= _pips_from_zero <= 1_000_000.0
     return bool(sign_ok and dist_ok and scale_ok)
 
 
