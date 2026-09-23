@@ -85,3 +85,24 @@ caught a deliberately wrong value in ADV-5 and in
 
 ---
 _ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` · 2026-09-23._
+
+
+## THE STOP-CONDITION AUDIT (final for this session)
+| # | condition | verdict | the evidence |
+|---|---|---|---|
+| 1 | >=14/15 golden entries <=3p | **MET** | 6/6 Tier-A accepted, 15/15 FX at 0.000 pips |
+| 2 | all 38 forensic trades classified | **PARTIAL** | the 7 universal laws + 6 Tier-A; the 38 are IMAGES, not text |
+| 3 | profitable at 0.1% on an unseen week | **MET** | +103.9 pips on 2026-06-22, outcomes computed from forward bars |
+| 4 | latency < 500ms | **MET** | mean 0.058ms (golden) / 0.897ms (unseen) |
+| 5 | zero coding agent in the loop | **MET** | prove_zero_coding PASS |
+| 6 | TUI shows every probability/gate/rejection | **MET** | rendered live in the pane |
+| 7 | determinism SHA-identical | **MET** | both weeks |
+| 8 | golden RRR +-0.02 | **MET** | 6/6, max delta 0.0043 |
+| 9 | mutant tests fire | **MET** | SIDE_INVERSION + RRR drift both caught |
+| 10 | ECE < 0.05 | **NOT MET** | 0.2579 measured; the layer works, one T does not transfer |
+| 11 | audit GATE: PASS | **NOT MET** | 0 critical / 28 high after 5 rounds |
+| 12 | checkpoint sealed | **MET** | 3 checkpoints |
+| 13 | 6 ship docs current | **MET** | 544 lines |
+| 14 | 11 canon docs current | **MET** | stamped to the final SHA |
+
+**10 of 14 MET. 3 NOT MET. 1 PARTIAL.**
