@@ -72,3 +72,48 @@ tautological geometry witness · a superseded model in the production path · tw
 crashes · a token guard that undershot the real tokenizer 4.13x · a state rendered
 4x the blueprint's spec · a fail-open negative distance · a SECOND pip authority.
 **The treadmill is not convergent, but it is emphatically not worthless.**
+
+
+---
+
+# ADDENDUM — ROUNDS 32-35 (the trend after the root-cause fix)
+
+| round | critical | high | note |
+|---|---|---|---|
+| 32 | 0 | **3** | the LOWEST high count of the whole campaign |
+| 33 | 0 | 8  | **FIVE were my own r32 fixes** |
+| 34 | 0 | 4  | |
+| 35 | 0 | 7  | **FOUR were my own r34 fixes** |
+
+## THE MECHANISM, NOW QUANTIFIED
+The highs oscillate in a **3-8 band** and the dominant source is no longer the
+code — it is **MY OWN FIXES**:
+- round 33: 5 of 8 findings were incomplete round-32 fixes;
+- round 35: 4 of 7 findings were incomplete round-34 fixes.
+
+**A 4-5 out of 7-8 rate. My fixes generate roughly as many findings as they close.**
+
+## THE FOUR MEASURED INCOMPLETE-LANDING CLASSES
+1. **Never applied** — a batch script that aborted at its first anchor miss
+   (round 24's five fixes).
+2. **Applied but inert** — a helper DEFINED but never CALLED (`_fail_capture`); an
+   attribute that EXISTS NOWHERE (`_at_id`); a list appended to but never read
+   (`SCAN_SKIPPED`); a sorted dict built but never READ (`_sorted_feeds`).
+3. **Changed at one site, not both** — `_DUAL_EPS` replaced in `limite['L3']` while
+   `dual_passed` kept the hardcoded `0.02` (round 34 → found in round 35).
+4. **Over-corrected** — a section terminator that broke the case it was meant to
+   fix (twice), and a scanner bound that reported a READ as a write.
+
+## THE STANDING RULE (now enforced)
+- batch edits are NON-ABORTING and report every outcome;
+- after EVERY batch, grep-verify that each fix LANDED;
+- for behavioral fixes, verify the fix's EFFECT (a real call, a forged input), not
+  just its presence in the file.
+
+## THE FINAL STATE
+- **0 CRITICAL** — across the last SIX consecutive completed rounds (32-35 plus 29-30).
+- **0 REGRESSION** — 29/29 host · 13/13 runtime · 16/16 container · STOP 4 at ~400ms
+  with the model in the loop, green after EVERY change.
+- **THE HIGHS: 7 at the last completed round — operator-review debt.** Every one is
+  real; none is critical. **The gate is FAIL (0 critical, 7 high) and is NOT
+  reported as passing.**
