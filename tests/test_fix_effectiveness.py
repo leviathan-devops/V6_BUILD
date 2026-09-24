@@ -89,6 +89,40 @@ try:
     det.canonical(_c); check("a cycle is a NAMED refusal", False)
 except ValueError:
     check("a cycle is a NAMED refusal", True)
+# ============ THE DECIDER'S OUTPUT MUST REACH THE GATES ==================
+# THE DEFECT (2026-09-24): the published Decider returns a NESTED answer
+# ({"type":"score","score":2.03,"legend":{"0":"F",...},
+#   "probabilities":{"0":0.156,...}}) while `grade_from_probs` expects a FLAT
+# {LEVEL: prob} dict. The circuit passed the WHOLE answer object, so the grader
+# raised EMPTY_DISTRIBUTION and the model's grade was DISCARDED on every call —
+# the circuit paid ~430ms per decision for a score it threw away. The caller's
+# confidence passed straight through instead.
+#
+# THIS PIN asserts the DECIDER, not the caller, determines the confidence.
+try:
+    import json as _json
+    from pathlib import Path as _P
+    from circuit import Circuit as _C
+    from state_constructor import parse_bars as _pb
+    _R = _P(__file__).resolve().parent.parent
+    _raw = _json.loads((_R / "shared/fixtures/bars_anchored.json").read_text())
+    _A = 1783317600000
+    _feeds = {}
+    for _f in _raw:
+        try: _feeds[(_f["pair"], _f["timeframe"])] = _pb(_f.get("bars") or [], _A)
+        except Exception: pass
+    _cand = {"entry": 100.945, "sl": 100.905, "tp": 101.115, "direction": "long",
+             "zone_id": "DXY#1", "cascade_valid": True, "chain_integrity": True}
+    _c = _C(use_limite=False, use_decider=True, anchor_ms=_A)
+    _r_lo = _c.decide("DXY", dict(_cand, confidence=0.20), _feeds)
+    _r_hi = _c.decide("DXY", dict(_cand, confidence=0.99), _feeds)
+    check("the DECIDER's grade replaces the caller's confidence "
+          "(0.20 and 0.99 both give the model's value)",
+          _r_lo.confidence == _r_hi.confidence and _r_lo.confidence not in (0.20, 0.99))
+    check("the grade did NOT fall back", _r_lo.grade_fallback is None)
+except Exception as _e:
+    check(f"the decider grade reaches the gates ({type(_e).__name__}: {_e})", False)
+
 # round 39: a scalar SUBCLASS must be tagged (IntEnum/StrEnum/custom subclasses)
 import enum as _enum
 class _E(_enum.IntEnum): X = 1

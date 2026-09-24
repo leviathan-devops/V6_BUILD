@@ -302,7 +302,25 @@ class Circuit:
             try:
                 from question_templates import grade_from_probs
                 for _qid in ("PVE.Q3", "E3.Q2"):
+                    # DEFECT FIXED (2026-09-24, THE SHAPE MISMATCH): the published
+                    # Decider returns a NESTED answer —
+                    #   {"type":"score","score":2.03,"confidence":0.236,
+                    #    "legend":{"0":"F",...,"4":"Aplus"},
+                    #    "probabilities":{"0":0.156,"1":...}}
+                    # — while `grade_from_probs` expects a FLAT {LEVEL: prob} dict.
+                    # The whole answer object was being passed, so the grader found
+                    # no mass and raised EMPTY_DISTRIBUTION, and the model's output
+                    # was DISCARDED on every call. The circuit paid ~430ms per
+                    # decision for a grade it threw away.
+                    # The probabilities are unwrapped AND the index keys are mapped
+                    # through the answer's own `legend` to level names.
                     _d = decider_out.get(_qid)
+                    if isinstance(_d, dict) and _d:
+                        _probs = _d.get("probabilities")
+                        _legend = _d.get("legend")
+                        if isinstance(_probs, dict) and isinstance(_legend, dict):
+                            _d = {_legend.get(str(k), str(k)): v
+                                  for k, v in _probs.items()}
                     if isinstance(_d, dict) and _d:
                         _grade, _val = grade_from_probs(_d, _qid)
                         # AUDIT FIX (round 34): the Decider-derived confidence

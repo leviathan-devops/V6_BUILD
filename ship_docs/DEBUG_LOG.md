@@ -595,3 +595,41 @@ loop — 17 answers from the PUBLISHED model, the superseded head unreachable
 (verified by AST, not string matching), the state within the real tokenizer's
 limit, and the warm latency under budget. No test previously ran
 `use_decider=True`, which is exactly how the superseded model survived.
+
+## EN-036 · THE DECIDER'S OUTPUT WAS DISCARDED ON EVERY CALL (2026-09-24)
+- FINDING (the operator asked "why are you not using decider"): the circuit CALLED
+  the published Decider on every `use_decider=True` decision — paying ~430ms — and
+  then THREW THE ANSWER AWAY.
+- THE MECHANISM (a SHAPE MISMATCH, measured): the published Decider returns a
+  NESTED answer
+```
+{"type":"score","score":2.03,"confidence":0.2361,
+ "legend":{"0":"F","1":"C","2":"B","3":"A","4":"Aplus"},
+ "probabilities":{"0":0.1563,"1":...,"4":...}}
+```
+  while `question_templates.grade_from_probs` expects a FLAT `{LEVEL: prob}` dict.
+  The circuit passed the WHOLE answer object, so the grader raised
+  `EMPTY_DISTRIBUTION: PVE.Q3 carries no probability mass (keys=['certainty',
+  'confidence','fit_mass','legend','level_fit','probabilities','score','type'])`
+  and the `except` recorded a fallback. **The caller's confidence passed straight
+  through instead.**
+- THE PROOF (the decisive test): vary the CALLER's confidence and watch it survive:
+```
+  BEFORE:  caller=0.20 -> 0.20    caller=0.99 -> 0.99    (the model's grade discarded)
+  AFTER:   caller=0.20 -> 0.65    caller=0.99 -> 0.65    (the MODEL's grade)
+```
+  Identical output for different caller inputs is the signature of a value that
+  never reached the model's influence.
+- WHY NO TEST CAUGHT IT: `test_decider_live_pipeline` asserted the model ANSWERS
+  (17 questions), never that its grade CHANGES a verdict. And
+  `test_golden_week_e2e` runs `use_decider=False` — so the headline proof never
+  exercises the Decider at all.
+- THE FIX: unwrap the answer's `probabilities` AND map its INDEX keys through the
+  answer's own `legend` to level names.
+- VERIFIED: the golden week now passes **6/6 with the Decider actually gating**,
+  at 409ms median (under the 500ms budget), with confidences **from the model**
+  (0.65) rather than the caller's 0.75.
+- A regression pin now asserts the DECIDER, not the caller, determines the
+  confidence (`tests/test_fix_effectiveness.py`).
+- LESSON: a value that is identical across different inputs is the signature of a
+  dead wire. Test that the MODEL CHANGES THE ANSWER, not merely that it ran.
