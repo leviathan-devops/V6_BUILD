@@ -227,8 +227,13 @@ _WRITE_NAMES = [
      # AUDIT FIX (round 6): the mode class required b/t BEFORE +, so the
      # docs-canonical "w+b" never matched, and a leading "b" (rb+/wb+) was missed.
      # The class now accepts the mode letters in any order plus a sign.
-     _f("open", _WS, "[(](?s:[^);]*?)['", '"', "][rwaxtb]*[+][rwaxtb]*['", '"', "][ \t\n]*[,)]")
-     + "|" + _f("open", _WS, "[(](?s:[^);]*?)['", '"', "][rwaxtb]*[wax][rwaxtb]*['", '"', "][ \t\n]*[,)]")),
+     # AUDIT FIX (round 24): `[^);]*?` forbade a `)` before the mode, so
+    # `open(get(),"w")` — ANY nested call — could never reach the mode quote, a
+    # false NEGATIVE. The bound now excludes only a STATEMENT terminator (`;`)
+    # and a NEWLINE, which is what stopped the DOTALL over-match without
+    # blocking nested calls.
+    _f("open", _WS, "[(](?s:[^;\n]*?)['", '"', "][rwaxtb]*[+][rwaxtb]*['", '"', "][ \t\n]*[,)]")
+     + "|" + _f("open", _WS, "[(](?s:[^;\n]*?)['", '"', "][rwaxtb]*[wax][rwaxtb]*['", '"', "][ \t\n]*[,)]")),
     (_f("os.", "wr", "ite"),    _f("os", _DOT, "wr", "ite", _WS, "[(]")),
     (_f("os.", "op", "en"),     _f("os", _DOT, "op", "en", _WS, "[(]")),
     (_f("os.", "re", "name"),   _f("os", _DOT, "re", "name", _WS, "[(]")),
@@ -321,6 +326,15 @@ for _n, _pat in list(_WRITE_NAMES):
         # be the BUILTIN is skipped: the dotted form already covers os.open, and
         # the builtin's own rule (open-write-mode) already requires a write mode.
         if _word == "open":
+            # AUDIT FIX (round 24): skipping the bare form left
+            # `from os import open; open(p, O_WRONLY|O_CREAT)` — the int-FLAGS
+            # low-level form, which has NO mode string — covered only by the
+            # dotted `os.open(` rule. The bare form is added WITH the int-flags
+            # shape, so the builtin's string-mode reads stay unflagged.
+            _WRITE_NAMES.append((_n + "-bare",
+                                 _pat + "|"
+                                 + _f(_PRE, "open", _WS, "[(](?s:[^;\n]*?)[a-zA-Z_0-9]",
+                                      _WS, "[|]")))
             continue
         # AUDIT FIX (round 13): the first list omitted mkdir/makedirs/replace/
         # symlink/truncate, so `from os import mkdir; mkdir(p)` evaded the

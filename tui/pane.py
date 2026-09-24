@@ -60,6 +60,19 @@ def _num(v):
     return f
 
 
+def _safe(v, width: int = 60) -> str:
+    """A rendered field: control chars stripped, length bounded.
+
+    AUDIT FIX (round 24): gate/rejection text was interpolated VERBATIM, so a
+    multiline value injected extra rows and could MIMIC a `[PASS  ]` verdict that
+    `has_gate_decisions` then believed. Newlines and control chars are removed and
+    the field is bounded to the pane width.
+    """
+    s = v if isinstance(v, str) else repr(v)
+    s = "".join(ch if ch.isprintable() else " " for ch in s)
+    return s if len(s) <= width else s[: width - 1] + "\u2026"
+
+
 def render_probabilities(decider) -> list[str]:
     # AUDIT FIX: a None/non-dict TOP-LEVEL decider crashed sorted().
     if not isinstance(decider, dict):
@@ -157,7 +170,10 @@ def render_rejections(rejections) -> list[str]:
         if not isinstance(r, dict):
             out.append(f" <malformed entry {type(r).__name__}>")
             continue
-        out.append(f" {r.get('when','')} {r.get('token','')} — {r.get('detail','')}")
+        # AUDIT FIX (round 24): the rejection fields were interpolated verbatim,
+        # so a multiline value injected rows and could mimic a verdict marker.
+        out.append(f" {_safe(r.get('when',''), 20)} {_safe(r.get('token',''), 20)} "
+                   f"— {_safe(r.get('detail',''))}")
     return out
 
 

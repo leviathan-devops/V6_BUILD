@@ -64,7 +64,16 @@ def canonical(obj, _trust: bool = True) -> str:
             # two genuinely different payloads digested identically. JSON cannot
             # represent such a dict, so this is a LOUD refusal, not a silent
             # merge.
-            keys = [str(k) for k in o]
+            # AUDIT FIX (round 24): `str(k)` ERASED the key's type — {1:'a'} and
+            # {'1':'a'} rendered identically, the same class as the float/str and
+            # list/tuple value collisions. JSON requires string keys anyway, so a
+            # non-str key is a LOUD refusal rather than a silent merge.
+            bad = [k for k in o if not isinstance(k, str)]
+            if bad:
+                raise ValueError(
+                    f"CANONICAL_NON_STRING_KEY: {bad[:3]!r} — JSON object keys must "
+                    f"be strings; str() would erase the key's type")
+            keys = list(o)
             if len(set(keys)) != len(keys):
                 raise ValueError(
                     "CANONICAL_KEY_COLLISION: two distinct keys normalize to the "
@@ -144,14 +153,26 @@ def digest(stages: dict) -> str:
     # real stage that happened to be named `ts`/`timing`. Volatile filtering
     # belongs INSIDE payloads (canonical does that); a stage name is a label the
     # caller chose and must be hashed.
+    # AUDIT FIX (round 24): a non-str stage name raised AttributeError from
+    # `name.encode()` instead of this module's named ValueError contract.
+    _bad_names = [n for n in stages if not isinstance(n, str)]
+    if _bad_names:
+        raise ValueError(
+            f"RUN_DIGEST_NON_STRING_STAGE: {_bad_names[:3]!r} — stage names are labels")
     for name in sorted(stages):
-        h.update(name.encode()); h.update(b"\x00")
+        # AUDIT FIX (round 24): the framing was `name \x00 payload \x1e` with the
+        # name UNESCAPED, so a name CONTAINING those bytes forged a stage
+        # boundary — one stage rendered byte-identical to two, a false match.
+        # Both are now LENGTH-PREFIXED, which no name content can forge.
+        _n = name.encode()
+        h.update(len(_n).to_bytes(8, "big")); h.update(_n)
         # AUDIT FIX (round 22): the reserved-key refusal applies to RAW input.
         # `digest` is fed by `RunDigest.__post_init__`, which ALREADY froze (and
         # validated) every stage — so re-running the trust check on those values
         # refused the digest's OWN tags. An already-frozen payload renders with
         # `_render`; a raw one goes through `canonical` and its check.
-        h.update(_render_stage(stages[name]).encode()); h.update(b"\x1e")
+        _p = _render_stage(stages[name]).encode()
+        h.update(len(_p).to_bytes(8, "big")); h.update(_p)
     return h.hexdigest()
 
 
@@ -162,9 +183,10 @@ def digest(stages: dict) -> str:
 # payload cannot forge a tag at all (loud fail, not a silent merge).
 _TAG_FLOAT = "__py_float__"
 _TAG_BYTES = "__py_bytes__"
+_TAG_BYTEARRAY = "__py_bytearray__"
 _TAG_SEQ = {"list": "__py_list__", "tuple": "__py_tuple__",
             "set": "__py_set__", "frozenset": "__py_frozenset__"}
-_TAGS = frozenset({_TAG_FLOAT, _TAG_BYTES, *_TAG_SEQ.values()})
+_TAGS = frozenset({_TAG_FLOAT, _TAG_BYTES, _TAG_BYTEARRAY, *_TAG_SEQ.values()})
 
 
 class _FrozenDict(dict):
@@ -297,7 +319,11 @@ def _freeze(o, _seen=None):
         # (one invalid byte) decodes to the 4-char string "\\xff", IDENTICAL to
         # the decoding of b'\\xff' (four ASCII bytes). Two distinct payloads
         # therefore shared a digest. hex() is injective and type-tagged.
-        return _Tag({_TAG_BYTES: o.hex()})
+        # AUDIT FIX (round 24): bytes and bytearray shared ONE tag, so they
+        # digested identically — the same type-erasure class as list/tuple and
+        # set/frozenset. Each gets its own tag.
+        _k = _TAG_BYTES if isinstance(o, bytes) else _TAG_BYTEARRAY
+        return _Tag({_k: o.hex()})
     return o
 
 
