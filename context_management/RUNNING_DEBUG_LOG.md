@@ -39,3 +39,21 @@ _ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` ·
 
 ---
 _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-23._
+
+
+## EN-035 · A BATCH EDIT SCRIPT THAT ABORTS SILENTLY SKIPS THE REST (round 26)
+- FINDING: my batch-edit helper did `raise SystemExit` on the first ANCHOR MISS.
+  Round 24's batch hit one early, so FIVE fixes were WRITTEN BUT NEVER APPLIED —
+  and I saw only the `applied: X` lines printed BEFORE the abort, so I believed
+  the batch had run.
+- CONSEQUENCE: round 25 "found" all five again. I then read that as the reviewer
+  inventing new findings and RULED the gate unreachable by iteration. **The ruling
+  was based on false data** — the code had simply never changed.
+- THE FIX, and it is a standing rule now:
+  1. a batch script is NON-ABORTING — it records each outcome and reports at the end;
+  2. after every batch, VERIFY each fix by grepping for a unique string it adds;
+  3. never infer "applied" from the absence of an error.
+- THE GENERAL LAW: a silent no-op is indistinguishable from success. This session
+  has now hit that three times (a `str.replace` whose anchor did not match, a
+  `git checkout` that reverted an edit, and this aborted batch). Every edit must
+  assert it applied.
