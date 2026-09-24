@@ -185,15 +185,19 @@ class Circuit:
             _bad.append("direction")
         # AUDIT FIX (round 28): confidence rejected only bool/non-numeric, so a
         # NaN/Inf passed into the gates where comparisons misbehave.
+        # AUDIT FIX (round 38): `if _conf is not None` let an EXPLICIT None skip
+        # the check entirely, so `confidence=None` reached TradeCandidate.
+        # A PRESENT key must hold a usable number; absence is the only excuse.
         _conf = bars_by_tf.get("confidence")
-        if _conf is not None and (isinstance(_conf, bool)
-                                  or not isinstance(_conf, (int, float))
-                                  or _conf != _conf or abs(_conf) == float("inf")):
+        if "confidence" in bars_by_tf and (isinstance(_conf, bool)
+                                           or not isinstance(_conf, (int, float))
+                                           or _conf != _conf
+                                           or abs(_conf) == float("inf")):
             _bad.append("confidence")
         # AUDIT FIX (round 28): zone_width_pips forwarded ANY caller value
         # (str/bool/NaN/Inf/negative) straight into TradeCandidate.
         _zw = bars_by_tf.get("zone_width_pips")
-        if _zw is not None and (isinstance(_zw, bool)
+        if "zone_width_pips" in bars_by_tf and (isinstance(_zw, bool)
                                 or not isinstance(_zw, (int, float))
                                 or _zw != _zw or abs(_zw) == float("inf")
                                 or _zw <= 0):
@@ -201,6 +205,15 @@ class Circuit:
         for _b in ("cascade_valid", "chain_integrity"):
             if _b in bars_by_tf and not isinstance(bars_by_tf[_b], bool):
                 _bad.append(_b)
+        # AUDIT FIX (round 38): `zone_id`/`recent_keys` were forwarded with NO
+        # type check while every neighbour was strict — a non-str zone_id or a
+        # non-list recent_keys broke the named-refusal contract in g_dedup.
+        _zid = bars_by_tf.get("zone_id")
+        if _zid is not None and not isinstance(_zid, str):
+            _bad.append("zone_id")
+        _rk = bars_by_tf.get("recent_keys")
+        if _rk is not None and not isinstance(_rk, (list, tuple)):
+            _bad.append("recent_keys")
         if _bad:
             raise ValueError(
                 f"CANDIDATE_BAD_TYPE: {sorted(set(_bad))} — each field has a "

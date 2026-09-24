@@ -28,11 +28,13 @@ ok4 = t_inv.status == "TRUSTED_REJECT"
 
 # 4) a predicate whose subject is CODE only: no LIMITE/GEOMETRY vote
 t_zone = trust(at_04_zone_positive, {**BASE, "zone_width_pips": 0.0})
-# AUDIT ROUND 37: a SINGLE-SOURCE predicate (AT-04 carries `witnesses == ()`)
-# can never be TRUSTED — the module's 3-way guarantee requires at least TWO
-# independent votes. Its verdict is INCONCLUSIVE with the CODE vote recorded,
-# which is the honest label for a one-witness panel.
-ok5 = t_zone.status == "INCONCLUSIVE" and "LIMITE" not in t_zone.witnesses \
+# AUDIT ROUND 38 refined round 37: a predicate whose panel is REGISTERED AS
+# EMPTY (AT-04 has no independent witness by DESIGN) is CODE-AUTHORITATIVE — its
+# own verdict stands. Round 37's blanket INCONCLUSIVE made AT-02/04/05/10 unable
+# to ever return a verdict, so trust_all could never be all-TRUSTED. The
+# distinction is DELIBERATE (registered empty) vs INCOMPLETE (registered
+# witnesses that abstained, which stays INCONCLUSIVE).
+ok5 = t_zone.status == "TRUSTED_REJECT" and "LIMITE" not in t_zone.witnesses \
       and t_zone.witnesses.get("CODE") is False
 
 # 5) the witness PANEL is predicate-aware (audit rounds 8 and 13)

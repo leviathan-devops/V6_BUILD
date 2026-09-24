@@ -32,11 +32,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
     from run_ct_suite import ADV, HAPPY, EXCLUDED, EXCLUSION_REASON  # noqa: E402
 except Exception as _imp_e:                                # noqa: BLE001
-    import json as _j
+    # AUDIT FIX (round 38): this wrote directly, so a missing /work/p3 raised
+    # FileNotFoundError (masking the import error) and a kill mid-write left a
+    # TRUNCATED capture. Same atomic pattern as main(): mkdir + tmp + replace.
+    import json as _j, os as _os
     from pathlib import Path as _P
-    _P("/work/p3/ct-capture.json").write_text(_j.dumps(
-        {"scenarios": [], "error": f"AUTHORITY_IMPORT_FAILED: {type(_imp_e).__name__}: {_imp_e}"},
-        indent=2))
+    try:
+        _p = _P("/work/p3/ct-capture.json")
+        _p.parent.mkdir(parents=True, exist_ok=True)
+        _t = _p.with_suffix(".json.tmp")
+        _t.write_text(_j.dumps(
+            {"scenarios": [],
+             "error": f"AUTHORITY_IMPORT_FAILED: {type(_imp_e).__name__}: {_imp_e}"},
+            indent=2))
+        _os.replace(_t, _p)
+    except Exception as _w:                                # noqa: BLE001
+        import sys as _s
+        print(f"CAPTURE_WRITE_FAILED: {type(_w).__name__}: {_w}", file=_s.stderr)
     raise SystemExit(2)
 
 CT_DIR = "/work/p3/plutus-ct"

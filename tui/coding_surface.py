@@ -210,7 +210,10 @@ _EXEC_NAMES = _ALIASED + [
     # AUDIT FIX (round 35): the suffix used `_WS` (space/tab + optional
     # BACKSLASH-newline only), so `shell=\nTrue` — legal inside parens via
     # implicit line joining — evaded while the prefix already tolerated a newline.
-    (_f("shell", "=True"),       _f("shell", "[ \t\n]*=", "[ \t\n]*", "True")),
+    # AUDIT FIX (round 38): no boundary meant `seashell=True` matched, and the
+    # plain-newline class missed a BACKSLASH-newline continuation. `_PRE`/`_POST`
+    # plus `_WS` on both sides.
+    (_f("shell", "=True"),       _f(_PRE, "shell", _WS, "=", _WS, "True", _POST)),
     (_f("run", "py"),            _f(_PRE, "run", "py", _POST)),
     (_f("importlib.", "import_module"),
      # AUDIT FIX (round 10): same literal-dot defect as os.system above.

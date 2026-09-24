@@ -497,8 +497,14 @@ def trust(predicate: Callable, c: dict) -> TrustVerdict:
     elif len(voting) < len(votes):
         status = INCONCLUSIVE
     elif len(voting) < 2:
-        # a ONE-source panel can never be TRUSTED (round 37)
-        status = INCONCLUSIVE
+        # AUDIT FIX (round 38, completing round 37): forcing INCONCLUSIVE made
+        # AT-02/04/05/10 — which have NO independent witness by DESIGN — unable to
+        # EVER return TRUSTED or TRUSTED_REJECT, so trust_all could never be
+        # all-TRUSTED. The distinction is DELIBERATE vs INCOMPLETE: a predicate
+        # whose panel is registered as empty is CODE-authoritative (its own
+        # verdict stands); a predicate with REGISTERED witnesses that abstained
+        # is INCOMPLETE (handled by the branch above).
+        status = TRUSTED if code_ok else TRUSTED_REJECT
     elif all(voting) and len(voting) >= 2:
         # AUDIT FIX (round 37, completing round 35): the single-vote case still
         # reached TRUSTED — AT-02/04/05/10 carry `witnesses == ()`, so

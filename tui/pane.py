@@ -224,8 +224,15 @@ def has_probability_bars(text: str) -> bool:
         # never terminated. The second exited on the `argmax=` row itself, which
         # is ALSO at the one-space column. The section's own one-space rows are
         # the `argmax=` headers; anything else at that column is a NEW section.
-        if _in and ln.startswith(" ") and not ln.startswith("  ") \
-                and ln.strip() and "argmax=" not in ln:
+        # AUDIT FIX (round 38): the exit fired on the renderer's OWN in-section
+        # rows (`<malformed distribution>`, `WARNING non-numeric entries`, ...),
+        # which sit at the one-space column WITHOUT `argmax=` — so the scan
+        # aborted before any later bar row. The section's own rows are now
+        # RECOGNIZED (argmax headers and the `<...>`/WARNING notices) and only a
+        # genuinely different one-space line exits.
+        if _in and ln.startswith(" ") and not ln.startswith("  ") and ln.strip() \
+                and "argmax=" not in ln and not ln.lstrip().startswith("<") \
+                and "WARNING non-numeric" not in ln:
             _in = False
             continue
         if not _in:
