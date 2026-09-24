@@ -248,7 +248,14 @@ def has_gate_decisions(text: str) -> bool:
         # the section ENDS at the next SECTION HEADER (an all-caps label at the
         # one-space column) — NOT at the `===` rule, which sits BETWEEN the header
         # and its own rows.
-        if _in and _re.match(r"^ [A-Z][A-Z0-9 ()/]+$", ln):
+        # AUDIT FIX (round 32): the terminator regex required ALL-CAPS, but the
+        # real headers are ` LIVE P&L`, ` DECIDER PROBABILITIES (every ...)` and
+        # ` REJECTION LOG (N entries)` — lowercase letters and `&`. It never
+        # matched, so the GATE scan leaked into the REJECTION LOG, whose rows
+        # share the verdict column. Any one-space line that is NOT a verdict row
+        # and NOT a rule now ends the section.
+        if _in and ln.startswith(" ") and not ln.startswith(" [") \
+                and ln.strip() and not set(ln.strip()) <= {"="}:
             _in = False
             continue
         if _in and (ln.startswith(" [PASS  ]") or ln.startswith(" [REJECT]")):

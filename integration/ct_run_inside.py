@@ -32,6 +32,24 @@ CT_DIR = "/work/p3/plutus-ct"
 CAPTURE = Path("/work/p3/ct-capture.json")
 
 
+def _fail_capture(reason: str) -> None:
+    """Write a STRUCTURED capture for a pre-flight failure.
+
+    AUDIT FIX (round 32): the authority import sat at MODULE level, so a missing
+    or broken `run_ct_suite` exited with a traceback and left the capture MISSING
+    or — worse — STALE from a prior run with the same scenario ids, which the host
+    assembler would then validate as current. A failure now writes a capture that
+    says so.
+    """
+    import json as _json
+    from pathlib import Path as _P
+    try:
+        _P("/work/p3/ct-capture.json").write_text(_json.dumps(
+            {"scenarios": [], "error": reason}, indent=2))
+    except Exception:                                      # noqa: BLE001
+        pass
+
+
 def _evidence(out: str, token: str, window: int = 1500) -> str:
     """The persisted evidence, GUARANTEED to contain `token` when it is present.
 

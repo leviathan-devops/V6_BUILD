@@ -23,7 +23,11 @@ TRUSTED, DIVERGENT, INCONCLUSIVE = "TRUSTED", "DIVERGENT", "INCONCLUSIVE"
 TRUSTED_REJECT = "TRUSTED_REJECT"
 ALL_STATUSES = (TRUSTED, TRUSTED_REJECT, DIVERGENT, INCONCLUSIVE)
 
-PIP = {"EUR/USD": 0.0001, "GBP/USD": 0.0001, "DXY": 0.01}
+# AUDIT FIX (round 32): this was a SECOND DECLARATION of the pip authority — the
+# same defect fixed in gates.py in round 9. Two tables for one quantity drift, and
+# a pair added to one is silently unknown to the other. The single authority is
+# math_queries.PIP.
+from math_queries import PIP
 RRR_FLOOR = 2.5
 SL_MAX_PIPS = 55.0
 
@@ -115,7 +119,22 @@ def at_02_sl_envelope(c) -> Verdict:
     # distance passed (e.g. -10 <= 55) — and a distance can never be negative:
     # it means the upstream pip math is inverted or corrupt. The lower bound
     # makes the predicate genuinely fail-closed.
+    # AUDIT FIX (round 32): the STATED distance was trusted — a candidate could
+    # claim `sl_distance_pips=10` while its own geometry (`|entry-sl|/pip`) was
+    # 100 pips, passing a `(0, 55]` envelope against a risk 2x over the cap.
+    # AT-09 recomputes the RRR from geometry for the same reason; the distance is
+    # recomputed here.
+    _pair = c.get("pair")
+    _geom_ok = True
     _sd = c["sl_distance_pips"]
+    if _pair in PIP and isinstance(c.get("entry"), (int, float)) \
+            and isinstance(c.get("sl"), (int, float)):
+        _true_sd = abs(c["entry"] - c["sl"]) / PIP[_pair]
+        # the stated value must AGREE with the geometry (the dual-check epsilon)
+        if abs(_true_sd - _sd) > 0.02:
+            return _v("AT-02", False, "AT02_DISTANCE_MISMATCH",
+                      f"stated {_sd:.2f}p vs geometry {_true_sd:.2f}p")
+        _sd = _true_sd
     ok = 0.0 < _sd <= SL_MAX_PIPS
     return _v("AT-02", ok, "AT02_PASS" if ok else "AT02_SL_OUTSIDE_ENVELOPE",
               f"sl {_sd:.2f}p vs envelope (0, {SL_MAX_PIPS}]p")
