@@ -399,8 +399,12 @@ def _negative_variant(r, opts):
         # word (pips/percent/ratio/RRR/buffer/atr/trades) — the mechanisms
         # corpus spells its bounds that way. Anything else is SKIPPED, which
         # costs coverage and never emits wrong supervision.
+        # AUDIT FIX (round 40): `%` is a NON-WORD char, so `(?:...%)\b` requires
+        # a word-boundary after it — impossible when the next char is a space or
+        # the end. A threshold spelled `10%` therefore never matched. The `%`
+        # alternative uses a lookahead instead of `\b`.
         _thresh = re.search(
-            r"\b(\d+(?:\.\d+)?)\s*(?:" + _BOUND + r")\b"
+            r"\b(\d+(?:\.\d+)?)\s*(?:" + _BOUND + r")(?!\w)"
             r"|\b(?:" + _BOUND + r")\s*(\d+(?:\.\d+)?)\b",
             r.quote, re.I)
         if not _thresh:

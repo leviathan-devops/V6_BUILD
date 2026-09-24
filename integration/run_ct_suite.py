@@ -149,7 +149,10 @@ def main() -> int:
     # false-green class. Both the shape and a non-empty expectation are enforced.
     try:
         cap = json.loads(cap_path.read_text())
-    except (json.JSONDecodeError, OSError) as e:
+    # AUDIT FIX (round 40): UnicodeDecodeError is a ValueError, NOT an OSError,
+    # so a binary capture escaped this handler and crashed the validator. (An
+    # r24 fix for exactly this never landed — the aborting-batch class again.)
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError, ValueError) as e:
         print(f"CT_CAPTURE_UNREADABLE: {type(e).__name__}: {e}")
         return 2
     if not isinstance(cap, dict):
@@ -278,8 +281,12 @@ def main() -> int:
         },
         "overallVerdict": "PASS" if n_pass == len(results) else "FAIL",
     }
+    # AUDIT FIX (round 40): a kill mid-write left a TRUNCATED artifact — the
+    # same atomic pattern the driver uses.
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(artifact, indent=2))
+    _tmp = OUT.with_suffix(".json.tmp")
+    _tmp.write_text(json.dumps(artifact, indent=2))
+    os.replace(_tmp, OUT)
     print(json.dumps(artifact["summary"], indent=2))
     print("overallVerdict:", artifact["overallVerdict"])
     for r in results:

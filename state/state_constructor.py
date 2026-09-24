@@ -83,7 +83,15 @@ def parse_bars(raw: list[dict], anchor_ms: int) -> list[Bar]:
         try:
             o = float(r["open"]); h = float(r["high"])
             l = float(r["low"]);  cl = float(r["close"])
-            v = float(r.get("volume") or 0.0)
+            # AUDIT FIX (round 40): `float(r.get("volume") or 0.0)` left NaN/Inf
+            # in place (both are TRUTHY, so the `or` never fires) and a bad volume
+            # was reported as BAR_BAD_OHLC — a mislabel. Volume is validated and
+            # named separately.
+            _vraw = r.get("volume")
+            v = 0.0 if _vraw is None else float(_vraw)
+            if v != v or abs(v) == float("inf") or v < 0:
+                bad_ohlc.append(f"bar ts={ts} volume={_vraw!r} is not a finite >=0")
+                continue
         except KeyError as e:
             bad_ohlc.append(f"bar ts={ts} has no {e}")
             continue
