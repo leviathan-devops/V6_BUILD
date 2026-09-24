@@ -1,7 +1,7 @@
 {
   "schema": "plutus-v6-container-test-results/v1",
-  "generated": "2026-09-24T01:56:45.539346+00:00",
-  "durationMs": 6211.1,
+  "generated": "2026-09-24T02:08:00.540410+00:00",
+  "durationMs": 6312.2,
   "scenarios": [
     {
       "id": "ADV-1",
@@ -13,7 +13,7 @@
       "failToken": "NO_REFUSAL",
       "failTokenAbsent": true,
       "toolResultContext": "REFUSED NO_BARS: the feed returned an empty bar list\n",
-      "durationMs": 22.9,
+      "durationMs": 21.9,
       "verdict": "PASS"
     },
     {
@@ -26,7 +26,7 @@
       "failToken": "LEAK_NOT_CAUGHT",
       "failTokenAbsent": true,
       "toolResultContext": "REFUSED FUTURE_BAR_LEAK: 1 bar(s) past anchor 1783317600000 (first leaked ts=1783317660000)\n",
-      "durationMs": 25.5,
+      "durationMs": 23.3,
       "verdict": "PASS"
     },
     {
@@ -39,7 +39,7 @@
       "failToken": "ACCEPTED_BADLY",
       "failTokenAbsent": true,
       "toolResultContext": "REJECTED ['G-RRR_REJECT', 'G-SL_REJECT']\n",
-      "durationMs": 25.9,
+      "durationMs": 24.8,
       "verdict": "PASS"
     },
     {
@@ -52,7 +52,7 @@
       "failToken": "G-SESSION_PASS",
       "failTokenAbsent": true,
       "toolResultContext": "G-SESSION_REJECT session 14:30 outside London 02:00-05:00\n",
-      "durationMs": 24.1,
+      "durationMs": 27.2,
       "verdict": "PASS"
     },
     {
@@ -65,7 +65,7 @@
       "failToken": "G-DUAL_PASS",
       "failTokenAbsent": true,
       "toolResultContext": "G-DUAL_REJECT |limite 9.9900 - code 1.5405| = 8.4495 > eps 0.02\n",
-      "durationMs": 24.6,
+      "durationMs": 28.1,
       "verdict": "PASS"
     },
     {
@@ -77,8 +77,8 @@
       "passTokenMatch": true,
       "failToken": "[TOKEN-ABSENT]",
       "failTokenAbsent": true,
-      "toolResultContext": "[TOKEN] test_golden_week_e2e\n[DETAIL] TIER A documented-exact trades = 6 (6 rows in canon, 2 carry no levels)\n[DETAIL] Tier-A accepted by all 8 gates = 6/6\n[DETAIL] Tier-A RRR reproduced +-0.02 = True\n[DETAIL]   DXY#1: canon 4.25 circuit 4.2500 accepted=True\n[DETAIL]   DXY#2: canon 4.92 circuit 4.9167 accepted=True\n[DETAIL]   DXY#3: canon 4.6 circuit 4.6000 accepted=True\n[DETAIL]   DXY#4: canon 3.58 circuit 3.5833 accepted=True\n[DETAIL]   DXY#5: canon 3.79 circuit 3.7857 accepted=True\n[DETAIL]   DXY#6: canon 5.84 circuit 5.8421 accepted=True\n[DETAIL] FX canon entries reproduced <=3p = 15/15 ok=True max_delta=0.000p\n[DETAIL] dual_verified (independent Limite present) = False\n[DETAIL] latency mean=5.12ms p95=4.70ms (<500ms: True)\n[DETAIL] commission: 0%=184.5p 0.1%=183.3p 0.2%=182.1p\n[DETAIL] run digest deterministic = True\nRESULT: PASS test_golden_week_e2e\n",
-      "durationMs": 3411.2,
+      "toolResultContext": "[TOKEN] test_golden_week_e2e\n[DETAIL] TIER A documented-exact trades = 6 (6 rows in canon, 2 carry no levels)\n[DETAIL] Tier-A accepted by all 8 gates = 6/6\n[DETAIL] Tier-A RRR reproduced +-0.02 = True\n[DETAIL]   DXY#1: canon 4.25 circuit 4.2500 accepted=True\n[DETAIL]   DXY#2: canon 4.92 circuit 4.9167 accepted=True\n[DETAIL]   DXY#3: canon 4.6 circuit 4.6000 accepted=True\n[DETAIL]   DXY#4: canon 3.58 circuit 3.5833 accepted=True\n[DETAIL]   DXY#5: canon 3.79 circuit 3.7857 accepted=True\n[DETAIL]   DXY#6: canon 5.84 circuit 5.8421 accepted=True\n[DETAIL] FX canon entries reproduced <=3p = 15/15 ok=True max_delta=0.000p\n[DETAIL] dual_verified (independent Limite present) = False\n[DETAIL] latency mean=5.01ms p95=4.55ms (<500ms: True)\n[DETAIL] commission: 0%=184.5p 0.1%=183.3p 0.2%=182.1p\n[DETAIL] run digest deterministic = True\nRESULT: PASS test_golden_week_e2e\n",
+      "durationMs": 3518.2,
       "verdict": "PASS"
     },
     {
@@ -91,7 +91,7 @@
       "failToken": "[TOKEN-ABSENT]",
       "failTokenAbsent": true,
       "toolResultContext": "[TOKEN] test_limite_serves_temp0\n[DETAIL] served models = ['limite-1b']\n[DETAIL] client TEMPERATURE = 0.0 (law: must be 0.0) -> True\n[DETAIL] run1 = ' 42.\\n</think>\\n\\\\[\\n17+25=42\\n\\\\]\\n\\n\\\\[\\n\\\\boxed{42}\\n\\\\]'\n[DETAIL] run2 = ' 42.\\n</think>\\n\\\\[\\n17+25=42\\n\\\\]\\n\\n\\\\[\\n\\\\boxed{42}\\n\\\\]'\n[DETAIL] deterministic (temp=0 => byte-identical) = True\nRESULT: PASS test_limite_serves_temp0\n",
-      "durationMs": 1317.8,
+      "durationMs": 1294.7,
       "verdict": "PASS"
     },
     {
@@ -104,7 +104,7 @@
       "failToken": "[TOKEN-ABSENT]",
       "failTokenAbsent": true,
       "toolResultContext": "[TOKEN] test_pass_e1_questions\n[DETAIL] template shape: 17 questions (E1=5 E2=4 E3=5 PVE=3) render_errors=[]\n[DETAIL] expected_level = 3.73 (blueprint \u00a71.4 says 3.73)\n[DETAIL] LIVE Decider answered 17/17 questions\n[DETAIL]   E1.Q1: argmax=LQZ p=0.7789\n[DETAIL]   E1.Q2: argmax=pass p=0.5598\n[DETAIL]   E1.Q3: argmax=3x_deployed p=0.2797\n[DETAIL]   E1.Q4: argmax=weak_demand p=0.2903\n[DETAIL]   E1.Q5: noul=0.8556\n[DETAIL]   E2.Q1: argmax=consolidation p=0.6204\n[DETAIL]   E2.Q2: argmax=BS_day p=0.4872\n[DETAIL]   E2.Q3: argmax=valid p=0.5601\n[DETAIL]   E2.Q4: argmax=unmitigated p=0.5143\n[DETAIL]   E3.Q1: argmax=short p=0.7441\n[DETAIL]   E3.Q2: argmax=2 p=0.2821\n[DETAIL]   E3.Q3: noul=0.8161\n[DETAIL]   E3.Q4: noul=0.4402\n[DETAIL]   E3.Q5: noul=0.3935\n[DETAIL]   PVE.Q1: argmax=2 p=0.2689\n[DETAIL]   PVE.Q2: noul=0.6514\n[DETAIL]   PVE.Q3: argmax=2 p=0.273\n[DETAIL] uniform (trivial) distributions = []\nRESULT: PASS test_pass_e1_questions\n",
-      "durationMs": 654.6,
+      "durationMs": 637.4,
       "verdict": "PASS"
     },
     {
@@ -117,7 +117,7 @@
       "failToken": "[TOKEN-ABSENT]",
       "failTokenAbsent": true,
       "toolResultContext": "[DETAIL] === DXY TIER-A (6 documented-exact trades) ===\n[DETAIL]   0.0%: gross=184.5p cost=0.0p net=184.5p win=1.00 profitable=True\n[DETAIL]   0.1%: gross=184.5p cost=1.2p net=183.3p win=1.00 profitable=True\n[DETAIL]   0.2%: gross=184.5p cost=2.4p net=182.1p win=1.00 profitable=True\n[DETAIL] === FX GOLDEN WEEK (15 entries) ===\n[DETAIL]   0.0%: gross=665.5p cost=0.0p net=665.5p win=1.00 profitable=True\n[DETAIL]   0.1%: gross=665.5p cost=300.0p net=365.5p win=1.00 profitable=True\n[DETAIL]   0.2%: gross=665.5p cost=600.0p net=65.5p win=0.27 profitable=True\n[DETAIL] === ALL 21 ===\n[DETAIL]   0.0%: gross=850.0p cost=0.0p net=850.0p profitable=True\n[DETAIL]   0.1%: gross=850.0p cost=301.2p net=548.8p profitable=True\n[DETAIL]   0.2%: gross=850.0p cost=602.4p net=247.6p profitable=True\n[TOKEN] test_commission_0_1pct\n[DETAIL] golden-week net at 0.1% = 548.8 pips (gate: > 0)\n[DETAIL] cost per FX trade at 0.1% = 20.00 pips\n[DETAIL] cost per DXY trade at 0.1% = 0.20 pips\nRESULT: PASS test_commission_0_1pct\n",
-      "durationMs": 32.6,
+      "durationMs": 31.8,
       "verdict": "PASS"
     },
     {
@@ -130,7 +130,7 @@
       "failToken": "[TOKEN-ABSENT]",
       "failTokenAbsent": true,
       "toolResultContext": "[TOKEN] test_determinism_sha_match\n[DETAIL] run1 sha=dc580311dc2c89d27ea2e1559b3914daf036288eb16f25ae7d34c3a9094b2932\n[DETAIL] run2 sha=dc580311dc2c89d27ea2e1559b3914daf036288eb16f25ae7d34c3a9094b2932  match=True (pass=True)\n[DETAIL] different seed sha=7747d039f684e8cac766aeccd537432f4c4fe21214ba6d6a58f775d72859cdc3 differs=True\n[DETAIL] top-level keys ARE hashed (round-8 contract) = True; nested volatile keys excluded = True\n[DETAIL] divergence names the stage=True stages=['decision']\n[DETAIL] assert_deterministic(pure fn) match=True\nRESULT: PASS test_determinism_sha_match\n",
-      "durationMs": 33.1,
+      "durationMs": 34.4,
       "verdict": "PASS"
     },
     {
@@ -143,7 +143,7 @@
       "failToken": "[TOKEN-ABSENT]",
       "failTokenAbsent": true,
       "toolResultContext": " present=True option_rows=13 (>=11: True)\n[DETAIL] gate decisions present=True | pnl rendered=True | rejection logged=True\n[DETAIL] all lines <= 76 cols=True | no code surface=True\n[DETAIL] --- pane excerpt ---\n[DETAIL] ============================================================================\n[DETAIL]  PLUTUS V6 \u2014 DXY  LONDON 02:00\n[DETAIL] ============================================================================\n[DETAIL] ============================================================================\n[DETAIL]  LIVE P&L\n[DETAIL] ============================================================================\n[DETAIL]  net_pips=+16.80   open_positions=1\n[DETAIL] ============================================================================\n[DETAIL]  DECIDER PROBABILITIES (every question, every option)\n[DETAIL] ============================================================================\n[DETAIL]  E1.Q4  argmax=strong_supply p=0.830\n[DETAIL]     strong_supply       0.830 |#########################.....|\n[DETAIL]     neutral             0.120 |####..........................|\n[DETAIL]     strong_demand       0.050 |##............................|\nRESULT: PASS test_tui_renders_probabilities\n",
-      "durationMs": 30.2,
+      "durationMs": 32.6,
       "verdict": "PASS"
     },
     {
@@ -156,7 +156,7 @@
       "failToken": "[TOKEN-ABSENT]",
       "failTokenAbsent": true,
       "toolResultContext": "[TOKEN] test_zero_coding_surface\n[DETAIL] agent modules scanned = 16 (+ the scanner via the self-scan)\n[DETAIL] EXACT code-execution violations = 0\n[DETAIL] SUSPECT (aliased receiver, needs review) = 16\n[DETAIL]   REVIEW limite/math_queries.py:37 builtins.compile-any-receiver 're.compile('\n[DETAIL]   REVIEW limite/limite_client.py:22 pickle.load-any-receiver 'json.loads('\n[DETAIL]   REVIEW limite/limite_client.py:55 pickle.load-any-receiver 'json.loads('\n[DETAIL]   REVIEW decider/decider_client.py:41 pickle.load-any-receiver 'json.loads('\n[DETAIL]   REVIEW decider/decider_client.py:78 pickle.load-any-receiver 'json.loads('\n[DETAIL]   REVIEW memory/memory_store.py:42 os.exec-any-receiver 'self.db.execute('\n[DETAIL] undeclared write violations = 0\n[DETAIL] negative control fires = True caught=['builtins.eval-any-receiver', 'eval', 'os.system', 'os.system-any-receiver', 'popen', 'subprocess']\n[DETAIL] CRITICAL bypass closed (3 planted files) = True found=7\n[DETAIL] allowlist is path-keyed = True | evil/report.py allowed = False\n[DETAIL] the scanner scans itself clean (no exemption) = True\n[DETAIL] lexicons: exec=28 write=23 allowed_paths=4\nRESULT: PASS test_zero_coding_surface\n",
-      "durationMs": 528.0,
+      "durationMs": 547.7,
       "verdict": "PASS"
     },
     {
@@ -168,8 +168,8 @@
       "passTokenMatch": true,
       "failToken": "[TOKEN-ABSENT]",
       "failTokenAbsent": true,
-      "toolResultContext": "  negatives SKIPPED (no valid corruption): 1238\n[TOKEN] test_corpus_record_count\n[DETAIL] records written = 1314 (gate: >= 700 -> True)\n[DETAIL] stats = {'total': 1314, 'cards': 1242, 'root_counts': {'/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/MASTER_CONTEXT/mechanisms': 583, '/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/MASTER_CONTEXT/rulings': 38, '/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/MASTER_CONTEXT/knowledge-graph': 0, '/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/MASTER_CONTEXT/cards': 0, '/home/leviathan/.omp/wt/plutus-main-66dfa4c/PLUTUS/agent/src/card': 0, '/home/leviathan/.omp/wt/plutus-main-66dfa4c/PLUTUS/agent/MASTER_CONTEXT': 0}, 'golden': 27, 'forensic': 7, 'negatives': 38, 'kinds': {'taxonomy': 8, 'gate': 250, 'lesson': 42, 'golden': 50, 'forensic': 7, 'limit': 73, 'mechanism': 884}}\n[DETAIL] provenance/quote/triple violations = 0\nRESULT: PASS test_corpus_record_count\n",
-      "durationMs": 80.7,
+      "toolResultContext": "  negatives SKIPPED (no valid corruption): 1238\n[TOKEN] test_corpus_record_count\n[DETAIL] records written = 1314 (gate: >= 700 -> True)\n[DETAIL] stats = {'total': 1314, 'cards': 1242, 'root_counts': {'/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/MASTER_CONTEXT/mechanisms': 583, '/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/MASTER_CONTEXT/rulings': 38, '/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/MASTER_CONTEXT/knowledge-graph': 0, '/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/MASTER_CONTEXT/cards': 0, '/home/leviathan/.omp/wt/plutus-main-66dfa4c/PLUTUS/agent/src/card': 0, '/home/leviathan/.omp/wt/plutus-main-66dfa4c/PLUTUS/agent/MASTER_CONTEXT': 0}, 'golden': 27, 'forensic': 7, 'negatives': 38, 'kinds': {'forensic': 7, 'gate': 250, 'lesson': 42, 'taxonomy': 8, 'golden': 50, 'mechanism': 884, 'limit': 73}}\n[DETAIL] provenance/quote/triple violations = 0\nRESULT: PASS test_corpus_record_count\n",
+      "durationMs": 89.7,
       "verdict": "PASS"
     }
   ],

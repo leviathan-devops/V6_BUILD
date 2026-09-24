@@ -168,6 +168,10 @@ BARS_PER_FEED = 8
 
 def render_feed_block(pair: str, tf: str, bars: list[Bar], n: int = BARS_PER_FEED) -> str:
     """The compact OHLC block for one (pair, timeframe)."""
+    # AUDIT FIX (round 31): `bars[-0:]` is `bars[0:]` — the WHOLE feed — so n=0
+    # silently expanded the block and defeated the 8-bar token budget.
+    if n <= 0:
+        raise ValueError(f"BARS_N_INVALID: n={n} must be positive")
     recent = bars[-n:]
     pip = PIP.get(pair, 0.0001)
     # DEFECT FIXED (2026-09-24): the precision was HARDCODED at 5 decimals for
@@ -361,12 +365,17 @@ def count_tokens(text: str) -> int:
     # in — and this file documents that estimate as a ~4x UNDERCOUNT, so the
     # guard silently admitted states far over the limit. The refusal is now LOUD
     # unless the caller explicitly opts into the estimate.
-    if _t is None and not _ALLOW_ESTIMATE_FALLBACK:
+    # AUDIT FIX (round 31): the flag was captured at IMPORT time, so setting it
+    # afterwards (a test fixture, a config reload) had no effect. Read per call.
+    _allow = (os.environ.get("PLUTUS_ALLOW_TOKEN_ESTIMATE") == "1"
+              or _ALLOW_ESTIMATE_FALLBACK)
+    if _t is None and not _allow:
         raise ValueError(
-            "STATE_TOKENIZER_UNAVAILABLE: the Decider's tokenizer could not be "
-            "loaded, and the word-count estimate undercounts by ~4x — the "
-            "STATE_TOKEN_LIMIT guard cannot be trusted with it. Set "
-            "DECIDER_TOKENIZER (or PLUTUS_ALLOW_TOKEN_ESTIMATE=1 to accept the risk).")
+            f"STATE_TOKENIZER_UNAVAILABLE: the Decider's tokenizer could not be "
+            f"loaded ({globals().get('_TOKENIZER_FAIL') or 'no candidate'}), and "
+            f"the word-count estimate undercounts by ~4x — the STATE_TOKEN_LIMIT "
+            f"guard cannot be trusted with it. Set DECIDER_TOKENIZER (or "
+            f"PLUTUS_ALLOW_TOKEN_ESTIMATE=1 to accept the risk).")
     if _t is not None:
         try:
             return len(_t.encode(text, add_special_tokens=False))

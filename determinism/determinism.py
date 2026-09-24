@@ -218,22 +218,6 @@ class _FrozenDict(dict):
     __ior__ = _no
 
 
-def _check_reserved_raw(o, _seen=None) -> None:
-    """The reserved-key check WITHOUT the _Tag early-refusal — for values the
-    digest itself froze (their tags are legitimate), where the question is only
-    whether the underlying PAYLOAD carried a forged key."""
-    if isinstance(o, dict):
-        forged = _TAGS.intersection(str(k) for k in o if not isinstance(k, _Tag))
-        if forged and not isinstance(o, _Tag):
-            raise ValueError(
-                f"CANONICAL_RESERVED_KEY: {sorted(forged)} — reserved type tags")
-        for k, v in o.items():
-            _check_reserved_raw(v, _seen)
-    elif isinstance(o, (list, tuple, set, frozenset)):
-        for v in o:
-            _check_reserved_raw(v, _seen)
-
-
 def _render_stage(v) -> str:
     """Render ONE stage payload, choosing the entry point by what it IS.
 

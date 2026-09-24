@@ -323,6 +323,11 @@ def geometry_witness(c) -> bool:
         return False
     if not isinstance(c.get("pair"), str):
         return False
+    # AUDIT FIX (round 31): a NEGATIVE price set (e=-1.14, sl=-1.15, tp=-1.10)
+    # satisfied the sign ordering and the pip-count band, so a non-physical quote
+    # passed. Prices are strictly positive.
+    if not (e > 0 and sl > 0 and tp > 0):
+        return False
     sign_ok = (tp > e > sl) if d == "long" else (sl > e > tp)
     dist_ok = abs(e-sl) > 0 and abs(tp-e) > 0
     # AUDIT FIX (round 9): an UNKNOWN pair fell into the `else` branch and got
@@ -392,7 +397,11 @@ def trust(predicate: Callable, c: dict) -> TrustVerdict:
     verdict naming the field, instead of raising KeyError out of the caller."""
     miss = _missing(c)
     if miss:
-        return TrustVerdict("INCONCLUSIVE", getattr(predicate, "__name__", "?"),
+        # AUDIT FIX (round 31): the normal path uses `v.name` (the AT-XX token)
+        # while this early return used the PYTHON function name, so a consumer
+        # matching `verdict.predicate == "AT-01"` missed every INCONCLUSIVE.
+        _pid = getattr(predicate, "_at_id", None) or getattr(predicate, "__name__", "?")
+        return TrustVerdict("INCONCLUSIVE", _pid,
                             {}, f"candidate is missing {miss}")
     """Adjudicate ONE predicate across the three witnesses.
 

@@ -65,13 +65,22 @@ def parse_frontmatter(text: str) -> dict:
     return out
 
 
+# unreadable cards, recorded so a partial harvest is diagnosable (round 31)
+SCAN_SKIPPED: list = []
+
+
 def scan_cards(root: Path) -> list[Record]:
     """Every markdown card under `root` with a frontmatter `quote:` becomes a record."""
     recs = []
     if not root.exists(): return recs
     for f in sorted(root.rglob("*.md")):
         try: text = f.read_text(errors="ignore")
-        except Exception: continue
+        except Exception as e:                             # noqa: BLE001
+            # AUDIT FIX (round 31): a silent skip made a partially-unreadable tree
+            # indistinguishable from a smaller one — a shrunken corpus still
+            # reported success. The skip is recorded.
+            SCAN_SKIPPED.append(f"{f}: {type(e).__name__}")
+            continue
         for i, m in enumerate(CARD_RE.finditer(text), 1):
             fm = parse_frontmatter(m.group("fm"))
             quote = fm.get("quote", "")

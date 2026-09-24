@@ -329,6 +329,14 @@ def simulate(decisions: list[TradeDecision], commission_rate: float,
     # Portfolio at the end, because Portfolio.trades is now an IMMUTABLE tuple —
     # a mutable list on a frozen dataclass let `append('junk')` bypass the
     # TradeResult validation that __post_init__ performs.
+    # AUDIT FIX (round 31): the rate was validated only inside the loop (via
+    # Fill), so `simulate([], nan, {})` returned an empty book with SUCCESS.
+    if (isinstance(commission_rate, bool)
+            or not isinstance(commission_rate, (int, float))
+            or commission_rate != commission_rate
+            or abs(commission_rate) == float("inf")
+            or commission_rate < 0):
+        raise ValueError(f"INVALID_COMMISSION: {commission_rate!r}")
     _trades: list[TradeResult] = []
     for d in decisions:
         # AUDIT FIX: a missing zone_id defaulted to "tp" (a WIN), so a typo or an

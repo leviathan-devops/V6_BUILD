@@ -205,7 +205,13 @@ class Circuit:
             # AUDIT FIX: an unknown pair must fail loudly. The first version
             # defaulted to 0.0001, silently mispricing DXY-style instruments.
             raise ValueError(f"UNKNOWN_PAIR: {pair!r} has no declared pip scale")
-        pip = PIP_SCALE[pair]
+        # AUDIT FIX (round 31): a corrupt scale (0/NaN/Inf, e.g. from a mutated
+        # PIP) escaped as ZeroDivisionError/NaN instead of a named refusal.
+        _pip_v = PIP_SCALE[pair]
+        if (not isinstance(_pip_v, (int, float)) or _pip_v != _pip_v
+                or abs(_pip_v) == float("inf") or _pip_v <= 0):
+            raise ValueError(f"PIP_SCALE_INVALID: {pair!r} has pip={_pip_v!r}")
+        pip = _pip_v
         sl_d = abs(entry - sl) / pip
         # AUDIT FIX (round 9): the default zone width was `abs(tp-entry)/pip` —
         # the TP DISTANCE — while LAW 2 says the zone width IS the risk (the SL
@@ -357,9 +363,13 @@ class Circuit:
         from oms import simulate, TradeDecision
         # AUDIT FIX (round 7): `outcome="tp"` was the SAME fail-open default the
         # OMS removed — a caller omitting it measured every trade as a win.
-        if outcome is None:
+        # AUDIT FIX (round 31): only `None` was rejected while the message
+        # promised 'tp'|'sl', so a typo ('TP', 'win', '') travelled into the OMS
+        # and surfaced there as INVALID_OUTCOME instead of a circuit-level refusal.
+        if outcome not in ("tp", "sl"):
             raise ValueError(
-                "OUTCOME_REQUIRED: state 'tp' or 'sl' — the OMS will not assume a win")
+                f"OUTCOME_REQUIRED: state 'tp' or 'sl' — got {outcome!r}; "
+                f"the OMS will not assume a win")
         if not result.accepted:
             return None
         d = TradeDecision(result.pair, result.direction, result.entry,
