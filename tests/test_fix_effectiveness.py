@@ -78,6 +78,12 @@ try:
     det.digest({"s": det._Tag({"__py_float__": "x"})}); check("a forged tag via digest is refused", False)
 except ValueError:
     check("a forged tag via digest is refused", True)
+# THE PUBLIC BYPASS (round 36): `canonical(obj, _trust=False)` skipped the refusal,
+# so ANY caller could forge a tag. The parameter must not exist.
+check("canonical has NO trust-bypass parameter",
+      "_trust" not in det.canonical.__code__.co_varnames)
+check("_render is its own function, not a canonical flag",
+      det._render.__code__.co_argcount == 1)
 _c = {}; _c["self"] = _c
 try:
     det.canonical(_c); check("a cycle is a NAMED refusal", False)

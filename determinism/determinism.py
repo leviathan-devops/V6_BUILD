@@ -30,95 +30,101 @@ VOLATILE = frozenset({"ts_wall", "duration_ms", "started_at", "latency_ms",
                       "stage_latency"})
 
 
-def canonical(obj, _trust: bool = True) -> str:
+def _strip(o, depth=0):
+    # AUDIT FIX (round 21): `_freeze` wraps a top-level list in a _Tag (which
+    # IS a dict), so strip saw a dict at depth 0 and recursed to depth 1 — the
+    # elements' VOLATILE keys stopped being filtered and every run falsely
+    # diverged. A _Tag is TRANSPARENT: it recurses into its value at the SAME
+    # depth, because the wrapper is the digest's own, not payload structure.
+    if isinstance(o, _Tag):
+        return {k: _strip(v, depth) for k, v in o.items()}
+    if isinstance(o, dict):
+        # AUDIT FIX (round 10): VOLATILE was filtered at EVERY depth, so a
+        # legitimate DECISION field named `ts`/`host`/`pid` inside a nested
+        # payload was silently discarded and two genuinely different runs
+        # digested identically. The run metadata lives at the TOP level, so
+        # the filter applies only there.
+        # THE PINNED CONTRACT (round 8, asserted by
+        # tests/test_determinism_sha_match.py): a stage payload's OWN
+        # top-level measurement is filtered by NAME, so two runs differing
+        # only in `duration_ms` digest identically.
+        #
+        # THE RESIDUAL, NAMED (audit rounds 19-33): the same mechanism drops
+        # a legitimate DECISION that happens to be NAMED `duration_ms` /
+        # `latency_ms` / `ts_wall` / `started_at` / `stage_latency` — two
+        # different decisions would then digest identically. That is a
+        # DELIBERATE trade, not an oversight: the names are narrow enough that
+        # a real decision collision is unlikely, and the alternative (hash
+        # everything) makes every run diverge on its own timing.
+        #
+        # THE SAFE PATH FOR A CALLER: put measurements under the `_meta` key,
+        # which is stripped as a NAMESPACE (below) and can never collide with a
+        # decision field name.
+        drop = VOLATILE if depth == 0 else frozenset()
+        # AUDIT FIX (round 15): `str(k)` COLLAPSES distinct keys — {1:'a',
+        # '1':'b'} is two entries in Python but one after normalization, so
+        # two genuinely different payloads digested identically. JSON cannot
+        # represent such a dict, so this is a LOUD refusal, not a silent
+        # merge.
+        # AUDIT FIX (round 24): `str(k)` ERASED the key's type — {1:'a'} and
+        # {'1':'a'} rendered identically, the same class as the float/str and
+        # list/tuple value collisions. JSON requires string keys anyway, so a
+        # non-str key is a LOUD refusal rather than a silent merge.
+        bad = [k for k in o if not isinstance(k, str)]
+        if bad:
+            raise ValueError(
+                f"CANONICAL_NON_STRING_KEY: {bad[:3]!r} — JSON object keys must "
+                f"be strings; str() would erase the key's type")
+        # `_meta` is the RECOMMENDED home for measurements: stripped as a
+        # whole namespace, so it can never collide with a decision field.
+        if depth == 0 and "_meta" in o:
+            return {str(k): _strip(v, depth + 1) for k, v in
+                    sorted(o.items(), key=lambda kv: str(kv[0]))
+                    if str(k) not in drop and str(k) != "_meta"}
+        return {str(k): _strip(v, depth + 1) for k, v in
+                sorted(o.items(), key=lambda kv: str(kv[0]))
+                if str(k) not in drop}
+    if isinstance(o, (list, tuple)):
+        # AUDIT FIX (round 14): a stage returning a LIST of dicts put the
+        # measurement at depth 1, where `drop` was already empty — so the
+        # filter never applied and every run falsely diverged. A list element
+        # is still "the top of the payload" for filtering purposes.
+        return [_strip(x, depth) for x in o]
+    if isinstance(o, float):
+        # AUDIT FIX (round 17 H5): `round(o, 10)` mapped values differing by
+        # less than 1e-10 to the SAME canonical form, so real nondeterminism
+        # could digest as a MATCH. The EXACT value is hashed instead — but it
+        # must be TAGGED: a bare `repr(1.0)` is the string "1.0", which
+        # json.dumps renders identically to the STRING "1.0", so a stage
+        # flipping between float and str would still digest the same (my own
+        # round-17 regression, caught in round 18). The `f:` prefix makes the
+        # type part of the digest.
+        return _Tag({_TAG_FLOAT: repr(o)})
+    if o is None or isinstance(o, (str, int, bool)):
+        return o
+    # anything else would reach json.dumps unfreezable
+    raise ValueError(f"CANONICAL_UNFREEZABLE: {type(o).__name__} has no "
+                     f"deterministic rendering")
+
+
+def canonical(obj) -> str:
     """A canonical JSON rendering: sorted keys, no whitespace, no volatile fields.
 
     AUDIT FIX (round 6): a raw `set`/`bytes` reached json.dumps and raised
     TypeError, so digest() crashed while RunDigest (which freezes first)
     succeeded — the two entry points disagreed. Everything is frozen first.
+
+    THE TRUST CHECK IS UNCONDITIONAL (round 36). The previous signature carried a
+    `_trust: bool = True` parameter, and passing `_trust=False` skipped the
+    reserved-key refusal — so ANY caller could forge a type tag through a PUBLIC
+    entry point, contradicting the round-26 trust boundary. A public function has
+    no "trusted caller" mode; the internal renderer below is a separate function.
     """
-    # AUDIT FIX (round 20): the reserved-key check runs on the RAW input, BEFORE
-    # `_freeze` inserts its own tags — otherwise strip() rejects the digest's own
-    # tag structures (which is exactly what happened on the first attempt).
-    if _trust:
-        _check_reserved(obj)
+    # the reserved-key check runs on the RAW input, BEFORE `_freeze` inserts its
+    # own tags — otherwise strip() rejects the digest's own tag structures.
+    _check_reserved(obj)
     obj = _freeze(obj)
 
-    def strip(o, depth=0):
-        # AUDIT FIX (round 21): `_freeze` wraps a top-level list in a _Tag (which
-        # IS a dict), so strip saw a dict at depth 0 and recursed to depth 1 — the
-        # elements' VOLATILE keys stopped being filtered and every run falsely
-        # diverged. A _Tag is TRANSPARENT: it recurses into its value at the SAME
-        # depth, because the wrapper is the digest's own, not payload structure.
-        if isinstance(o, _Tag):
-            return {k: strip(v, depth) for k, v in o.items()}
-        if isinstance(o, dict):
-            # AUDIT FIX (round 10): VOLATILE was filtered at EVERY depth, so a
-            # legitimate DECISION field named `ts`/`host`/`pid` inside a nested
-            # payload was silently discarded and two genuinely different runs
-            # digested identically. The run metadata lives at the TOP level, so
-            # the filter applies only there.
-            # THE PINNED CONTRACT (round 8, asserted by
-            # tests/test_determinism_sha_match.py): a stage payload's OWN
-            # top-level measurement is filtered by NAME, so two runs differing
-            # only in `duration_ms` digest identically.
-            #
-            # THE RESIDUAL, NAMED (audit rounds 19-33): the same mechanism drops
-            # a legitimate DECISION that happens to be NAMED `duration_ms` /
-            # `latency_ms` / `ts_wall` / `started_at` / `stage_latency` — two
-            # different decisions would then digest identically. That is a
-            # DELIBERATE trade, not an oversight: the names are narrow enough that
-            # a real decision collision is unlikely, and the alternative (hash
-            # everything) makes every run diverge on its own timing.
-            #
-            # THE SAFE PATH FOR A CALLER: put measurements under the `_meta` key,
-            # which is stripped as a NAMESPACE (below) and can never collide with a
-            # decision field name.
-            drop = VOLATILE if depth == 0 else frozenset()
-            # AUDIT FIX (round 15): `str(k)` COLLAPSES distinct keys — {1:'a',
-            # '1':'b'} is two entries in Python but one after normalization, so
-            # two genuinely different payloads digested identically. JSON cannot
-            # represent such a dict, so this is a LOUD refusal, not a silent
-            # merge.
-            # AUDIT FIX (round 24): `str(k)` ERASED the key's type — {1:'a'} and
-            # {'1':'a'} rendered identically, the same class as the float/str and
-            # list/tuple value collisions. JSON requires string keys anyway, so a
-            # non-str key is a LOUD refusal rather than a silent merge.
-            bad = [k for k in o if not isinstance(k, str)]
-            if bad:
-                raise ValueError(
-                    f"CANONICAL_NON_STRING_KEY: {bad[:3]!r} — JSON object keys must "
-                    f"be strings; str() would erase the key's type")
-            # `_meta` is the RECOMMENDED home for measurements: stripped as a
-            # whole namespace, so it can never collide with a decision field.
-            if depth == 0 and "_meta" in o:
-                return {str(k): strip(v, depth + 1) for k, v in
-                        sorted(o.items(), key=lambda kv: str(kv[0]))
-                        if str(k) not in drop and str(k) != "_meta"}
-            return {str(k): strip(v, depth + 1) for k, v in
-                    sorted(o.items(), key=lambda kv: str(kv[0]))
-                    if str(k) not in drop}
-        if isinstance(o, (list, tuple)):
-            # AUDIT FIX (round 14): a stage returning a LIST of dicts put the
-            # measurement at depth 1, where `drop` was already empty — so the
-            # filter never applied and every run falsely diverged. A list element
-            # is still "the top of the payload" for filtering purposes.
-            return [strip(x, depth) for x in o]
-        if isinstance(o, float):
-            # AUDIT FIX (round 17 H5): `round(o, 10)` mapped values differing by
-            # less than 1e-10 to the SAME canonical form, so real nondeterminism
-            # could digest as a MATCH. The EXACT value is hashed instead — but it
-            # must be TAGGED: a bare `repr(1.0)` is the string "1.0", which
-            # json.dumps renders identically to the STRING "1.0", so a stage
-            # flipping between float and str would still digest the same (my own
-            # round-17 regression, caught in round 18). The `f:` prefix makes the
-            # type part of the digest.
-            return _Tag({_TAG_FLOAT: repr(o)})
-        if o is None or isinstance(o, (str, int, bool)):
-            return o
-        # anything else would reach json.dumps unfreezable
-        raise ValueError(f"CANONICAL_UNFREEZABLE: {type(o).__name__} has no "
-                         f"deterministic rendering")
     # AUDIT FIX (round 9): a datetime/Decimal/custom object passed _freeze
     # unchanged and then raised TypeError out of json.dumps, so digest() CRASHED
     # where the gate should have produced a digest. `default=str` makes any
@@ -130,7 +136,7 @@ def canonical(obj, _trust: bool = True) -> str:
     # differently (a false DIVERGENCE). An unfreezable object is now a NAMED
     # refusal, which is the loud-fail contract: the caller must put real data in.
     try:
-        return json.dumps(strip(obj), separators=(",", ":"), sort_keys=True)
+        return json.dumps(_strip(obj), separators=(",", ":"), sort_keys=True)
     except TypeError as e:
         raise ValueError(
             f"CANONICAL_UNFREEZABLE: {e} — the payload carries an object with no "
@@ -257,14 +263,15 @@ def _render_stage(v) -> str:
 
 
 def _render(obj) -> str:
-    """The canonical rendering WITHOUT the raw-input trust check.
+    """Render a value the DIGEST ITSELF froze — no raw-input trust check.
 
-    The internal sort key renders digest-OWNED `_Tag` values (created by
-    `_freeze`), which would legitimately trip the forgery refusal that exists for
-    RAW input. This is the same renderer with that one check skipped — it is
-    never exposed to callers.
+    A separate function rather than a flag on `canonical` (round 36): a parameter
+    that skips a refusal is a bypass any caller can invoke, and `_render` is only
+    reached from `_digest_frozen`, whose inputs `RunDigest`/`digest` ALREADY
+    checked on the way in. It renders with the same machinery, reached directly.
     """
-    return canonical(obj, _trust=False)
+    import json as _json
+    return _json.dumps(_strip(obj), separators=(",", ":"), sort_keys=True)
 
 
 def _check_reserved(o, _seen=None) -> None:
