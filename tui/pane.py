@@ -203,11 +203,35 @@ def render(m: PaneModel) -> str:
 
 
 def has_probability_bars(text: str) -> bool:
-    # AUDIT FIX (round 27): its sibling has_gate_decisions guards the type; this
-    # one raised TypeError on None/bytes, breaking the never-crash seat contract.
+    """A real probability BAR row exists.
+
+    AUDIT FIX (round 34): this was a whole-pane substring check for `|`, `#` and
+    `argmax=`, all of which `_safe` PRESERVES (they are printable) — so a single
+    rejection detail containing those characters forged it. The scan is now
+    scoped to the DECIDER PROBABILITIES section and requires the renderer's own
+    row shape: an `argmax=` header followed by a bar line at the option column.
+    """
     if not isinstance(text, str):
         return False
-    return "|" in text and "#" in text and "argmax=" in text
+    _in = False
+    _saw_argmax = False
+    for ln in text.splitlines():
+        if ln.startswith(" DECIDER PROBABILITIES"):
+            _in = True
+            continue
+        if _in and ln.startswith(" ") and not ln.startswith("  ") \
+                and ln.strip() and not ln.startswith(" "):
+            _in = False
+            continue
+        if not _in:
+            continue
+        if "argmax=" in ln:
+            _saw_argmax = True
+            continue
+        # the option row: FOUR spaces, a label, a probability, then a bar
+        if _saw_argmax and ln.startswith("    ") and "|" in ln and "#" in ln:
+            return True
+    return False
 
 
 def has_gate_decisions(text: str) -> bool:

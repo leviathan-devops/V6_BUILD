@@ -282,8 +282,6 @@ def render_state(pair: str, anchor_ms: int, feeds: dict[tuple[str, str], list[Ba
     return doc
 
 
-# the estimate fallback is a DELIBERATE opt-in (it undercounts ~4x)
-_ALLOW_ESTIMATE_FALLBACK = os.environ.get("PLUTUS_ALLOW_TOKEN_ESTIMATE") == "1"
 _TOKENIZER = None
 _TOKENIZER_TRIED = False
 

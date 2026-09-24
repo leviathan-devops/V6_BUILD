@@ -588,7 +588,7 @@ def build(out_path: Path) -> dict:
         # AUDIT FIX (round 33): the list was appended to and never read, so a
         # partially-unreadable tree still reported success. Surfaced here.
         raise ValueError(
-            f"SCAN_UNREADABLE: {len(SCAN_SKIPPED)} card file(s) could not be read "
+            f"SCAN_UNREADABLE: {len(_skipped_now)} card file(s) could not be read "
             f"(first: {_skipped_now[0]}) — the corpus would be silently shrunken")
     if _missing:
         # AUDIT FIX (round 26): a WARNING still returned a PASSING build, so an
@@ -621,8 +621,12 @@ def build(out_path: Path) -> dict:
     # AUDIT FIX (round 33): the EMPTY_CORPUS/NO_CARDS checks ran AFTER this I/O,
     # so a failing build left an EMPTY (or truncated) file that a downstream
     # consumer could mistake for a valid corpus. Validated first.
+    # AUDIT FIX (round 34): the NO_CARDS check still ran AFTER the write, so a
+    # failed build left a created/truncated file. BOTH validations precede the I/O.
     if not uniq:
         raise ValueError("EMPTY_CORPUS: the harvest produced no records")
+    if not cards:
+        raise ValueError("NO_CARDS: no doctrine cards were harvested")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w") as fh:
         for r in uniq:

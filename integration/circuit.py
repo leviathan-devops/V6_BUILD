@@ -107,7 +107,11 @@ class Circuit:
         # NOTE: _tokenizer_warm_error is set ABOVE by the warm-up, and is
         # deliberately NOT reset here — resetting it made the round-27 visibility
         # fix a no-op (audit round 29).
-        self._limite_ok = None
+        # NOTE (round 34): `use_limite` is RETAINED FOR API COMPAT and has no
+        # effect — the RRR always comes from the python shadow (the pin's "CODE
+        # VERIFIES" authority) and the dual check is driven by the `limite_rrr`
+        # ARGUMENT. Stated rather than implied, because a flag that silently does
+        # nothing is a trap. `_limite_ok` was removed: it was write-only.
 
     # ---- stage 1-2: feed + state -------------------------------------------
     def build_state(self, feeds: dict, pair: str | None = None) -> str:
@@ -119,7 +123,9 @@ class Circuit:
         reusing one Circuit across pairs leaked state.
         """
         from state_constructor import render_state, session_label, EmptyBars
-        target = pair or getattr(self, "pair", None)
+        # AUDIT FIX (round 34): the `getattr(self,'pair')` fallback was the stale
+        # cross-pair leak the docstring says was removed. `pair` is REQUIRED.
+        target = pair
         if not target:
             raise ValueError("NO_PAIR: build_state requires a pair")
         if not feeds:
@@ -138,6 +144,12 @@ class Circuit:
         from state_constructor import session_label
         from gates import TradeCandidate, evaluate
         from math_queries import code_truth
+        # AUDIT FIX (round 34): 0.02 was hardcoded here while gates.py defines the
+        # single authority DUAL_EPS — two literals for one threshold drift.
+        try:
+            from gates import DUAL_EPS as _DUAL_EPS
+        except ImportError:
+            _DUAL_EPS = 0.02
 
         stage = {}
         t = time.perf_counter()
@@ -276,8 +288,17 @@ class Circuit:
                     _d = decider_out.get(_qid)
                     if isinstance(_d, dict) and _d:
                         _grade, _val = grade_from_probs(_d, _qid)
+                        # AUDIT FIX (round 34): the Decider-derived confidence
+                        # bypassed the finite/range validation that
+                        # `bars_by_tf['confidence']` receives — a NaN/Inf mass in
+                        # the model distribution reached the gates unchecked.
                         if _grade in ("F", "C", "B", "A", "Aplus"):
-                            conf = round(float(_val), 4)
+                            _fv = float(_val)
+                            if not (_fv == _fv and abs(_fv) != float("inf")):
+                                self._grade_fallback = (
+                                    f"DECIDER_CONF_NON_FINITE: {_grade} -> {_fv!r}")
+                                break
+                            conf = round(_fv, 4)
                             break
                 else:
                     # the model ran but offered no gradeable answer
@@ -322,7 +343,7 @@ class Circuit:
             tokenizer_warm_error=self._tokenizer_warm_error,
             limite={"L3": ({"model": limite_rrr, "code": rrr_code,
                             "delta": round(abs(limite_rrr - rrr_code), 6),
-                            "pass": abs(limite_rrr - rrr_code) <= 0.02}
+                            "pass": abs(limite_rrr - rrr_code) <= _DUAL_EPS}
                            if limite_verified else
                            {"model": None, "code": rrr_code, "delta": None,
                             "pass": None, "note": "NO_INDEPENDENT_LIMITE_VALUE"})},

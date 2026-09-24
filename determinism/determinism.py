@@ -89,11 +89,6 @@ def canonical(obj, _trust: bool = True) -> str:
                 raise ValueError(
                     f"CANONICAL_NON_STRING_KEY: {bad[:3]!r} — JSON object keys must "
                     f"be strings; str() would erase the key's type")
-            keys = list(o)
-            if len(set(keys)) != len(keys):
-                raise ValueError(
-                    "CANONICAL_KEY_COLLISION: two distinct keys normalize to the "
-                    "same string — the payload cannot be rendered deterministically")
             # `_meta` is the RECOMMENDED home for measurements: stripped as a
             # whole namespace, so it can never collide with a decision field.
             if depth == 0 and "_meta" in o:

@@ -57,8 +57,11 @@ def _fail_capture(reason: str) -> None:
     try:
         _P("/work/p3/ct-capture.json").write_text(_json.dumps(
             {"scenarios": [], "error": reason}, indent=2))
-    except Exception:                                      # noqa: BLE001
-        pass
+    except Exception as _e:                                # noqa: BLE001
+        # AUDIT FIX (round 34): a silent failure here hid the very condition this
+        # function exists to report.
+        import sys as _s
+        print(f"CAPTURE_WRITE_FAILED: {type(_e).__name__}: {_e}", file=_s.stderr)
 
 
 def _evidence(out: str, token: str, window: int = 1500) -> str:

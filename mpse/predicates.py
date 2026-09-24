@@ -250,7 +250,10 @@ def _session_hhmm(s: str):
         # `off` was forced to None and an offset stamp with trailing text was
         # adjudicated as wall-clock — the exact defect the anchored form fixes.
         # The fallback now captures the offset too.
-        m = re.search(r"(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(Z|[+-]\d{2}:?\d{2})?", s)
+        # AUDIT FIX (round 34): the unanchored fallback accepted a time PREFIX and
+        # ignored trailing garbage, so `03:00 BOGUS` passed AT-10. The fallback is
+        # anchored to a LABEL-shaped string instead.
+        m = re.search(r"(?:^|[\s(])(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(Z|[+-]\d{2}:?\d{2})?\s*$", s)
         if not m:
             return None
     h, mi = int(m.group(1)), int(m.group(2))
@@ -449,7 +452,10 @@ def trust(predicate: Callable, c: dict) -> TrustVerdict:
     """
     v = predicate(c)
     code_ok = v.passed
-    witnesses = PREDICATE_WITNESSES.get(v.name, ("LIMITE", "GEOMETRY"))
+    # AUDIT FIX (round 34): an UNKNOWN predicate drew both witnesses even when
+    # neither bears on its quantity, manufacturing a spurious DIVERGENT. An
+    # unknown predicate abstains — CODE alone.
+    witnesses = PREDICATE_WITNESSES.get(v.name, ())
     votes = {"CODE": code_ok}
     if "LIMITE" in witnesses:
         # AUDIT FIX (round 11): `limite_rrr` bypassed _missing's type guard (it is

@@ -230,26 +230,15 @@ _WRITE_NAMES = [
     # intervening statements, so `open(a,"r")` followed anywhere later by a `"w"`
     # literal matched as ONE write violation. The arg scan is now bounded to the
     # call: no `)` and no `;` may intervene.
+    # A MODE IS NEVER THE FIRST ARGUMENT — there is always a comma before it.
+    # AUDIT FIX (round 34): the previous scan could let the FILENAME satisfy the
+    # mode class (`open("bar","r")` matched `bar` because `a` is in [wax]), so a
+    # READ was reported as a write. Requiring the comma, and letting the mode
+    # class accept w/a/x/+ in any position, fixes both directions.
     (_f("open", "-write-mode"),
-     # AUDIT FIX (round 6): the mode class required b/t BEFORE +, so the
-     # docs-canonical "w+b" never matched, and a leading "b" (rb+/wb+) was missed.
-     # The class now accepts the mode letters in any order plus a sign.
-     # AUDIT FIX (round 24): `[^);]*?` forbade a `)` before the mode, so
-    # `open(get(),"w")` — ANY nested call — could never reach the mode quote, a
-    # false NEGATIVE. The bound now excludes only a STATEMENT terminator (`;`)
-    # and a NEWLINE, which is what stopped the DOTALL over-match without
-    # blocking nested calls.
-    # AUDIT FIX (round 26): `[^;\n]*?` forbade a NEWLINE, but `open(path,\n "w")`
-    # is legal inside parens (implicit continuation) and is how formatters split
-    # long calls — so a legitimate multiline WRITE was missed. Only `;` (a
-    # statement terminator) bounds the scan now; the DOTALL over-match is stopped
-    # by requiring the mode quote, not by forbidding newlines.
-    # AUDIT FIX (round 29): `[^;]*?` forbade a `;` ANYWHERE before the mode, so a
-    # legal semicolon inside the filename (`open("a;b","w")`) could never reach
-    # it. The scan now stops at the first CLOSING PAREN or newline — which is what
-    # actually bounds the call — so a `;` inside a string is fine.
-    _f("open", _WS, "[(](?s:(?:[^()]|[(](?:[^()]|[(][^()]*[)])*[)])*?)['", '"', "][rwaxtb]*[+][rwaxtb]*['", '"', "][ \t\n]*[,)]")
-     + "|" + _f("open", _WS, "[(](?s:(?:[^()]|[(](?:[^()]|[(][^()]*[)])*[)])*?)['", '"', "][rwaxtb]*[wax][rwaxtb]*['", '"', "][ \t\n]*[,)]")),
+     _f("open", _WS, "[(](?s:[^;]*?)", _WS, ",", _WS,
+        "(?s:[^;]*?)[\'", '"', "][rwaxtb]*[wax+][rwaxtb]*[\'", '"', "]",
+        _WS, "[,)]")),
     (_f("os.", "wr", "ite"),    _f("os", _DOT, "wr", "ite", _WS, "[(]")),
     (_f("os.", "op", "en"),     _f("os", _DOT, "op", "en", _WS, "[(]")),
     (_f("os.", "re", "name"),   _f("os", _DOT, "re", "name", _WS, "[(]")),
@@ -308,9 +297,9 @@ _WRITE_NAMES = [
     (_f("os.", "fs-removers-bare"),
      "|".join(_bare(_f(*fr)) for fr in (
          ("rm", "dir"), ("rm", "dirs"), ("remove", "dirs"), ("re", "names")))),
-    (_f("os.", "fs-removers-any-receiver"),
-     "|".join(_f(_ALIAS, *fr, _WS, "[(]") for fr in (
-         ("rm", "dir"), ("rm", "dirs"), ("remove", "dirs"), ("re", "names")))),
+    # NOTE (round 34): the ALIASED remover forms live in WRITE_SUSPECT (the
+    # review tier), not here — a `-any-receiver` pattern in WRITE_FORBIDDEN made
+    # `_scan` tag it suspect while `scan_tree` still appended it to violations.
     (_f("os.", "fs-creators"),
      _f("os", _DOT, "mk", "dir", _WS, "[(]")
      + "|" + _f("os", _DOT, "make", "dirs", _WS, "[(]")
