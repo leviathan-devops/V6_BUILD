@@ -92,3 +92,32 @@ render_state); `count_tokens` counted whitespace words (2238 vs the tokenizer's
 9242, a 4.13x undershoot, so `assert_state_fits` never bit); and
 `DECIDER_MAX_STATE_TOKENS` was unset (32768 vs the documented 8192). Latency
 1259ms -> 398ms; the server's footprint 6587 -> 3827 MiB.
+
+
+## 40 AUDIT ROUNDS AT HEAD f1050c6 — THE MEASURED BARRIER
+THREE MEASURED PROPERTIES:
+1. the criticals are ZERO except when MY OWN FIXES introduce one — 5 of 18
+   completed rounds, and every one was a defect I created fixing the prior;
+2. the highs do NOT converge — a band of 3-21 across forty rounds;
+3. the DOMINANT SOURCE is my own INCOMPLETE FIXES (r33: 5-of-8 findings from
+   incomplete r32 fixes; r35: 4-of-7; r38: an r37 over-correction; r39: an r38
+   fix applied at ONE of TWO sites).
+
+THE FOUR INCOMPLETE-LANDING CLASSES, each hit multiple times:
+1. NEVER APPLIED — a batch script that aborted at its first anchor miss (r24's
+   five fixes; r40 found an r24 fix STILL unlanded).
+2. APPLIED BUT INERT — a helper defined but never called (`_fail_capture`); an
+   attribute that exists nowhere (`_at_id`); a dict built but never read
+   (`_sorted_feeds`); a list appended to but never read (`SCAN_SKIPPED`).
+3. CHANGED AT ONE SITE, NOT BOTH — the dual epsilon (r34->35); the
+   `in bars_by_tf` rule (r38->39).
+4. OVER-CORRECTED — a section terminator that broke its own case (r34->35,
+   r35->36); a single-vote rule that made four predicates unable to return
+   (r37->38).
+
+THE MECHANICAL GUARD: `tests/test_fix_effectiveness.py` — 30+ behavioural
+invariants, each FAILING if its fix is inert. A fix that does not TAKE EFFECT
+fails the battery.
+
+CONDITION 11 (`GATE: PASS`): **NOT MET, NOT reported as met.** FAIL (0 critical,
+8 high) at the last completed run; BLOCKED (OCR_RUN_DEGRADED) at the last attempt.
