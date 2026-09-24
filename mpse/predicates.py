@@ -111,9 +111,14 @@ def at_01_rrr_floor(c) -> Verdict:
 def at_02_sl_envelope(c) -> Verdict:
     g = _guard(c, 'AT-02')
     if g: return g[0]
-    ok = c["sl_distance_pips"] <= SL_MAX_PIPS
+    # AUDIT FIX (round 31): only the UPPER bound was checked, so a NEGATIVE
+    # distance passed (e.g. -10 <= 55) — and a distance can never be negative:
+    # it means the upstream pip math is inverted or corrupt. The lower bound
+    # makes the predicate genuinely fail-closed.
+    _sd = c["sl_distance_pips"]
+    ok = 0.0 < _sd <= SL_MAX_PIPS
     return _v("AT-02", ok, "AT02_PASS" if ok else "AT02_SL_OUTSIDE_ENVELOPE",
-              f"sl {c['sl_distance_pips']:.2f}p vs max {SL_MAX_PIPS}p")
+              f"sl {_sd:.2f}p vs envelope (0, {SL_MAX_PIPS}]p")
 
 def at_03_direction_sign(c) -> Verdict:
     g = _guard(c, 'AT-03')
