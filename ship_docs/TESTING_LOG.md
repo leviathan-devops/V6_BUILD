@@ -405,3 +405,14 @@ not run. **The ship gate has not passed, and is not reported as passing.**
 | the corpus negatives are correctly labelled | PROVEN by re-parsing each |
 | the scanner catches the 5 evasion vectors | PROVEN by construction |
 | **the audit gate PASSES** | **NOT PROVEN — 0 critical, gate UNRUN (quota)** |
+
+
+## THE FINAL VERIFICATION AT HEAD e83ad14 (all re-run this turn)
+```
+HOST tests (29)              PASS=29 FAIL=0
+HOST runtime suite           13/13 PASS
+CONTAINER isolation          16/16 PASS
+the LIVE pipeline            17 answers, 398ms warm (budget 500ms)
+```
+**13 of 14 STOP conditions MET.** The only unmet one is the audit gate:
+**FAIL (0 critical, 8 high) — NOT reported as passing.**

@@ -65,3 +65,30 @@ _ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` ·
 
 ---
 _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-23._
+
+
+## STATE AT HEAD e83ad14 — 13 of 14 CONDITIONS MET
+| # | condition | verdict | evidence |
+|---|---|---|---|
+| 1 | golden >=14/15 <=3p | MET | 15/15, max_delta 0.000p (`test_golden_week_e2e`) |
+| 2 | 38 forensic classified | MET | `test_forensic_38_classification` |
+| 3 | profitable 0.1% unseen week | MET | `test_walkforward_unseen_week` |
+| 4 | latency <500ms, MODEL IN LOOP | MET | **398ms warm** (`test_decider_live_pipeline`) |
+| 5 | zero coding agent | MET | `test_zero_coding_surface` |
+| 6 | TUI shows every probability/gate | MET | `test_tui_renders_probabilities` |
+| 7 | determinism SHA-identical | MET | `test_determinism_sha_match` |
+| 8 | golden RRR +-0.02 | MET | 6/6 (`test_rrr_golden_reproduction`) |
+| 9 | mutant tests fire | MET | AT-03 side-inversion |
+| 10 | ECE < 0.05 | MET | 0.03238 |
+| **11** | **audit gate GATE: PASS** | **NOT MET** | **FAIL (0 critical, 8 high)** |
+| 12 | checkpoint sealed | MET | 14 |
+| 13 | 6 ship docs | MET | 6 |
+| 14 | 11 canon docs | MET | 11 |
+
+## THE VRAM BLOCKER: RESOLVED, NO MODEL SUBSTITUTION
+Three defects, all measured, fixed: the state rendered 4x the blueprint's spec
+(9242 tokens vs the documented 8192 limit — `state/state_constructor.py`
+render_state); `count_tokens` counted whitespace words (2238 vs the tokenizer's
+9242, a 4.13x undershoot, so `assert_state_fits` never bit); and
+`DECIDER_MAX_STATE_TOKENS` was unset (32768 vs the documented 8192). Latency
+1259ms -> 398ms; the server's footprint 6587 -> 3827 MiB.

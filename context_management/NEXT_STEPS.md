@@ -33,3 +33,22 @@ _ROUND-4 STAMP: build HEAD `bf04465` · container artifact `6a3eaee694e44fcc` ·
 
 ---
 _ROUND-9 STAMP: HEAD f8b9250 · container artifact 9f8dfc263d58dca3 · 2026-09-23._
+
+
+## THE AUDIT GATE AT HEAD e83ad14 — 17 ROUNDS, AND THE MEASURED REASON
+Two measured properties:
+1. **the highs do NOT converge** — a band of 4-11 across seventeen rounds;
+2. **the criticals are ZERO except when MY OWN FIXES introduce one** — 4 of 17
+   rounds, and every one was a defect I created fixing the prior round.
+THE ROOT CAUSE (round 26): my batch-edit script ABORTED at its first anchor miss,
+silently killing every later edit — five round-24 fixes were written but never
+applied, and round 25 "re-found" them. Fixed with a non-aborting script + a grep
+verification after every batch.
+THE REMAINING BARRIER: my fixes have a real INCOMPLETE-LANDING rate — rounds
+24/27/28/29 each had a fix that landed but took NO EFFECT.
+
+## WHAT IS THE OPERATOR'S
+(a) the 8 remaining highs — all real, none critical, cataloged in
+    `.trident/SCAN_ACCEPTANCE.md`;
+(b) the model downgrade to Mapika/decider-0.8b — NO LONGER NEEDED for VRAM;
+(c) **THE V5 -> V6 CUTOVER.**
