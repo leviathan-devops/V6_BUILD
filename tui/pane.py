@@ -254,8 +254,14 @@ def has_gate_decisions(text: str) -> bool:
         # matched, so the GATE scan leaked into the REJECTION LOG, whose rows
         # share the verdict column. Any one-space line that is NOT a verdict row
         # and NOT a rule now ends the section.
-        if _in and ln.startswith(" ") and not ln.startswith(" [") \
-                and ln.strip() and not set(ln.strip()) <= {"="}:
+        # AUDIT FIX (round 33): the terminator matched DETAIL rows too (they start
+        # with a space), so it cleared the section on the first detail and missed
+        # every later verdict. A SECTION HEADER sits at the ONE-space column; a
+        # detail is indented TWELVE. Only the one-space, non-verdict, non-rule,
+        # non-indented line terminates.
+        if _in and ln.startswith(" ") and not ln.startswith("  ") \
+                and not ln.startswith(" [") and ln.strip() \
+                and not set(ln.strip()) <= {"="}:
             _in = False
             continue
         if _in and (ln.startswith(" [PASS  ]") or ln.startswith(" [REJECT]")):

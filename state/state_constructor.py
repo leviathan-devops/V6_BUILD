@@ -367,8 +367,10 @@ def count_tokens(text: str) -> int:
     # unless the caller explicitly opts into the estimate.
     # AUDIT FIX (round 31): the flag was captured at IMPORT time, so setting it
     # afterwards (a test fixture, a config reload) had no effect. Read per call.
-    _allow = (os.environ.get("PLUTUS_ALLOW_TOKEN_ESTIMATE") == "1"
-              or _ALLOW_ESTIMATE_FALLBACK)
+    # AUDIT FIX (round 33): OR-ing with the import-time constant meant UNSETTING
+    # the var after import had no effect — the ~4x-undercount estimate stayed
+    # permitted and silently defeated the token guard. The env is the only source.
+    _allow = os.environ.get("PLUTUS_ALLOW_TOKEN_ESTIMATE") == "1"
     if _t is None and not _allow:
         raise ValueError(
             f"STATE_TOKENIZER_UNAVAILABLE: the Decider's tokenizer could not be "

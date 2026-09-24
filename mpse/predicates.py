@@ -125,9 +125,14 @@ def at_02_sl_envelope(c) -> Verdict:
     # AT-09 recomputes the RRR from geometry for the same reason; the distance is
     # recomputed here.
     _pair = c.get("pair")
-    _geom_ok = True
+    # AUDIT FIX (round 33): an UNKNOWN pair skipped the recompute and fell through
+    # to adjudicating the UNVERIFIED stated value — fail-open. AT-07/AT-09 fail
+    # closed on `pair not in PIP`; this now does too.
+    if _pair not in PIP:
+        return _v("AT-02", False, "AT02_UNKNOWN_PAIR",
+                  f"pair {_pair!r} has no declared pip scale")
     _sd = c["sl_distance_pips"]
-    if _pair in PIP and isinstance(c.get("entry"), (int, float)) \
+    if isinstance(c.get("entry"), (int, float)) \
             and isinstance(c.get("sl"), (int, float)):
         _true_sd = abs(c["entry"] - c["sl"]) / PIP[_pair]
         # the stated value must AGREE with the geometry (the dual-check epsilon)
@@ -424,7 +429,13 @@ def trust(predicate: Callable, c: dict) -> TrustVerdict:
         # AUDIT FIX (round 31): the normal path uses `v.name` (the AT-XX token)
         # while this early return used the PYTHON function name, so a consumer
         # matching `verdict.predicate == "AT-01"` missed every INCONCLUSIVE.
-        _pid = getattr(predicate, "_at_id", None) or getattr(predicate, "__name__", "?")
+        # AUDIT FIX (round 33): `_at_id` is defined NOWHERE, so this always fell
+        # back to the Python name while the normal path uses the AT-XX token. The
+        # token is DERIVED from the name (`at_01_rrr_floor` -> `AT-01`), which is
+        # the same vocabulary the normal path emits.
+        _nm = getattr(predicate, "__name__", "")
+        _pid = ("AT-" + _nm.split("_")[1]) if _nm.startswith("at_") and "_" in _nm[3:] \
+            else (_nm or "?")
         return TrustVerdict("INCONCLUSIVE", _pid,
                             {}, f"candidate is missing {miss}")
     """Adjudicate ONE predicate across the three witnesses.

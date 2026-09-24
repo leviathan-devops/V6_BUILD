@@ -582,6 +582,14 @@ def build(out_path: Path) -> dict:
         _missing.append(f"cascade rows (got {_n_cascade}, measured 6 of Tier A)")
     if not [r for r in golden if r.id.startswith("golden-")]:
         _missing.append("the golden-trade injector (golden rows)")
+    _skipped_now = list(SCAN_SKIPPED)
+    SCAN_SKIPPED.clear()
+    if _skipped_now:
+        # AUDIT FIX (round 33): the list was appended to and never read, so a
+        # partially-unreadable tree still reported success. Surfaced here.
+        raise ValueError(
+            f"SCAN_UNREADABLE: {len(SCAN_SKIPPED)} card file(s) could not be read "
+            f"(first: {_skipped_now[0]}) — the corpus would be silently shrunken")
     if _missing:
         # AUDIT FIX (round 26): a WARNING still returned a PASSING build, so an
         # absent FORENSIC_ANALYSIS_38_TRADES.md shipped a corpus missing whole
@@ -610,6 +618,11 @@ def build(out_path: Path) -> dict:
             (r.source + r.quote + r.question + r.state).encode()).hexdigest()
         if h in seen: continue
         seen.add(h); uniq.append(r)
+    # AUDIT FIX (round 33): the EMPTY_CORPUS/NO_CARDS checks ran AFTER this I/O,
+    # so a failing build left an EMPTY (or truncated) file that a downstream
+    # consumer could mistake for a valid corpus. Validated first.
+    if not uniq:
+        raise ValueError("EMPTY_CORPUS: the harvest produced no records")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w") as fh:
         for r in uniq:

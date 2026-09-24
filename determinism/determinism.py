@@ -58,6 +58,22 @@ def canonical(obj, _trust: bool = True) -> str:
             # payload was silently discarded and two genuinely different runs
             # digested identically. The run metadata lives at the TOP level, so
             # the filter applies only there.
+            # THE PINNED CONTRACT (round 8, asserted by
+            # tests/test_determinism_sha_match.py): a stage payload's OWN
+            # top-level measurement is filtered by NAME, so two runs differing
+            # only in `duration_ms` digest identically.
+            #
+            # THE RESIDUAL, NAMED (audit rounds 19-33): the same mechanism drops
+            # a legitimate DECISION that happens to be NAMED `duration_ms` /
+            # `latency_ms` / `ts_wall` / `started_at` / `stage_latency` — two
+            # different decisions would then digest identically. That is a
+            # DELIBERATE trade, not an oversight: the names are narrow enough that
+            # a real decision collision is unlikely, and the alternative (hash
+            # everything) makes every run diverge on its own timing.
+            #
+            # THE SAFE PATH FOR A CALLER: put measurements under the `_meta` key,
+            # which is stripped as a NAMESPACE (below) and can never collide with a
+            # decision field name.
             drop = VOLATILE if depth == 0 else frozenset()
             # AUDIT FIX (round 15): `str(k)` COLLAPSES distinct keys — {1:'a',
             # '1':'b'} is two entries in Python but one after normalization, so
@@ -78,6 +94,12 @@ def canonical(obj, _trust: bool = True) -> str:
                 raise ValueError(
                     "CANONICAL_KEY_COLLISION: two distinct keys normalize to the "
                     "same string — the payload cannot be rendered deterministically")
+            # `_meta` is the RECOMMENDED home for measurements: stripped as a
+            # whole namespace, so it can never collide with a decision field.
+            if depth == 0 and "_meta" in o:
+                return {str(k): strip(v, depth + 1) for k, v in
+                        sorted(o.items(), key=lambda kv: str(kv[0]))
+                        if str(k) not in drop and str(k) != "_meta"}
             return {str(k): strip(v, depth + 1) for k, v in
                     sorted(o.items(), key=lambda kv: str(kv[0]))
                     if str(k) not in drop}

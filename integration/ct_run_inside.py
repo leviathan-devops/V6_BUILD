@@ -26,7 +26,18 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from run_ct_suite import ADV, HAPPY, EXCLUDED, EXCLUSION_REASON  # noqa: E402
+# AUDIT FIX (round 33): _fail_capture was DEFINED but never called — the import
+# below aborted before it could run. The import is now guarded and the failure
+# WRITES A CAPTURE, so the host never sees a missing or stale file.
+try:
+    from run_ct_suite import ADV, HAPPY, EXCLUDED, EXCLUSION_REASON  # noqa: E402
+except Exception as _imp_e:                                # noqa: BLE001
+    import json as _j
+    from pathlib import Path as _P
+    _P("/work/p3/ct-capture.json").write_text(_j.dumps(
+        {"scenarios": [], "error": f"AUTHORITY_IMPORT_FAILED: {type(_imp_e).__name__}: {_imp_e}"},
+        indent=2))
+    raise SystemExit(2)
 
 CT_DIR = "/work/p3/plutus-ct"
 CAPTURE = Path("/work/p3/ct-capture.json")
