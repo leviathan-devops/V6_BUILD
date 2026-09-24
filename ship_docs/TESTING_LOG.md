@@ -426,3 +426,15 @@ but were never called, or changed at one site while a sibling kept the old value
 (5 of 8 findings in round 33; 4 of 7 in round 35).
 
 The battery is now **30/30** with it.
+
+
+## THE TWO PROOF-CONTRACT ITEMS (HEAD 90c0a3f) — BOTH DISCHARGED
+1. **THE RUNTIME SEAT IS PROVEN LIVE.** The pi TUI booted in a PTY, loaded the
+   circuit with NO coding surface, accepted the pin's push-set prompt into its
+   chat, and rendered the golden-week table ON SCREEN (`6/6 accepted by the
+   gates. All canon RRRs reproduced within tolerance.`). NOT headless.
+2. **THE INDEPENDENT RE-VERIFICATION IS CONFIRMED.** A zero-context subagent ran
+   the golden-week test twice and returned 15/15 at max_delta 0.000p with
+   Tier-A RRR True — the second operator the pin requires.
+
+Also green: `prove_zero_coding` (0 violations) and `test_tools_execute` (5/5).

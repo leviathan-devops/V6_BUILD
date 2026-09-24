@@ -220,3 +220,42 @@ both pane predicates resisting a forged marker while still seeing a REAL pane.
 
 **THE STANDING RULE, now mechanical:** a fix that does not TAKE EFFECT fails the
 battery.
+
+
+## THE RUNTIME SEAT + THE INDEPENDENT RE-VERIFICATION (HEAD 90c0a3f)
+BOTH PROOF-CONTRACT ITEMS DISCHARGED THIS SESSION.
+
+### 1 · THE RUNTIME SEAT — PROVEN LIVE
+The pi TUI was launched in a PTY (`pi-harness/launch.sh`'s exact form):
+`pi --no-builtin-tools -e pi-harness/plutus-circuit.ts --session-dir ...`
+- a REAL interactive trust prompt rendered (not a pipe);
+- the pane then read **`Plutus V6 circuit loaded — trading tools only, no coding
+  surface`**, status bar `kimi-k2.6`, cwd `PLUTUS/V6_BUILD (master)`;
+- **THE PIN'S PUSH SET EXECUTED**: the prompt `run the DXY golden week` was sent
+  INTO the TUI chat, `plutus_run_golden` fired, and a LIVE table rendered:
+  `DXY#3 4.60/4.6000/0.0000 ACCEPT · DXY#4 3.58/3.5833/0.0033 ACCEPT ·
+   DXY#5 3.79/3.7857/0.0043 ACCEPT · DXY#6 5.84/5.8421/0.0021 ACCEPT`
+  with `Summary: 6/6 trades accepted by the gates. All canon RRRs reproduced
+  within tolerance.`
+- **NOT HEADLESS**, confirmed mechanically: `launch.sh` has no `--print` and no
+  `--mode json`.
+Evidence: `.trident/seat-evidence/RUNTIME_SEAT_PROOF.md`.
+
+### 2 · THE INDEPENDENT RE-VERIFICATION — CONFIRMED
+A **zero-context subagent** (`IndependentReverify`) was dispatched with ONE
+instruction: run `bash tests/run.sh test_golden_week_e2e` twice and report only
+what it SAW. Its verbatim return:
+```
+VERDICT: CONFIRMED · FX_ENTRIES: 15/15 · MAX_DELTA: 0.000p
+TIER_A_RRR: True · RESULT_LINE: RESULT: PASS test_golden_week_e2e
+RUN_2_SAME: yes, run 2 FX_ENTRIES 15/15 · BLOCKER: none
+```
+
+### 3 · THE MECHANICAL ZERO-CODING PROOF
+`python3 pi-harness/prove_zero_coding.py` -> **PASS, violations = 0**:
+`--no-builtin-tools` removes read/bash/powershell/edit/write/grep/find/ls; the
+extension registers exactly 7 `plutus_*` tools; the circuit is invoked with
+`execFile` (argv, never a shell).
+
+### 4 · THE HARNESS TOOL PROOF
+`python3 pi-harness/tests/test_tools_execute.py` -> **PASS, 5/5 payloads rc=0**.
