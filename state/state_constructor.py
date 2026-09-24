@@ -190,6 +190,9 @@ def render_state(pair: str, anchor_ms: int, feeds: dict[tuple[str, str], list[Ba
     feed mutated after parsing) entered the document unchecked, violating the
     module's own TEMPORAL LAW. The check is now enforced at render time too.
     """
+    # AUDIT FIX (round 27): the sorted/revalidated lists were written BACK into
+    # the caller's dict. A `render_*` function must not mutate its input.
+    _sorted_feeds = {}
     for (p, tf), bars in feeds.items():
         # AUDIT FIX (round 15): the render path ASSUMED ascending order and only
         # checked the anchor — and my round-14 edit silently no-op'd (its anchor
@@ -215,7 +218,7 @@ def render_state(pair: str, anchor_ms: int, feeds: dict[tuple[str, str], list[Ba
             raise FutureBarLeak(
                 f"FUTURE_BAR_LEAK: {p} {tf} has {len(over)} bar(s) past anchor "
                 f"{anchor_ms} at RENDER time (first ts={over[0].ts})")
-        feeds[(p, tf)] = bars
+        _sorted_feeds[(p, tf)] = bars
     # THE STATE CONTRACT (blueprint 1.7, verbatim for CALL 1 / E1):
     #     "State: 30m/1H/4H bars + pair + session + DXY ctx"
     #

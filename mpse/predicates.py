@@ -225,6 +225,12 @@ def _session_hhmm(s: str):
         if not m:
             return None
     h, mi = int(m.group(1)), int(m.group(2))
+    # AUDIT FIX (round 27): the seconds group was parsed and DISCARDED, so
+    # `02:00:99` was accepted and `05:00:59` passed a window that ends at
+    # 05:00:00. Validated, and a stamp past the window's end is refused.
+    _sec = m.group(3)
+    if _sec is not None and not (0 <= int(_sec) <= 59):
+        return None
     if not (0 <= h <= 23 and 0 <= mi <= 59):
         return None
     off = m.group(4) if m.re.groups >= 4 else None
@@ -304,8 +310,6 @@ def geometry_witness(c) -> bool:
     # AUDIT FIX (round 17 H3): `c.get('direction')` ran BEFORE the guard, so a
     # direct call with None/list/str raised AttributeError instead of the
     # fail-closed False this witness promises.
-    if not isinstance(c, dict):
-        return False
     try:
         e, sl, tp = c["entry"], c["sl"], c["tp"]
     except (KeyError, TypeError):

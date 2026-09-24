@@ -380,7 +380,7 @@ TEST_PATH_RE = re.compile(_f("(^|/)tests?/|(^|/)test_[^/]*", "[.]py$"))
 
 
 def _scan(path: Path, root: Path, src: str, lexicon: dict, kind: str) -> list:
-    rel = str(path.relative_to(root))
+    rel = _norm(path.relative_to(root))
     is_test = bool(TEST_PATH_RE.search(rel))
     out = []
     for name, pat in lexicon.items():
@@ -432,7 +432,7 @@ def scan_tree(root: str, include_tests: bool = True) -> list:
         # lexicon entirely, so a writer placed at tests/payload.py evaded the
         # audit. The exemption is now limited to the DECLARED artifact paths —
         # a test file is not a licence to write.
-        if rel not in WRITE_ALLOWED_PATHS:
+        if _norm(rel) not in WRITE_ALLOWED_PATHS:
             violations += _scan(f, root_p, src, WRITE_FORBIDDEN, "write")
         # AUDIT FIX (round 15): the WRITE_SUSPECT tier was defined but NEVER
         # wired into the tree audit — so the aliased-receiver evasion the
@@ -483,4 +483,11 @@ def scan_text(text: str) -> list:
 
 
 def is_write_allowed(rel_path: str) -> bool:
-    return rel_path in WRITE_ALLOWED_PATHS
+    # AUDIT FIX (round 27): raw string membership broke on Windows separators and
+    # on a `./`-prefixed or absolute caller input. Both sides normalize to POSIX.
+    return _norm(rel_path) in WRITE_ALLOWED_PATHS
+
+
+def _norm(p) -> str:
+    """A repo-relative path in POSIX form, so the allowlist matches anywhere."""
+    return str(p).replace(chr(92), "/").lstrip("./")

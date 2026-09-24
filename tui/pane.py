@@ -203,6 +203,10 @@ def render(m: PaneModel) -> str:
 
 
 def has_probability_bars(text: str) -> bool:
+    # AUDIT FIX (round 27): its sibling has_gate_decisions guards the type; this
+    # one raised TypeError on None/bytes, breaking the never-crash seat contract.
+    if not isinstance(text, str):
+        return False
     return "|" in text and "#" in text and "argmax=" in text
 
 

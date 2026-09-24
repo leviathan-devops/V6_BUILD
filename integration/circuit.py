@@ -90,13 +90,16 @@ class Circuit:
         try:
             from state_constructor import warm_tokenizer
             warm_tokenizer()
-        except Exception:                                  # noqa: BLE001
-            pass                                           # the estimate stands in
+        except Exception as _e:                            # noqa: BLE001
+            # AUDIT FIX (round 27): a silent failure made a tokenizer regression
+            # invisible — the estimate then stood in INSIDE the latency budget.
+            self._tokenizer_warm_error = f"{type(_e).__name__}: {_e}"
         self._decider = None
         self._wire = None          # AUDIT FIX (round 22): initialized, so a
                                    # failure in wire_questions() cannot leave
                                    # _decider set while _wire is unassigned.
         self._grade_fallback = None
+        self._tokenizer_warm_error = None
         self._limite_ok = None
 
     # ---- stage 1-2: feed + state -------------------------------------------
