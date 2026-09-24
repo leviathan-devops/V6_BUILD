@@ -301,6 +301,13 @@ def _tokenizer():
                 continue
             try:
                 _TOKENIZER = AutoTokenizer.from_pretrained(c)
+                # AUDIT FIX (round 23b, MY OWN REGRESSION): `_TOKENIZER_TRIED` was
+                # set only on the FAILURE path, so the SUCCESS path returned
+                # without caching — every count_tokens call re-ran
+                # from_pretrained (~900ms), which took the offline golden week
+                # from 5ms to 948ms and broke four tests. Marked here, and the
+                # load happens exactly once.
+                _TOKENIZER_TRIED = True
                 return _TOKENIZER
             except Exception as e:                     # noqa: BLE001
                 _last = f"{type(e).__name__}: {e}"
@@ -310,6 +317,15 @@ def _tokenizer():
     _TOKENIZER_TRIED = True
     globals()["_TOKENIZER_FAIL"] = _last or "no candidate loaded"
     return None
+
+
+def warm_tokenizer():
+    """Load the real tokenizer NOW, so no measured path pays for it.
+
+    Returns the tokenizer, or None when it is unavailable (the estimate then
+    stands in — and `count_tokens` records why, per the round-23 fix).
+    """
+    return _tokenizer()
 
 
 def count_tokens(text: str) -> int:

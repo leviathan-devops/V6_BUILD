@@ -82,6 +82,16 @@ class Circuit:
         self.use_limite = use_limite
         self.use_decider = use_decider
         self.anchor_ms = anchor_ms
+        # AUDIT FIX (round 23b): the state's token-limit guard now loads the
+        # Decider's REAL tokenizer, and that load costs ~2.6s ONCE per process.
+        # Left lazy, it landed inside the first measured `decide()` — taking the
+        # offline golden week from 5ms to 948ms and breaking four tests. A
+        # dependency is warmed at CONSTRUCTION, never inside a latency budget.
+        try:
+            from state_constructor import warm_tokenizer
+            warm_tokenizer()
+        except Exception:                                  # noqa: BLE001
+            pass                                           # the estimate stands in
         self._decider = None
         self._wire = None          # AUDIT FIX (round 22): initialized, so a
                                    # failure in wire_questions() cannot leave
