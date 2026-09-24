@@ -248,8 +248,8 @@ _WRITE_NAMES = [
     # legal semicolon inside the filename (`open("a;b","w")`) could never reach
     # it. The scan now stops at the first CLOSING PAREN or newline — which is what
     # actually bounds the call — so a `;` inside a string is fine.
-    _f("open", _WS, "[(](?s:(?:[^()]|[(][^()]*[)])*?)['", '"', "][rwaxtb]*[+][rwaxtb]*['", '"', "][ \t\n]*[,)]")
-     + "|" + _f("open", _WS, "[(](?s:(?:[^()]|[(][^()]*[)])*?)['", '"', "][rwaxtb]*[wax][rwaxtb]*['", '"', "][ \t\n]*[,)]")),
+    _f("open", _WS, "[(](?s:(?:[^()]|[(](?:[^()]|[(][^()]*[)])*[)])*?)['", '"', "][rwaxtb]*[+][rwaxtb]*['", '"', "][ \t\n]*[,)]")
+     + "|" + _f("open", _WS, "[(](?s:(?:[^()]|[(](?:[^()]|[(][^()]*[)])*[)])*?)['", '"', "][rwaxtb]*[wax][rwaxtb]*['", '"', "][ \t\n]*[,)]")),
     (_f("os.", "wr", "ite"),    _f("os", _DOT, "wr", "ite", _WS, "[(]")),
     (_f("os.", "op", "en"),     _f("os", _DOT, "op", "en", _WS, "[(]")),
     (_f("os.", "re", "name"),   _f("os", _DOT, "re", "name", _WS, "[(]")),
@@ -353,7 +353,7 @@ for _n, _pat in list(_WRITE_NAMES):
             _WRITE_NAMES.append((_n + "-bare",
                                  _pat + "|"
                                  + _f(_PRE, "open", _WS,
-                                      "[(](?s:[^)\n]*|[(][^)]*[)][^)\n]*)",
+                                      "[(](?s:(?:[^()]|[(](?:[^()]|[(][^()]*[)])*[)])*?)",
                                       _WS, "O_[A-Z_]+")))
             continue
         # AUDIT FIX (round 13): the first list omitted mkdir/makedirs/replace/

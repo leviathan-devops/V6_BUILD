@@ -222,8 +222,35 @@ def has_gate_decisions(text: str) -> bool:
     # rejection detail. Only lines in the GATE DECISIONS section count, and only
     # where the marker sits at the row's start — which is where the renderer
     # emits it.
+    # AUDIT FIX (round 30): `ln.strip()` defeated the indent check — a DETAIL row
+    # is indented 12 spaces, and stripping it made its content look like a verdict
+    # row. The scan is now SECTION-scoped: only lines INSIDE the GATE DECISIONS
+    # block count, and the marker must sit at the ROW's own column (no leading
+    # whitespace), which is exactly where the renderer emits it.
+    if not isinstance(text, str):
+        return False
+    # THE EXACT COLUMN. The renderer emits a verdict row as `" [{mark}] ..."` —
+    # ONE leading space — while a DETAIL row is indented TWELVE. So requiring the
+    # one-space prefix distinguishes them exactly, and a marker quoted inside a
+    # detail (which sits 12 spaces in) can never match. My first version tracked
+    # the section and exited on ANY indented line, which the verdict rows
+    # themselves are — it reported False for a pane full of real verdicts.
+    # TWO CONDITIONS, both necessary: the line must be INSIDE the GATE DECISIONS
+    # section (the renderer delimits sections with a `===` rule) AND the marker
+    # must sit at the verdict column (one leading space — details are indented
+    # twelve). The column alone is not enough: the REJECTION LOG rows share it.
+    import re as _re
+    _in = False
     for ln in text.splitlines():
-        _s = ln.strip()
-        if _s.startswith("[PASS  ]") or _s.startswith("[REJECT]"):
+        if ln.startswith(" GATE DECISIONS"):
+            _in = True
+            continue
+        # the section ENDS at the next SECTION HEADER (an all-caps label at the
+        # one-space column) — NOT at the `===` rule, which sits BETWEEN the header
+        # and its own rows.
+        if _in and _re.match(r"^ [A-Z][A-Z0-9 ()/]+$", ln):
+            _in = False
+            continue
+        if _in and (ln.startswith(" [PASS  ]") or ln.startswith(" [REJECT]")):
             return True
     return False

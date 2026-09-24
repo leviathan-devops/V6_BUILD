@@ -177,7 +177,11 @@ def main() -> int:
         return 2
     seen = {}
     for i, r in enumerate(results):
-        if not isinstance(r.get("id"), str) or not isinstance(r.get("kind"), str):
+        # AUDIT FIX (round 30): `name` was only checked for PRESENCE, yet the
+        # final report slices it (`r['name'][:52]`) — a non-str name crashed the
+        # report AFTER the artifact was written.
+        if not isinstance(r.get("id"), str) or not isinstance(r.get("kind"), str) \
+                or not isinstance(r.get("name"), str):
             print(f"CT_CAPTURE_MALFORMED: scenario[{i}] has a non-string id/kind")
             return 2
         if r.get("verdict") not in ("PASS", "FAIL"):
@@ -209,7 +213,13 @@ def main() -> int:
         # so a non-list claim (int/dict) raised TypeError INSIDE the refusal —
         # crashing while refusing, which is the one thing a validator must never
         # do. The claim is rendered defensively.
-        _shown = sorted(claimed) if isinstance(claimed, list) else repr(claimed)
+        # AUDIT FIX (round 30): `sorted()` on a HETEROGENEOUS list ([1,'a'])
+        # raised TypeError INSIDE the refusal — crashing while refusing, the one
+        # thing a validator must never do.
+        try:
+            _shown = sorted(claimed) if isinstance(claimed, list) else repr(claimed)
+        except TypeError:
+            _shown = repr(claimed)
         print(f"CT_EXCLUSION_TAMPERED: the capture claims {_shown} but the "
               f"local authority is {sorted(EXCLUDED)} — refusing")
         return 2

@@ -257,7 +257,10 @@ class Portfolio:
             raise ValueError(
                 f"INVALID_TRADES: {len(_bad)} element(s) are not TradeResult "
                 f"(first: {type(_bad[0]).__name__})")
-        object.__setattr__(self, "trades", list(self.trades))
+        # AUDIT FIX (round 30): a plain list stays MUTABLE on a frozen dataclass,
+        # so `pf.trades.append('junk')` bypassed the validation above. A tuple is
+        # immutable — and `simulate` builds its Portfolio from the final list.
+        object.__setattr__(self, "trades", tuple(self.trades))
         e = self.starting_equity
         if isinstance(e, bool) or not isinstance(e, (int, float)) \
                 or e != e or abs(e) == float("inf"):
@@ -322,7 +325,11 @@ def simulate(decisions: list[TradeDecision], commission_rate: float,
     if not isinstance(outcomes, dict):
         raise ValueError(
             f"OUTCOMES_REQUIRED: pass {{zone_id: 'tp'|'sl'}} — got {type(outcomes).__name__}")
-    pf = Portfolio()
+    # AUDIT FIX (round 30): the book is built in a LOCAL list and handed to the
+    # Portfolio at the end, because Portfolio.trades is now an IMMUTABLE tuple —
+    # a mutable list on a frozen dataclass let `append('junk')` bypass the
+    # TradeResult validation that __post_init__ performs.
+    _trades: list[TradeResult] = []
     for d in decisions:
         # AUDIT FIX: a missing zone_id defaulted to "tp" (a WIN), so a typo or an
         # unlabelled trade silently inflated P&L. An unlabelled decision is now
@@ -344,8 +351,8 @@ def simulate(decisions: list[TradeDecision], commission_rate: float,
         fill = Fill(pair=d.pair, direction=d.direction, entry=d.entry,
                     exit=exit_price, units=DEFAULT_UNITS,
                     commission_rate=commission_rate)
-        pf.trades.append(TradeResult(decision=d, fill=fill, outcome=outcome))
-    return pf
+        _trades.append(TradeResult(decision=d, fill=fill, outcome=outcome))
+    return Portfolio(trades=_trades)
 
 
 def commission_sensitivity(decisions: list[TradeDecision],
