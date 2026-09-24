@@ -367,6 +367,12 @@ WRITE_SUSPECT = [
      "|".join(_f(_ALIAS, *frags, _WS, "[(]") for frags in (
          ("mk", "dir"), ("make", "dirs"), ("re", "place"), ("sym", "link"),
          ("trun", "cate")))),
+    # AUDIT FIX (round 37): the removers had NO any-receiver form — `import os as
+    # o; o.rmdir(p)` matched neither the literal-`os` dotted rule nor any bare
+    # form, so an aliased DELETION evaded the review tier entirely.
+    (_f("os.", "fs-removers-any-receiver"),
+     "|".join(_f(_ALIAS, *fr, _WS, "[(]") for fr in (
+         ("rm", "dir"), ("remove", "dirs"), ("re", "names"), ("re", "move")))),
     (_f("os.", "write-any-receiver"),
      "|".join(_f(_ALIAS, *frags, _WS, "[(]") for frags in (
          ("wr", "ite"), ("op", "en"), ("re", "name"), ("un", "link"),

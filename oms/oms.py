@@ -208,6 +208,13 @@ class TradeResult:
         if self.fill.pair != self.decision.pair:
             raise ValueError(f"OUTCOME_PAIR_MISMATCH: fill {self.fill.pair!r} vs "
                              f"decision {self.decision.pair!r}")
+        # AUDIT FIX (round 37): the ENTRY was never checked, so a fill whose entry
+        # diverged from its decision passed validation and corrupted gross_pips.
+        # `simulate` copies d.entry, but a manually built TradeResult did not.
+        if abs(self.fill.entry - self.decision.entry) > 1e-9:
+            raise ValueError(
+                f"OUTCOME_ENTRY_MISMATCH: fill entry {self.fill.entry} vs decision "
+                f"{self.decision.entry}")
         if self.fill.direction != self.decision.direction:
             raise ValueError(f"OUTCOME_DIRECTION_MISMATCH: fill "
                              f"{self.fill.direction!r} vs decision "

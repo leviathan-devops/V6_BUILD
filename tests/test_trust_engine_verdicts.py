@@ -11,7 +11,12 @@ t_ok = trust(at_01_rrr_floor, BASE)
 ok1 = t_ok.status == "TRUSTED" and all(v for v in t_ok.witnesses.values() if v is not None)
 
 # 2) CODE agrees, LIMITE disagrees -> DIVERGENT
-t_div = trust(at_01_rrr_floor, {**BASE, "limite_rrr": 9.99})
+#    AUDIT ROUND 37 CHANGED THE CONTRACT: the LIMITE vote now tests the
+#    PREDICATE'S OWN quantity. For AT-01 (the RRR FLOOR) the model's value is
+#    tested against the same floor — so a HIGH limite_rrr AGREES the floor is
+#    met. To manufacture a disagreement the model must claim the floor FAILS
+#    while the code's rrr passes it.
+t_div = trust(at_01_rrr_floor, {**BASE, "limite_rrr": 1.0})
 ok2 = t_div.status == "DIVERGENT" and t_div.witnesses["LIMITE"] is False
 
 # 3) an inverted geometry -> AT-03 (a GEOMETRY-subject predicate) rejects
@@ -23,7 +28,12 @@ ok4 = t_inv.status == "TRUSTED_REJECT"
 
 # 4) a predicate whose subject is CODE only: no LIMITE/GEOMETRY vote
 t_zone = trust(at_04_zone_positive, {**BASE, "zone_width_pips": 0.0})
-ok5 = t_zone.status == "TRUSTED_REJECT" and "LIMITE" not in t_zone.witnesses
+# AUDIT ROUND 37: a SINGLE-SOURCE predicate (AT-04 carries `witnesses == ()`)
+# can never be TRUSTED — the module's 3-way guarantee requires at least TWO
+# independent votes. Its verdict is INCONCLUSIVE with the CODE vote recorded,
+# which is the honest label for a one-witness panel.
+ok5 = t_zone.status == "INCONCLUSIVE" and "LIMITE" not in t_zone.witnesses \
+      and t_zone.witnesses.get("CODE") is False
 
 # 5) the witness PANEL is predicate-aware (audit rounds 8 and 13)
 #    AUDIT ROUND 13: the map became a PANEL (a tuple of witnesses) because the

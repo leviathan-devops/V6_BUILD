@@ -472,9 +472,19 @@ def trust(predicate: Callable, c: dict) -> TrustVerdict:
         # AUDIT FIX (round 11): `limite_rrr` bypassed _missing's type guard (it is
         # not a REQUIRED_KEY), so a string/bool raised TypeError out of `abs()`.
         _m = c.get("limite_rrr")
-        votes["LIMITE"] = (abs(_m - c["rrr"]) <= 0.02
-                           if isinstance(_m, (int, float)) and not isinstance(_m, bool)
-                           and _m == _m and abs(_m) != float("inf") else None)
+        _ok_type = (isinstance(_m, (int, float)) and not isinstance(_m, bool)
+                    and _m == _m and abs(_m) != float("inf"))
+        if not _ok_type:
+            votes["LIMITE"] = None
+        elif v.name == "AT-01":
+            # AUDIT FIX (round 37): the vote was ALWAYS the rrr-delta, but AT-01's
+            # subject is the FLOOR — so rrr=1.0 with limite_rrr=1.0 gave
+            # CODE=False + LIMITE=True, a manufactured DIVERGENT. The model's own
+            # value is tested against the SAME floor the predicate tests.
+            votes["LIMITE"] = _m >= RRR_FLOOR
+        else:
+            # AT-06/AT-09: the model-vs-code AGREEMENT is the quantity
+            votes["LIMITE"] = abs(_m - c["rrr"]) <= 0.02
     if "GEOMETRY" in witnesses:
         votes["GEOMETRY"] = geometry_witness(c)
     voting = [x for x in votes.values() if x is not None]
@@ -486,7 +496,15 @@ def trust(predicate: Callable, c: dict) -> TrustVerdict:
         status = INCONCLUSIVE
     elif len(voting) < len(votes):
         status = INCONCLUSIVE
-    elif all(voting):
+    elif len(voting) < 2:
+        # a ONE-source panel can never be TRUSTED (round 37)
+        status = INCONCLUSIVE
+    elif all(voting) and len(voting) >= 2:
+        # AUDIT FIX (round 37, completing round 35): the single-vote case still
+        # reached TRUSTED — AT-02/04/05/10 carry `witnesses == ()`, so
+        # `len(voting) == len(votes) == 1` and `all(voting)` held. TRUSTED now
+        # REQUIRES at least two independent votes; a one-source panel is
+        # INCONCLUSIVE, which is what the module's 3-way guarantee means.
         status = TRUSTED
     elif not any(voting):
         # unanimous FAIL: the witnesses AGREE that the predicate fails. That is
