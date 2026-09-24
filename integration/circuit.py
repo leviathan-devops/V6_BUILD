@@ -67,6 +67,7 @@ class CircuitResult:
     # AUDIT FIX (round 22): names the reason a Decider grade fell back to the
     # offline confidence, so a missing module is never mistaken for a real score.
     grade_fallback: str | None = None
+    tokenizer_warm_error: str | None = None
 
     def to_dict(self):
         d = asdict(self)
@@ -87,6 +88,10 @@ class Circuit:
         # Left lazy, it landed inside the first measured `decide()` — taking the
         # offline golden week from 5ms to 948ms and breaking four tests. A
         # dependency is warmed at CONSTRUCTION, never inside a latency budget.
+        # initialized BEFORE the attempt, so a SUCCESSFUL warm-up still leaves
+        # the attribute defined (the round-29 fix removed the tail reset and left
+        # it unset on the success path — an AttributeError on every decide()).
+        self._tokenizer_warm_error = None
         try:
             from state_constructor import warm_tokenizer
             warm_tokenizer()
@@ -99,7 +104,9 @@ class Circuit:
                                    # failure in wire_questions() cannot leave
                                    # _decider set while _wire is unassigned.
         self._grade_fallback = None
-        self._tokenizer_warm_error = None
+        # NOTE: _tokenizer_warm_error is set ABOVE by the warm-up, and is
+        # deliberately NOT reset here — resetting it made the round-27 visibility
+        # fix a no-op (audit round 29).
         self._limite_ok = None
 
     # ---- stage 1-2: feed + state -------------------------------------------
@@ -303,6 +310,10 @@ class Circuit:
             decider=decider_out,
             # the audit trail names WHICH confidence the gates actually read
             grade_fallback=self._grade_fallback,
+            # AUDIT FIX (round 29): the warm-up failure was recorded on `self` and
+            # never read — invisible. It rides the RESULT so a tokenizer
+            # regression is observable where the verdict is.
+            tokenizer_warm_error=self._tokenizer_warm_error,
             limite={"L3": ({"model": limite_rrr, "code": rrr_code,
                             "delta": round(abs(limite_rrr - rrr_code), 6),
                             "pass": abs(limite_rrr - rrr_code) <= 0.02}

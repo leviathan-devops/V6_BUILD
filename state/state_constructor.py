@@ -13,6 +13,7 @@ Source: Plutus_V6_Master_Blueprint_v1.md — the packing grammar:
 from __future__ import annotations
 import os
 from dataclasses import dataclass
+import pathlib
 
 STATE_DELIM = "<|fim_prefix|>"
 QUESTION_DELIM = "<|fim_middle|>"
@@ -302,10 +303,15 @@ def _tokenizer():
     # documented in this very file as a ~4x UNDERCOUNT — so a missing tokenizer
     # silently defeated the 8192-token OOM guard. The reason is recorded.
     import glob, os
+    # AUDIT FIX (round 29): the candidates hardcoded a USERNAME, so on any other
+    # host the lookup failed and — with the round-28 fail-closed guard — every
+    # render_state hard-failed. The paths are now derived from the ENVIRONMENT:
+    # HF_HOME (or the XDG default) plus an explicit DECIDER_BASE.
+    _hf = os.environ.get("HF_HOME") or str(pathlib.Path.home() / ".cache" / "huggingface")
     cands = [os.environ.get("DECIDER_TOKENIZER"),
-             *glob.glob("/home/leviathan/.cache/huggingface/hub/"
-                        "models--Mapika--decider-2b/snapshots/*"),
-             os.environ.get("DECIDER_BASE", "/home/leviathan/models/qwen3-0.6b-base")]
+             *sorted(glob.glob(str(pathlib.Path(_hf) / "hub"
+                                   / "models--Mapika--decider-2b" / "snapshots" / "*"))),
+             os.environ.get("DECIDER_BASE")]
     try:
         from transformers import AutoTokenizer
         for c in cands:

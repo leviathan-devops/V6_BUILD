@@ -217,4 +217,13 @@ def has_gate_decisions(text: str) -> bool:
     # matches the rendered MARKER the gate renderer actually emits.
     if not isinstance(text, str):
         return False
-    return "[PASS  ]" in text or "[REJECT]" in text
+    # AUDIT FIX (round 29): matching the WHOLE pane let a single-line payload
+    # (`[`/`]` are printable, so _safe preserves them) forge a verdict from a
+    # rejection detail. Only lines in the GATE DECISIONS section count, and only
+    # where the marker sits at the row's start — which is where the renderer
+    # emits it.
+    for ln in text.splitlines():
+        _s = ln.strip()
+        if _s.startswith("[PASS  ]") or _s.startswith("[REJECT]"):
+            return True
+    return False
