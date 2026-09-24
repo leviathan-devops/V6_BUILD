@@ -257,7 +257,14 @@ def render_state(pair: str, anchor_ms: int, feeds: dict[tuple[str, str], list[Ba
     ]
     body = "\n".join(head + [""] + blocks)
     if extra: body += "\n" + extra
-    return f"{STATE_DELIM}\n{body}\n"
+    doc = f"{STATE_DELIM}\n{body}\n"
+    # AUDIT FIX (round 22): the limit was enforced only if the CALLER remembered
+    # `assert_state_fits` — so an oversize state (many feeds, a large `extra`)
+    # reached the Decider, and an oversize state is exactly what OOM'd the served
+    # model and blew the latency budget. The guard is now at the return boundary,
+    # which is the only place every caller passes through.
+    assert_state_fits(doc)
+    return doc
 
 
 _TOKENIZER = None

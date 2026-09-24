@@ -64,6 +64,9 @@ class CircuitResult:
     rejections: list = field(default_factory=list)
     dual_verified: bool = False     # True only when an INDEPENDENT Limite value was checked
     dual_passed: bool = False       # True only when that check ALSO agreed (delta <= eps)
+    # AUDIT FIX (round 22): names the reason a Decider grade fell back to the
+    # offline confidence, so a missing module is never mistaken for a real score.
+    grade_fallback: str | None = None
 
     def to_dict(self):
         d = asdict(self)
@@ -80,6 +83,9 @@ class Circuit:
         self.use_decider = use_decider
         self.anchor_ms = anchor_ms
         self._decider = None
+        self._wire = None          # AUDIT FIX (round 22): initialized, so a
+                                   # failure in wire_questions() cannot leave
+                                   # _decider set while _wire is unassigned.
         self._grade_fallback = None
         self._limite_ok = None
 
@@ -105,6 +111,10 @@ class Circuit:
     def decide(self, pair: str, bars_by_tf: dict, feeds: dict,
                limite_rrr: float | None = None) -> CircuitResult:
         t0 = time.perf_counter()
+        # AUDIT FIX (round 22): the fallback record was write-only on `self`, never
+        # reset per call — so a REUSED Circuit reported the previous call's error
+        # after a later success. Reset here, and carried onto the result below.
+        self._grade_fallback = None
         from state_constructor import session_label
         from gates import TradeCandidate, evaluate
         from math_queries import code_truth
@@ -225,6 +235,8 @@ class Circuit:
             gate_results=[{"gate": r.gate, "passed": r.passed, "token": r.token,
                            "detail": r.detail} for r in verdict.results],
             decider=decider_out,
+            # the audit trail names WHICH confidence the gates actually read
+            grade_fallback=self._grade_fallback,
             limite={"L3": ({"model": limite_rrr, "code": rrr_code,
                             "delta": round(abs(limite_rrr - rrr_code), 6),
                             "pass": abs(limite_rrr - rrr_code) <= 0.02}
@@ -251,9 +263,14 @@ class Circuit:
         """
         from decider_client import Decider
         from question_templates import wire_questions
-        if self._decider is None:
-            self._decider = Decider()          # raises on a wrong/substitute model
-            self._wire = wire_questions()
+        if self._decider is None or self._wire is None:
+            # AUDIT FIX (round 22): _decider was assigned BEFORE wire_questions()
+            # ran, so a raise there left _decider non-None and _wire unassigned —
+            # the next call skipped re-init and failed with AttributeError. Both
+            # are assigned together, and the guard checks BOTH.
+            _d = Decider()                     # raises on a wrong/substitute model
+            _w = wire_questions()
+            self._decider, self._wire = _d, _w
         return self._decider.decide(state, self._wire)
 
     # ---- stage 12-13: execute + measure ------------------------------------

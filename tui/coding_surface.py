@@ -219,12 +219,16 @@ _WRITE_NAMES = [
     # AUDIT FIX: the mode class `[rwax]` flagged `open(path, "r")` — a READ — as
     # a write violation. Only w/a/x (and the + modes) are writes; a leading 'r'
     # is a read unless followed by '+'.
+    # AUDIT FIX (round 22): `(?s:.*?)` with DOTALL crossed `)`, newlines and
+    # intervening statements, so `open(a,"r")` followed anywhere later by a `"w"`
+    # literal matched as ONE write violation. The arg scan is now bounded to the
+    # call: no `)` and no `;` may intervene.
     (_f("open", "-write-mode"),
      # AUDIT FIX (round 6): the mode class required b/t BEFORE +, so the
      # docs-canonical "w+b" never matched, and a leading "b" (rb+/wb+) was missed.
      # The class now accepts the mode letters in any order plus a sign.
-     _f("open", _WS, "[(](?s:.*?)['", '"', "][rwaxtb]*[+][rwaxtb]*['", '"', "][ \t\n]*[,)]")
-     + "|" + _f("open", _WS, "[(](?s:.*?)['", '"', "][wax][rwaxtb]*['", '"', "][ \t\n]*[,)]")),
+     _f("open", _WS, "[(](?s:[^);]*?)['", '"', "][rwaxtb]*[+][rwaxtb]*['", '"', "][ \t\n]*[,)]")
+     + "|" + _f("open", _WS, "[(](?s:[^);]*?)['", '"', "][wax][rwaxtb]*['", '"', "][ \t\n]*[,)]")),
     (_f("os.", "wr", "ite"),    _f("os", _DOT, "wr", "ite", _WS, "[(]")),
     (_f("os.", "op", "en"),     _f("os", _DOT, "op", "en", _WS, "[(]")),
     (_f("os.", "re", "name"),   _f("os", _DOT, "re", "name", _WS, "[(]")),
@@ -310,6 +314,13 @@ for _n, _pat in list(_WRITE_NAMES):
         # literal `fs-creators(` — a rule that can never match. Only real
         # single-identifier method names are expanded.
         if not _word.isidentifier():
+            continue
+        # AUDIT FIX (round 22): `os.open` expands to the bare word `open`, and a
+        # bare `open(` with NO mode check flagged every read as a write — the
+        # builtin `open(p, "r")` became a violation. A name whose bare form would
+        # be the BUILTIN is skipped: the dotted form already covers os.open, and
+        # the builtin's own rule (open-write-mode) already requires a write mode.
+        if _word == "open":
             continue
         # AUDIT FIX (round 13): the first list omitted mkdir/makedirs/replace/
         # symlink/truncate, so `from os import mkdir; mkdir(p)` evaded the

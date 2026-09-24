@@ -30,7 +30,7 @@ VOLATILE = frozenset({"ts_wall", "duration_ms", "started_at", "latency_ms",
                       "stage_latency"})
 
 
-def canonical(obj) -> str:
+def canonical(obj, _trust: bool = True) -> str:
     """A canonical JSON rendering: sorted keys, no whitespace, no volatile fields.
 
     AUDIT FIX (round 6): a raw `set`/`bytes` reached json.dumps and raised
@@ -40,7 +40,8 @@ def canonical(obj) -> str:
     # AUDIT FIX (round 20): the reserved-key check runs on the RAW input, BEFORE
     # `_freeze` inserts its own tags — otherwise strip() rejects the digest's own
     # tag structures (which is exactly what happened on the first attempt).
-    _check_reserved(obj)
+    if _trust:
+        _check_reserved(obj)
     obj = _freeze(obj)
 
     def strip(o, depth=0):
@@ -142,7 +143,12 @@ def digest(stages: dict) -> str:
     # caller chose and must be hashed.
     for name in sorted(stages):
         h.update(name.encode()); h.update(b"\x00")
-        h.update(canonical(stages[name]).encode()); h.update(b"\x1e")
+        # AUDIT FIX (round 22): the reserved-key refusal applies to RAW input.
+        # `digest` is fed by `RunDigest.__post_init__`, which ALREADY froze (and
+        # validated) every stage — so re-running the trust check on those values
+        # refused the digest's OWN tags. An already-frozen payload renders with
+        # `_render`; a raw one goes through `canonical` and its check.
+        h.update(_render_stage(stages[name]).encode()); h.update(b"\x1e")
     return h.hexdigest()
 
 
@@ -158,16 +164,6 @@ _TAG_SEQ = {"list": "__py_list__", "tuple": "__py_tuple__",
 _TAGS = frozenset({_TAG_FLOAT, _TAG_BYTES, *_TAG_SEQ.values()})
 
 
-class _Tag(dict):
-    """A TYPE TAG produced by `_freeze` — deliberately a DISTINCT TYPE, not a
-    plain dict. `_check_reserved` refuses a payload carrying a tag key, but it
-    must not refuse the digest's OWN tag structures, and a `_Tag` is how the two
-    are told apart. `_freeze` also returns a `_Tag` unchanged, so freezing a
-    already-frozen payload is idempotent (the double-freeze bug that broke
-    test_determinism_sha_match on the first attempt at this fix).
-    """
-
-
 class _FrozenDict(dict):
     """A dict that refuses mutation after construction."""
 
@@ -181,6 +177,29 @@ class _FrozenDict(dict):
     __ior__ = _no
 
 
+def _render_stage(v) -> str:
+    """Render ONE stage payload, choosing the entry point by what it IS.
+
+    A stage inside a `RunDigest` is ALREADY FROZEN (and was validated at the
+    freeze site), so it renders with `_render`; a RAW payload goes through
+    `canonical` and its reserved-key check. Round 22 introduced the split for
+    `digest` and left `compare` on the old path, so compare crashed on the same
+    frozen tags — one helper, both call sites, no third variant.
+    """
+    return _render(v) if isinstance(v, (_Tag, _FrozenDict)) else canonical(v)
+
+
+def _render(obj) -> str:
+    """The canonical rendering WITHOUT the raw-input trust check.
+
+    The internal sort key renders digest-OWNED `_Tag` values (created by
+    `_freeze`), which would legitimately trip the forgery refusal that exists for
+    RAW input. This is the same renderer with that one check skipped — it is
+    never exposed to callers.
+    """
+    return canonical(obj, _trust=False)
+
+
 def _check_reserved(o) -> None:
     """A payload may not carry a RESERVED TAG KEY.
 
@@ -188,8 +207,15 @@ def _check_reserved(o) -> None:
     the digest; if a payload could carry one, it could forge the tag and merge
     two different decisions. A collision is a LOUD refusal, never a silent merge.
     """
+    # AUDIT FIX (round 22): returning early for ANY `_Tag` was a TRUST-BOUNDARY
+    # BYPASS — a caller could construct a `_Tag` carrying a reserved key and skip
+    # the refusal entirely. This walker runs on RAW input only, where no
+    # legitimate `_Tag` can exist (the digest's own tags are created later, by
+    # `_freeze`), so a `_Tag` here IS a forgery and is refused.
     if isinstance(o, _Tag):
-        return                       # the digest's own tag — not a forgery
+        raise ValueError(
+            "CANONICAL_RESERVED_KEY: a _Tag instance appeared in the raw payload "
+            "— those are the digest's own type tags and cannot be supplied")
     if isinstance(o, dict):
         forged = _TAGS.intersection(str(k) for k in o)
         if forged:
@@ -202,6 +228,16 @@ def _check_reserved(o) -> None:
         for v in o:
             _check_reserved(v)
 
+
+
+class _Tag(_FrozenDict):
+    """A TYPE TAG produced by `_freeze` — deliberately a DISTINCT TYPE, not a
+    plain dict. `_check_reserved` refuses a payload carrying a tag key, but it
+    must not refuse the digest's OWN tag structures, and a `_Tag` is how the two
+    are told apart. `_freeze` also returns a `_Tag` unchanged, so freezing a
+    already-frozen payload is idempotent (the double-freeze bug that broke
+    test_determinism_sha_match on the first attempt at this fix).
+    """
 
 def _freeze(o):
     # AUDIT FIX: tuples were not recursed (a dict inside a tuple stayed mutable)
@@ -229,7 +265,7 @@ def _freeze(o):
         # type-erasure class, one branch over. The container type is tagged here.
         frozen = [_freeze(x) for x in o]
         return _Tag({_TAG_SEQ[type(o).__name__]:
-                     tuple(sorted(frozen, key=canonical))})
+                     tuple(sorted(frozen, key=_render))})
     if isinstance(o, (bytes, bytearray)):
         # AUDIT FIX (round 19): decoding erased the type, so b'abc' and 'abc'
         # digested identically. The tag keeps them distinct.
@@ -281,7 +317,7 @@ def compare(a: RunDigest, b: RunDigest) -> dict:
             diffs[name] = {"a": "PRESENT" if in_a else "ABSENT",
                            "b": "PRESENT" if in_b else "ABSENT"}
             continue
-        ca, cb = canonical(a.stages[name]), canonical(b.stages[name])
+        ca, cb = _render_stage(a.stages[name]), _render_stage(b.stages[name])
         if ca != cb:
             diffs[name] = {"a": ca[:200], "b": cb[:200]}
     return {"match": a.sha == b.sha, "sha_a": a.sha, "sha_b": b.sha,
