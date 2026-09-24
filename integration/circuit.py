@@ -150,6 +150,28 @@ class Circuit:
         missing = [k for k in required if k not in bars_by_tf]
         if missing:
             raise ValueError(f"MISSING_CANDIDATE_FIELDS: {missing} (need {list(required)})")
+        # AUDIT FIX (round 26): presence alone was checked, so a wrong TYPE
+        # (`entry="1.2"`, `confidence="high"`, `cascade_valid=1`) passed here and
+        # failed later as an unnamed TypeError — breaking the named-refusal
+        # contract this module states.
+        _nump = ("entry", "sl", "tp")
+        _bad = [k for k in _nump if isinstance(bars_by_tf[k], bool)
+                or not isinstance(bars_by_tf[k], (int, float))
+                or bars_by_tf[k] != bars_by_tf[k]
+                or abs(bars_by_tf[k]) == float("inf")]
+        if not isinstance(bars_by_tf.get("direction"), str):
+            _bad.append("direction")
+        _conf = bars_by_tf.get("confidence")
+        if _conf is not None and (isinstance(_conf, bool)
+                                  or not isinstance(_conf, (int, float))):
+            _bad.append("confidence")
+        for _b in ("cascade_valid", "chain_integrity"):
+            if _b in bars_by_tf and not isinstance(bars_by_tf[_b], bool):
+                _bad.append(_b)
+        if _bad:
+            raise ValueError(
+                f"CANDIDATE_BAD_TYPE: {sorted(set(_bad))} — each field has a "
+                f"declared type; a string price or a truthy int is not one")
         entry, sl, tp = bars_by_tf["entry"], bars_by_tf["sl"], bars_by_tf["tp"]
         direction = bars_by_tf["direction"]
         # DEFECT FIXED (found by the e2e probe 2026-09-23): this stage hardcoded

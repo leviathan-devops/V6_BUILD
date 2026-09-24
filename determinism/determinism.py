@@ -121,6 +121,22 @@ def canonical(obj, _trust: bool = True) -> str:
 
 
 def digest(stages: dict) -> str:
+    """PUBLIC entry: the raw stages are CHECKED before anything is rendered.
+
+    AUDIT FIX (round 26): the reserved-key refusal was skippable — `_render_stage`
+    treated any `_Tag`/`_FrozenDict` INSTANCE as already-validated, so a direct
+    `digest({'s': _Tag({'__py_float__': 'x'})})` caller could forge a tag and
+    merge two different decisions. The trust boundary is now exact: EVERY public
+    entry checks; only `_digest_frozen` (reached from RunDigest, which ran the
+    same check on the way in) skips it.
+    """
+    if not isinstance(stages, dict):
+        raise ValueError(f"RUN_DIGEST_STAGES_NOT_A_DICT: {type(stages).__name__}")
+    _check_reserved(stages)
+    return _digest_frozen(stages)
+
+
+def _digest_frozen(stages: dict) -> str:
     """The run digest over the ordered stage outputs.
 
     WHERE THE VOLATILE FILTER APPLIES (corrected in round 11 — the round-6 text
@@ -202,6 +218,22 @@ class _FrozenDict(dict):
     __ior__ = _no
 
 
+def _check_reserved_raw(o, _seen=None) -> None:
+    """The reserved-key check WITHOUT the _Tag early-refusal — for values the
+    digest itself froze (their tags are legitimate), where the question is only
+    whether the underlying PAYLOAD carried a forged key."""
+    if isinstance(o, dict):
+        forged = _TAGS.intersection(str(k) for k in o if not isinstance(k, _Tag))
+        if forged and not isinstance(o, _Tag):
+            raise ValueError(
+                f"CANONICAL_RESERVED_KEY: {sorted(forged)} — reserved type tags")
+        for k, v in o.items():
+            _check_reserved_raw(v, _seen)
+    elif isinstance(o, (list, tuple, set, frozenset)):
+        for v in o:
+            _check_reserved_raw(v, _seen)
+
+
 def _render_stage(v) -> str:
     """Render ONE stage payload, choosing the entry point by what it IS.
 
@@ -211,7 +243,16 @@ def _render_stage(v) -> str:
     `digest` and left `compare` on the old path, so compare crashed on the same
     frozen tags — one helper, both call sites, no third variant.
     """
-    return _render(v) if isinstance(v, (_Tag, _FrozenDict)) else canonical(v)
+    # AUDIT FIX (round 26): `isinstance(v, (_Tag, _FrozenDict))` treated ANY
+    # caller-supplied instance as already-validated and skipped the reserved-key
+    # check — so a direct digest() caller could forge a tag. The RAW path now
+    # always runs the check; only the digest's OWN frozen stages skip it, and
+    # that is decided by `RunDigest` (which checks on the way in), not by type.
+    # the CALLER has already been checked (digest/RunDigest both check on entry),
+    # so a frozen value renders directly and a raw one goes through canonical.
+    if isinstance(v, (_Tag, _FrozenDict)):
+        return _render(v)
+    return canonical(v)
 
 
 def _render(obj) -> str:
@@ -357,7 +398,8 @@ class RunDigest:
         # trusted it. The stored value is now a DEEP-FROZEN mapping — a
         # MutationAttempt raises instead of silently diverging from the sha.
         object.__setattr__(self, "stages", _freeze(copy.deepcopy(self.stages)))
-        object.__setattr__(self, "sha", digest(self.stages))
+        # the check ran above, on the RAW stages — so the internal path is safe
+        object.__setattr__(self, "sha", _digest_frozen(self.stages))
 
 
 def compare(a: RunDigest, b: RunDigest) -> dict:

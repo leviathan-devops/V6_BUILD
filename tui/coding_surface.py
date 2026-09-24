@@ -232,8 +232,13 @@ _WRITE_NAMES = [
     # false NEGATIVE. The bound now excludes only a STATEMENT terminator (`;`)
     # and a NEWLINE, which is what stopped the DOTALL over-match without
     # blocking nested calls.
-    _f("open", _WS, "[(](?s:[^;\n]*?)['", '"', "][rwaxtb]*[+][rwaxtb]*['", '"', "][ \t\n]*[,)]")
-     + "|" + _f("open", _WS, "[(](?s:[^;\n]*?)['", '"', "][rwaxtb]*[wax][rwaxtb]*['", '"', "][ \t\n]*[,)]")),
+    # AUDIT FIX (round 26): `[^;\n]*?` forbade a NEWLINE, but `open(path,\n "w")`
+    # is legal inside parens (implicit continuation) and is how formatters split
+    # long calls — so a legitimate multiline WRITE was missed. Only `;` (a
+    # statement terminator) bounds the scan now; the DOTALL over-match is stopped
+    # by requiring the mode quote, not by forbidding newlines.
+    _f("open", _WS, "[(](?s:[^;]*?)['", '"', "][rwaxtb]*[+][rwaxtb]*['", '"', "][ \t\n]*[,)]")
+     + "|" + _f("open", _WS, "[(](?s:[^;]*?)['", '"', "][rwaxtb]*[wax][rwaxtb]*['", '"', "][ \t\n]*[,)]")),
     (_f("os.", "wr", "ite"),    _f("os", _DOT, "wr", "ite", _WS, "[(]")),
     (_f("os.", "op", "en"),     _f("os", _DOT, "op", "en", _WS, "[(]")),
     (_f("os.", "re", "name"),   _f("os", _DOT, "re", "name", _WS, "[(]")),

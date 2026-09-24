@@ -342,8 +342,13 @@ def count_tokens(text: str) -> int:
     if _t is not None:
         try:
             return len(_t.encode(text, add_special_tokens=False))
-        except Exception:
-            pass
+        except Exception as e:                             # noqa: BLE001
+            # AUDIT FIX (round 26): this file documents the fallback estimate as a
+            # ~4x UNDERCOUNT, so silently using it DEFEATS the token limit that
+            # guards the OOM and the latency budget. An encode failure is loud.
+            raise ValueError(
+                f"STATE_TOKENIZE_FAILED: the real tokenizer could not encode the "
+                f"state ({type(e).__name__}: {e})") from e
     import re
     words = re.findall(r"\S+", text)
     punct = re.findall(r"[^\w\s]", text)

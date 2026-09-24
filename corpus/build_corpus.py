@@ -404,17 +404,22 @@ def _negative_variant(r, opts):
         # `<= N pips`) zero still SATISFIES it, so labelling `no` inverted the
         # supervision. The direction is read from the rule's own wording, and the
         # corruption is chosen to violate THAT bound.
-        _lower = re.search(r"\b(at least|minimum|min\b|>=|no fewer than|"
-                           r"must exceed|greater than)\b", r.quote, re.I)
-        _upper = re.search(r"\b(at most|maximum|max\b|<=|no more than|"
-                           r"must not exceed|never (?:more|above)|fewer than|"
-                           r"within)\b",
-                           r.quote, re.I)
+        # AUDIT FIX (round 26): the direction was searched over the WHOLE quote,
+        # so a card mentioning "max" anywhere read as an upper bound even when
+        # the CORRUPTED token sat beside a lower-bound word — the corruption then
+        # went the wrong way and the "no" label was wrong. The direction is now
+        # read from the WINDOW AROUND the token the regex validated.
         # AUDIT FIX (round 17 H10): `.replace(_tok, ..., 1)` rewrites the FIRST
         # substring match, which is NOT the match the regex found — with _tok
         # "10" inside "100" it corrupted the wrong number. The splice uses the
         # regex's own span, so the token the check validated is the token changed.
         _s, _e = _thresh.span(1) if _thresh.group(1) else _thresh.span(2)
+        _win = r.quote[max(0, _s - 40): min(len(r.quote), _e + 40)]
+        _lower = re.search(r"\b(at least|minimum|min\b|no fewer than|"
+                           r"must exceed|greater than)\b", _win, re.I)
+        _upper = re.search(r"\b(at most|maximum|max\b|no more than|"
+                           r"must not exceed|never (?:more|above)|fewer than|"
+                           r"within)\b", _win, re.I)
         if _upper and not _lower:
             # raise the value above an upper bound: multiply it out of range
             try:
@@ -553,7 +558,12 @@ def build(out_path: Path) -> dict:
     if not [r for r in golden if r.id.startswith("golden-")]:
         _missing.append("the golden-trade injector (golden rows)")
     if _missing:
-        print(f"  WARNING: a harvest source is EMPTY -> {_missing}")
+        # AUDIT FIX (round 26): a WARNING still returned a PASSING build, so an
+        # absent FORENSIC_ANALYSIS_38_TRADES.md shipped a corpus missing whole
+        # refusal classes. A biased corpus is a loud failure.
+        raise ValueError(
+            f"HARVEST_SOURCE_EMPTY: {_missing} — the corpus would be biased; "
+            f"refusing to report a passing build")
     # AUDIT FIX: negatives covered only the card records, so the forensic and
     # golden/gap yes-no questions had ZERO refusal supervision (a yes-sayer
     # bias). Every harvested kind now contributes negatives.

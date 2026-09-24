@@ -246,6 +246,18 @@ class Portfolio:
         the report said "no drawdown" on outright ruin. A non-positive start is
         refused by name.
         """
+        # AUDIT FIX (round 26): `trades` was stored BY REFERENCE, so a caller
+        # holding the original list could mutate the book behind the digest —
+        # and its ELEMENTS were never checked, so `Portfolio(trades=['junk'])`
+        # constructed fine and failed much later in net_pips_total with an
+        # AttributeError. It stays a LIST (simulate appends), but it is a COPY
+        # of a VALIDATED list.
+        _bad = [t for t in self.trades if not isinstance(t, TradeResult)]
+        if _bad:
+            raise ValueError(
+                f"INVALID_TRADES: {len(_bad)} element(s) are not TradeResult "
+                f"(first: {type(_bad[0]).__name__})")
+        object.__setattr__(self, "trades", list(self.trades))
         e = self.starting_equity
         if isinstance(e, bool) or not isinstance(e, (int, float)) \
                 or e != e or abs(e) == float("inf"):

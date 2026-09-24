@@ -86,10 +86,10 @@ def render_probabilities(decider) -> list[str]:
         # AUDIT FIX: a non-dict DISTRIBUTION (None/list/str/float) crashed
         # .items() and took the seat down — the same class _num fixed for values.
         if not isinstance(dist, dict):
-            out.append(f" {qid}: <malformed distribution {type(dist).__name__}>")
+            out.append(f" {_safe(qid, 20)}: <malformed distribution {type(dist).__name__}>")
             continue
         if not dist:
-            out.append(f" {qid}: <no distribution>")
+            out.append(f" {_safe(qid, 20)}: <no distribution>")
             continue
         clean = {k: _num(v) for k, v in dist.items()}
         # AUDIT FIX (round 10): a probability outside [0,1] passed _num (which
@@ -101,16 +101,16 @@ def render_probabilities(decider) -> list[str]:
         clean = {k: v for k, v in clean.items()
                  if v is not None and 0.0 <= v <= 1.0}
         if not clean:
-            out.append(f" {qid}: <no numeric distribution> (unusable: {bad})")
+            out.append(f" {_safe(qid, 20)}: <no numeric distribution> (unusable: {_safe(bad, 24)})")
             continue
         if bad:
-            out.append(f" {qid}: WARNING non-numeric entries {bad} rendered as omitted")
+            out.append(f" {_safe(qid, 20)}: WARNING non-numeric entries {_safe(bad, 20)} rendered as omitted")
         dist = clean
         top = max(dist, key=dist.get)
-        out.append(f" {qid}  argmax={top} p={dist[top]:.3f}")
+        out.append(f" {_safe(qid, 20)}  argmax={_safe(top, 18)} p={dist[top]:.3f}")
         for opt, p in sorted(dist.items(), key=lambda kv: -kv[1]):
             # a non-str option name rejects a non-empty format spec -> coerce
-            out.append(f"    {str(opt):<18} {p:6.3f} |{_bar(p)}|")
+            out.append(f"    {_safe(opt, 18):<18} {p:6.3f} |{_bar(p)}|")
     return out
 
 
@@ -135,8 +135,13 @@ def render_gates(gates) -> list[str]:
             mark = "REJECT"
         else:
             mark = "????  "
-        out.append(f" [{mark}] {str(g.get('gate','?')):<10} {g.get('token','')}")
-        out.append(f"            {g.get('detail','')}")
+        # AUDIT FIX (round 26, completing round 24): this sanitizer was WRITTEN in
+        # round 24 but never applied — a batch aborted at an earlier anchor miss,
+        # so only render_rejections got `_safe`. Gate text was still interpolated
+        # verbatim, so a multiline value injected rows and could MIMIC the
+        # `[PASS  ]`/`[REJECT]` markers that has_gate_decisions trusts.
+        out.append(f" [{mark}] {_safe(g.get('gate','?'), 10):<10} {_safe(g.get('token',''), 24)}")
+        out.append(f"            {_safe(g.get('detail',''))}")
     return out
 
 
@@ -187,7 +192,9 @@ def render(m: PaneModel) -> str:
                            rule("=")])
     pair = m.pair if isinstance(m.pair, str) else f"<{type(m.pair).__name__}>"
     sess = m.session if isinstance(m.session, str) else f"<{type(m.session).__name__}>"
-    lines = [rule("="), f" PLUTUS V6 — {pair}  {sess}", rule("=")]
+    # AUDIT FIX (round 26): pair/session were interpolated verbatim, so a newline
+    # broke the grid and a literal marker in either forged a gate verdict.
+    lines = [rule("="), f" PLUTUS V6 — {_safe(pair, 24)}  {_safe(sess, 24)}", rule("=")]
     lines += render_pnl(m.pnl_pips, m.open_positions)
     lines += render_probabilities(m.decider)
     lines += render_gates(m.gates)
