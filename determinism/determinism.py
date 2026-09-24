@@ -223,9 +223,11 @@ def _digest_frozen(stages: dict) -> str:
 _TAG_FLOAT = "__py_float__"
 _TAG_BYTES = "__py_bytes__"
 _TAG_BYTEARRAY = "__py_bytearray__"
+_TAG_SUBCLASS = "__py_subclass__"
 _TAG_SEQ = {"list": "__py_list__", "tuple": "__py_tuple__",
             "set": "__py_set__", "frozenset": "__py_frozenset__"}
-_TAGS = frozenset({_TAG_FLOAT, _TAG_BYTES, _TAG_BYTEARRAY, *_TAG_SEQ.values()})
+_TAGS = frozenset({_TAG_FLOAT, _TAG_BYTES, _TAG_BYTEARRAY, _TAG_SUBCLASS,
+                   *_TAG_SEQ.values()})
 
 
 class _FrozenDict(dict):
@@ -373,6 +375,15 @@ def _freeze(o, _seen=None):
         # set/frozenset. Each gets its own tag.
         _k = _TAG_BYTES if isinstance(o, bytes) else _TAG_BYTEARRAY
         return _Tag({_k: o.hex()})
+    # AUDIT FIX (round 39): a SUBCLASS of str/int/bool/float (IntEnum, StrEnum, a
+    # custom `class S(str)`) was returned UNTAGGED and json-encoded as its BASE
+    # value, so `MyEnum.X == 1` digested identically to plain `1` — the same
+    # type-erasure class as the float/str and list/tuple collisions. An EXACT
+    # builtin passes through; a SUBCLASS is tagged with its type name.
+    if o is None or type(o) in (str, int, bool, float):
+        return o
+    if isinstance(o, (str, int, bool, float)):
+        return _Tag({_TAG_SUBCLASS: f"{type(o).__name__}:{o!r}"})
     return o
 
 

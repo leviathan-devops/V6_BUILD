@@ -208,11 +208,15 @@ class Circuit:
         # AUDIT FIX (round 38): `zone_id`/`recent_keys` were forwarded with NO
         # type check while every neighbour was strict — a non-str zone_id or a
         # non-list recent_keys broke the named-refusal contract in g_dedup.
-        _zid = bars_by_tf.get("zone_id")
-        if _zid is not None and not isinstance(_zid, str):
+        # AUDIT FIX (round 39, completing r38): r38 changed `confidence` and
+        # `zone_width` to the `in bars_by_tf` rule but left THESE two on
+        # `is not None` — so an explicit None passed validation and reached
+        # `g_dedup` as `x in None` -> an UNNAMED TypeError. The SAME rule at
+        # EVERY site: a PRESENT key must hold a usable value.
+        if "zone_id" in bars_by_tf and not isinstance(bars_by_tf["zone_id"], str):
             _bad.append("zone_id")
-        _rk = bars_by_tf.get("recent_keys")
-        if _rk is not None and not isinstance(_rk, (list, tuple)):
+        if "recent_keys" in bars_by_tf and not isinstance(bars_by_tf["recent_keys"],
+                                                          (list, tuple)):
             _bad.append("recent_keys")
         if _bad:
             raise ValueError(

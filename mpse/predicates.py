@@ -243,8 +243,10 @@ def _session_hhmm(s: str):
     before the window comparison — reading its wall-clock would place
     02:30-04:00 at 06:30Z and adjudicate the wrong session (audit round 16).
     """
-    m = re.search(r"(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(Z|[+-]\d{2}:?\d{2})?\s*$",
-                  s.strip())
+    # AUDIT FIX (round 39): only a RIGHT anchor, so `1102:00` matched its last
+    # two digits as `02:00` and PASSED the window. The left boundary is required.
+    m = re.search(r"(?:^|[\s(])(\d{1,2}):(\d{2})(?::(\d{2}))?\s*"
+                  r"(Z|[+-]\d{2}:?\d{2})?\s*$", s.strip())
     if not m:
         # AUDIT FIX (round 18): the unanchored fallback has only THREE groups, so
         # `off` was forced to None and an offset stamp with trailing text was

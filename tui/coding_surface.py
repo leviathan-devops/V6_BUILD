@@ -213,7 +213,10 @@ _EXEC_NAMES = _ALIASED + [
     # AUDIT FIX (round 38): no boundary meant `seashell=True` matched, and the
     # plain-newline class missed a BACKSLASH-newline continuation. `_PRE`/`_POST`
     # plus `_WS` on both sides.
-    (_f("shell", "=True"),       _f(_PRE, "shell", _WS, "=", _WS, "True", _POST)),
+    # AUDIT FIX (round 39): `_WS` is space/tab + an OPTIONAL backslash-newline,
+    # so a BARE newline (`shell=\nTrue` inside parens, legal implicit joining)
+    # still evaded. The whitespace class here accepts any run of space/tab/newline.
+    (_f("shell", "=True"),       _f(_PRE, "shell", "[ \t\n]*=", "[ \t\n]*", "True", _POST)),
     (_f("run", "py"),            _f(_PRE, "run", "py", _POST)),
     (_f("importlib.", "import_module"),
      # AUDIT FIX (round 10): same literal-dot defect as os.system above.

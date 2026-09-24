@@ -345,6 +345,7 @@ def simulate(decisions: list[TradeDecision], commission_rate: float,
             or commission_rate < 0):
         raise ValueError(f"INVALID_COMMISSION: {commission_rate!r}")
     _trades: list[TradeResult] = []
+    _seen_zones: set = set()
     for d in decisions:
         # AUDIT FIX: a missing zone_id defaulted to "tp" (a WIN), so a typo or an
         # unlabelled trade silently inflated P&L. An unlabelled decision is now
@@ -357,6 +358,14 @@ def simulate(decisions: list[TradeDecision], commission_rate: float,
             raise ValueError(
                 f"NO_OUTCOME_FOR_ZONE: {d.zone_id!r} is absent from the outcomes map "
                 f"(known: {sorted(outcomes)}) — refusing to assume a win")
+        # AUDIT FIX (round 39): two decisions sharing a zone_id both resolved to
+        # the SAME outcome with no error, silently forcing the second trade to
+        # equal the first. (An r20 fix existed; it was lost in a later rewrite.)
+        if d.zone_id in _seen_zones:
+            raise ValueError(
+                f"DUPLICATE_ZONE: {d.zone_id!r} appears more than once — its "
+                f"outcome cannot be attributed unambiguously")
+        _seen_zones.add(d.zone_id)
         outcome = outcomes[d.zone_id]
         # AUDIT FIX: any typo was silently treated as an SL exit, flipping a
         # winner into a loser. Validate the outcome.

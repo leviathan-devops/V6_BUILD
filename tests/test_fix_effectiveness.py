@@ -89,6 +89,27 @@ try:
     det.canonical(_c); check("a cycle is a NAMED refusal", False)
 except ValueError:
     check("a cycle is a NAMED refusal", True)
+# round 39: a scalar SUBCLASS must be tagged (IntEnum/StrEnum/custom subclasses)
+import enum as _enum
+class _E(_enum.IntEnum): X = 1
+check("an IntEnum is distinct from its base int",
+      det.canonical(_E.X) != det.canonical(1))
+class _S(str): pass
+check("a str subclass is distinct from a plain str",
+      det.canonical(_S("a")) != det.canonical("a"))
+
+# round 39: the session hour needs a LEFT boundary
+check("a 3-digit hour is refused", pr._session_hhmm("1102:00") is None)
+check("a valid session still parses", pr._session_hhmm("02:00") == (2, 0, 0))
+
+# round 39: a duplicate zone_id must be refused
+_d = oms.TradeDecision(pair="EUR/USD", direction="long", entry=1.14, sl=1.139,
+                       tp=1.145, rrr=5, confidence=0.7, zone_id="Z")
+try:
+    oms.simulate([_d, _d], 0.001, {"Z": "tp"}); check("a duplicate zone is refused", False)
+except ValueError:
+    check("a duplicate zone is refused", True)
+
 check("the pinned determinism law still holds",
       det.RunDigest({"s": {"decided": 1}}).sha == det.RunDigest({"s": {"decided": 1}}).sha)
 
