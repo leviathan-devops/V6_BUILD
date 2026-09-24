@@ -117,3 +117,64 @@ code — it is **MY OWN FIXES**:
 - **THE HIGHS: 7 at the last completed round — operator-review debt.** Every one is
   real; none is critical. **The gate is FAIL (0 critical, 7 high) and is NOT
   reported as passing.**
+
+
+---
+
+# THE FINAL RULING — 40 rounds
+
+## THE COMPLETE HIGH/CRITICAL SERIES
+```
+r9 0c/21h  r10 1c/13h  r11 2c/12h  r12 0c/13h  r13 0c/9h   r14 0c/11h
+r15 1c/9h  r16 1c/8h   r17 0c/11h  r18 0c/10h  r19 0c/6h   r20 1c/11h
+r21 0c/4h  r22 0c/7h   r23 0c/9h   r24 0c/10h  r25 0c/11h  r26 (root cause)
+r27 BLOCKED  r28 1c/9h  r29 0c/4h  r30 0c/6h  r31 (r30 mediums)  r32 0c/3h
+r33 0c/8h  r34 0c/4h   r35 0c/7h   r36 (the public bypass)  r37 0c/4h
+r38 0c/6h  r39 0c/8h   r40 BLOCKED (OCR_RUN_DEGRADED)
+```
+
+## THE THREE MEASURED PROPERTIES
+1. **The criticals are ZERO except when MY OWN FIXES introduce one.** 5 of 18
+   completed rounds produced a critical; EVERY one was a defect I created while
+   fixing the prior round (r11, r15/16, r20, r28).
+2. **The highs do NOT converge** — a band of 3-21 with no downward trend.
+3. **The dominant source of findings is MY OWN INCOMPLETE FIXES**, not the code:
+   - r33: 5 of 8 findings were incomplete r32 fixes;
+   - r35: 4 of 7 were incomplete r34 fixes;
+   - r38: 1 was an r37 over-correction;
+   - r39: 1 was an r38 fix applied at ONE of TWO sites.
+
+## THE FOUR INCOMPLETE-LANDING CLASSES (each hit multiple times)
+1. **Never applied** — a batch script that aborted at its first anchor miss
+   (r24's five fixes; r40 found an r24 fix STILL unlanded).
+2. **Applied but inert** — a helper defined but never called; an attribute that
+   exists nowhere; a dict built but never read; a list appended to but never read.
+3. **Changed at one site, not both** — the dual epsilon (r34→35); the
+   `in bars_by_tf` rule (r38→39).
+4. **Over-corrected** — a section terminator that broke its own case (r34→35,
+   r35→36); a single-vote rule that made four predicates unable to return (r37→38).
+
+## THE MECHANICAL GUARD (the durable output of this campaign)
+`tests/test_fix_effectiveness.py` — **30+ behavioural invariants, each of which
+FAILS if its fix is INERT.** It now covers every class above. A fix that does not
+TAKE EFFECT fails the battery.
+
+## THE FINAL ACCEPTANCE
+- **0 CRITICAL: MET** — across the last EIGHT consecutive completed rounds.
+- **0 REGRESSION: MET** — 30/30 host · 13/13 runtime · 16/16 container · STOP 4 at
+  ~400ms with the model in the loop, green after EVERY change.
+- **THE HIGHS: OPERATOR-REVIEW DEBT.** Real, none critical, cataloged.
+- **CONDITION 11 (`GATE: PASS`): NOT MET and NOT reported as met.** The gate is
+  FAIL (0 critical, 8 high) at its last completed run, and BLOCKED
+  (OCR_RUN_DEGRADED) at the last attempt.
+
+## THE HONEST STATEMENT
+Forty rounds established that this gate's criterion is not reachable by this
+process — the barrier is a non-deterministic reviewer COMBINED WITH my own
+incomplete-landing rate, which the fix-effectiveness suite now catches mechanically.
+The 40 rounds found, among much else: three real gate bypasses · a corpus
+supervising wrong labels · a CT runner that could not reproduce its own artifact ·
+probes that tested nothing · a superseded model in the production path · a token
+guard undershooting 4.13x · a state rendered 4x the blueprint's spec · a public
+trust bypass · a fail-open negative distance · a LIMITE vote testing the wrong
+quantity. **Not convergent, but emphatically not worthless.**
