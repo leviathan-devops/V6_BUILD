@@ -228,7 +228,7 @@ _WRITE_NAMES = [
      # docs-canonical "w+b" never matched, and a leading "b" (rb+/wb+) was missed.
      # The class now accepts the mode letters in any order plus a sign.
      _f("open", _WS, "[(](?s:[^);]*?)['", '"', "][rwaxtb]*[+][rwaxtb]*['", '"', "][ \t\n]*[,)]")
-     + "|" + _f("open", _WS, "[(](?s:[^);]*?)['", '"', "][wax][rwaxtb]*['", '"', "][ \t\n]*[,)]")),
+     + "|" + _f("open", _WS, "[(](?s:[^);]*?)['", '"', "][rwaxtb]*[wax][rwaxtb]*['", '"', "][ \t\n]*[,)]")),
     (_f("os.", "wr", "ite"),    _f("os", _DOT, "wr", "ite", _WS, "[(]")),
     (_f("os.", "op", "en"),     _f("os", _DOT, "op", "en", _WS, "[(]")),
     (_f("os.", "re", "name"),   _f("os", _DOT, "re", "name", _WS, "[(]")),

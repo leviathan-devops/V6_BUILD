@@ -541,6 +541,19 @@ def build(out_path: Path) -> dict:
     golden += harvest_golden_cascade(MASTER)
     golden += harvest_gap_analysis(MASTER)
     forensic = harvest_forensic_laws(MASTER)
+    # AUDIT FIX (round 23): each harvester returns [] when its source file is
+    # absent, and build() raised only on empty cards/total — so a missing
+    # FORENSIC_ANALYSIS_38_TRADES.md or GOLDEN_CASCADE shipped a BIASED corpus
+    # that still reported success. The expected shapes are named.
+    _missing = []
+    if not forensic:
+        _missing.append("FORENSIC_ANALYSIS_38_TRADES.md (forensic laws)")
+    if not [r for r in golden if r.id.startswith("cascade-")]:
+        _missing.append("PLUTUS_GOLDEN_CASCADE_23.md (cascade rows)")
+    if not [r for r in golden if r.id.startswith("golden-")]:
+        _missing.append("the golden-trade injector (golden rows)")
+    if _missing:
+        print(f"  WARNING: a harvest source is EMPTY -> {_missing}")
     # AUDIT FIX: negatives covered only the card records, so the forensic and
     # golden/gap yes-no questions had ZERO refusal supervision (a yes-sayer
     # bias). Every harvested kind now contributes negatives.

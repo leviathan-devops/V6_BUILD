@@ -285,7 +285,10 @@ def _tokenizer():
     global _TOKENIZER, _TOKENIZER_TRIED
     if _TOKENIZER_TRIED:
         return _TOKENIZER
-    _TOKENIZER_TRIED = True
+    _last = None
+    # AUDIT FIX (round 23): the failure was silent, and the fallback estimate is
+    # documented in this very file as a ~4x UNDERCOUNT — so a missing tokenizer
+    # silently defeated the 8192-token OOM guard. The reason is recorded.
     import glob, os
     cands = [os.environ.get("DECIDER_TOKENIZER"),
              *glob.glob("/home/leviathan/.cache/huggingface/hub/"
@@ -299,10 +302,13 @@ def _tokenizer():
             try:
                 _TOKENIZER = AutoTokenizer.from_pretrained(c)
                 return _TOKENIZER
-            except Exception:
+            except Exception as e:                     # noqa: BLE001
+                _last = f"{type(e).__name__}: {e}"
                 continue
-    except Exception:
-        pass
+    except Exception as e:                                 # noqa: BLE001
+        _last = f"{type(e).__name__}: {e}"
+    _TOKENIZER_TRIED = True
+    globals()["_TOKENIZER_FAIL"] = _last or "no candidate loaded"
     return None
 
 

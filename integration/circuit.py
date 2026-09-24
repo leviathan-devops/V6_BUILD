@@ -174,6 +174,16 @@ class Circuit:
         # check TAUTOLOGICAL (delta always 0, pass always True) while the report
         # claimed model-vs-code verification. When no independent Limite value is
         # supplied, the check is reported as UNVERIFIED, not as a pass.
+        # AUDIT FIX (round 23): `is not None` admitted a str/list/NaN, and the
+        # subtraction below then raised an UNNAMED TypeError — breaking this
+        # module's named-refusal contract. Validated here, once.
+        if limite_rrr is not None and (
+                isinstance(limite_rrr, bool)
+                or not isinstance(limite_rrr, (int, float))
+                or limite_rrr != limite_rrr
+                or abs(limite_rrr) == float("inf")):
+            raise ValueError(
+                f"LIMITE_RRR_INVALID: {limite_rrr!r} is not a usable number")
         limite_verified = limite_rrr is not None
 
         # AUDIT FIX: these were fail-OPEN defaults (confidence 0.72, cascade and
@@ -190,6 +200,11 @@ class Circuit:
         # gates read that score. `bars_by_tf["confidence"]` remains the fallback
         # for the offline path.
         conf = bars_by_tf["confidence"]
+        if self.use_decider and not decider_out:
+            # AUDIT FIX (round 23): `use_decider=True` with an EMPTY decider
+            # result silently kept the offline confidence — a missing model was
+            # indistinguishable from a real score. The fallback is named.
+            self._grade_fallback = "NO_DECIDER_OUTPUT: the model returned nothing"
         if self.use_decider and decider_out:
             # AUDIT FIX (round 12): this block duplicated the canonical scorer —
             # an inline grade table plus ARGMAX, while the authority
@@ -205,6 +220,11 @@ class Circuit:
                         if _grade in ("F", "C", "B", "A", "Aplus"):
                             conf = round(float(_val), 4)
                             break
+                else:
+                    # the model ran but offered no gradeable answer
+                    self._grade_fallback = (
+                        "NO_GRADEABLE_QUESTION: decider_out lacks PVE.Q3/E3.Q2 "
+                        "or its top option is outside the grade scale")
             except (ImportError, ValueError, TypeError) as e:
                 # AUDIT FIX (round 19): a bare `pass` made a MISSING MODULE or an
                 # ungradeable distribution indistinguishable from a real model

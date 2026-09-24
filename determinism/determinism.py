@@ -125,11 +125,14 @@ def digest(stages: dict) -> str:
         hashed, because at that depth the name is as likely to be a decision as
         a measurement.
       - THE ACCEPTED RESIDUAL, stated plainly: a stage payload whose OWN
-        top-level field is a legitimate decision named `ts`/`host`/`pid`/
-        `timing` IS filtered and therefore unhashed. The names are generic
-        enough that this is a real possibility; the fix is for the caller to
-        put run metadata in a nested `meta` object, or to rename a decision
-        field that collides. This is a deliberate trade, not an oversight.
+        top-level field is a legitimate DECISION named one of the VOLATILE
+        names IS filtered and therefore unhashed. (The names are now narrow —
+        `ts_wall`/`duration_ms`/`started_at`/`latency_ms`/`stage_latency` — so a
+        decision field colliding is unlikely, but the trade is real.)
+      - WHERE METADATA GOES: at the payload TOP, under one of those names —
+        NOT nested. The filter is depth-0-only, so `{"meta": {"duration_ms": 5}}`
+        is HASHED and every run falsely diverges. Round 23 corrected this advice,
+        which previously said the opposite of what the code does.
       - At the TOP level: keys are STAGE NAMES, i.e. labels the caller chose. A
         stage literally named `ts`/`timing` is a REAL stage and IS hashed —
         silently dropping it would hide a stage from the digest.
@@ -200,7 +203,7 @@ def _render(obj) -> str:
     return canonical(obj, _trust=False)
 
 
-def _check_reserved(o) -> None:
+def _check_reserved(o, _seen=None) -> None:
     """A payload may not carry a RESERVED TAG KEY.
 
     The tags are what make a float/bytes/list distinguishable from a string in
@@ -212,6 +215,17 @@ def _check_reserved(o) -> None:
     # the refusal entirely. This walker runs on RAW input only, where no
     # legitimate `_Tag` can exist (the digest's own tags are created later, by
     # `_freeze`), so a `_Tag` here IS a forgery and is refused.
+    # AUDIT FIX (round 23): this walker runs BEFORE _freeze, so it needs its OWN
+    # cycle guard — otherwise a circular payload recursed here to RecursionError
+    # before the freeze guard could see it.
+    if isinstance(o, (dict, list, tuple, set, frozenset)):
+        if _seen is None:
+            _seen = set()
+        if id(o) in _seen:
+            raise ValueError(
+                "CANONICAL_CYCLE: the payload contains a cycle — it has no "
+                "canonical rendering")
+        _seen = _seen | {id(o)}
     if isinstance(o, _Tag):
         raise ValueError(
             "CANONICAL_RESERVED_KEY: a _Tag instance appeared in the raw payload "
@@ -223,10 +237,10 @@ def _check_reserved(o) -> None:
                 f"CANONICAL_RESERVED_KEY: the payload carries {sorted(forged)} — "
                 f"those keys are reserved for the digest's type tags")
         for v in o.values():
-            _check_reserved(v)
+            _check_reserved(v, _seen)
     elif isinstance(o, (list, tuple, set, frozenset)):
         for v in o:
-            _check_reserved(v)
+            _check_reserved(v, _seen)
 
 
 
@@ -239,19 +253,29 @@ class _Tag(_FrozenDict):
     test_determinism_sha_match on the first attempt at this fix).
     """
 
-def _freeze(o):
+def _freeze(o, _seen=None):
     # AUDIT FIX: tuples were not recursed (a dict inside a tuple stayed mutable)
     # and sets passed through (mutable AND unserializable by canonical()).
     if isinstance(o, _Tag):
         return o                     # already frozen — idempotent
+    # AUDIT FIX (round 23): a CIRCULAR payload recursed until RecursionError
+    # instead of the documented loud CANONICAL_* refusal. Identity-tracked.
+    if isinstance(o, (dict, list, tuple, set, frozenset)):
+        if _seen is None:
+            _seen = set()
+        if id(o) in _seen:
+            raise ValueError(
+                "CANONICAL_CYCLE: the payload contains a cycle — it has no "
+                "canonical rendering")
+        _seen = _seen | {id(o)}
     if isinstance(o, dict):
-        return _FrozenDict({k: _freeze(v) for k, v in o.items()})
+        return _FrozenDict({k: _freeze(v, _seen) for k, v in o.items()})
     if isinstance(o, (list, tuple)):
         # AUDIT FIX (round 19): `list` and `tuple` both froze to a plain tuple and
         # rendered as the same JSON array, so a stage flipping container TYPE
         # digested identically — the same class as the float/str collision fixed
         # in round 18. The type is now part of the frozen value.
-        return _Tag({_TAG_SEQ[type(o).__name__]: tuple(_freeze(x) for x in o)})
+        return _Tag({_TAG_SEQ[type(o).__name__]: tuple(_freeze(x, _seen) for x in o)})
     if isinstance(o, (set, frozenset)):
         # AUDIT FIX (round 6): sorted() on heterogeneous members ({1,'a'}) or on
         # dicts/lists raised TypeError. Sort by the CANONICAL RENDERING instead.
@@ -263,7 +287,7 @@ def _freeze(o):
         # AUDIT FIX (round 21): set and frozenset both returned a BARE tuple, so
         # they digested identically while list/tuple were distinguished — the same
         # type-erasure class, one branch over. The container type is tagged here.
-        frozen = [_freeze(x) for x in o]
+        frozen = [_freeze(x, _seen) for x in o]
         return _Tag({_TAG_SEQ[type(o).__name__]:
                      tuple(sorted(frozen, key=_render))})
     if isinstance(o, (bytes, bytearray)):
@@ -290,6 +314,18 @@ class RunDigest:
     sha: str = ""
 
     def __post_init__(self):
+        # AUDIT FIX (round 23): the reserved-key refusal lived only in
+        # `canonical`, and `RunDigest` freezes + renders with `_trust=False` — so
+        # a caller could forge a tag THROUGH the RunDigest path and merge two
+        # different decisions. The check runs here, on the raw stages.
+        # AUDIT FIX (round 23): a LIST payload froze to a tag and `digest` then
+        # hashed the tag KEY as if it were a stage name — a mistyped caller
+        # silently got a plausible digest instead of a refusal.
+        if not isinstance(self.stages, dict):
+            raise ValueError(
+                f"RUN_DIGEST_STAGES_NOT_A_DICT: {type(self.stages).__name__} — "
+                f"stages maps a NAME to a payload")
+        _check_reserved(self.stages)
         # AUDIT FIX (round 4): frozen=True blocks REBINDING but not IN-PLACE
         # mutation, so `run.stages[k] = v` still left sha stale while compare()
         # trusted it. The stored value is now a DEEP-FROZEN mapping — a
