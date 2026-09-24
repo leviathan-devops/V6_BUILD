@@ -11,6 +11,7 @@ Source: Plutus_V6_Master_Blueprint_v1.md — the packing grammar:
   <|fim_prefix|> STATE   <|fim_middle|> QUESTION   <|box_start|> OPTION ...
 """
 from __future__ import annotations
+import os
 from dataclasses import dataclass
 
 STATE_DELIM = "<|fim_prefix|>"
@@ -232,6 +233,12 @@ def render_state(pair: str, anchor_ms: int, feeds: dict[tuple[str, str], list[Ba
     # plus the DXY CONTEXT the spec names. A pair with no 30m/1H/4H falls back to
     # whatever it does have, so a thinner feed is still renderable.
     SPEC_TFS = ("30m", "1H", "4H")
+    # AUDIT FIX (round 28, CRITICAL — MY OWN r27 ERROR): round 27 built
+    # `_sorted_feeds` but never READ from it, so every consumer below still took
+    # the ORIGINAL unsorted lists and the tail slices in atr()/swing_levels()/
+    # render_feed_block() described the wrong era. The sorted, revalidated dict is
+    # now the ONE source for every read below.
+    feeds = _sorted_feeds
     own = [(tf, feeds[(pair, tf)]) for tf in SPEC_TFS
            if (pair, tf) in feeds and feeds[(pair, tf)]]
     if not own:
@@ -270,6 +277,8 @@ def render_state(pair: str, anchor_ms: int, feeds: dict[tuple[str, str], list[Ba
     return doc
 
 
+# the estimate fallback is a DELIBERATE opt-in (it undercounts ~4x)
+_ALLOW_ESTIMATE_FALLBACK = os.environ.get("PLUTUS_ALLOW_TOKEN_ESTIMATE") == "1"
 _TOKENIZER = None
 _TOKENIZER_TRIED = False
 
@@ -342,6 +351,16 @@ def count_tokens(text: str) -> int:
     """
     # THE REAL TOKENIZER FIRST; the estimate is only a fallback.
     _t = _tokenizer()
+    # AUDIT FIX (round 28): when the tokenizer is unavailable the estimate stands
+    # in — and this file documents that estimate as a ~4x UNDERCOUNT, so the
+    # guard silently admitted states far over the limit. The refusal is now LOUD
+    # unless the caller explicitly opts into the estimate.
+    if _t is None and not _ALLOW_ESTIMATE_FALLBACK:
+        raise ValueError(
+            "STATE_TOKENIZER_UNAVAILABLE: the Decider's tokenizer could not be "
+            "loaded, and the word-count estimate undercounts by ~4x — the "
+            "STATE_TOKEN_LIMIT guard cannot be trusted with it. Set "
+            "DECIDER_TOKENIZER (or PLUTUS_ALLOW_TOKEN_ESTIMATE=1 to accept the risk).")
     if _t is not None:
         try:
             return len(_t.encode(text, add_special_tokens=False))

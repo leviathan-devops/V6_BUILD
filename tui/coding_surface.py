@@ -125,7 +125,14 @@ def _qualified(word: str) -> str:
 # tolerates whitespace on both sides, so both spellings match.
 # (This comment deliberately shows NO call form: the self-scan below runs over
 #  exactly this region, and quoting an evasion here would trip the scan.)
-_ALIAS = _f("(?<![", "0-9A-Za-z_.", "])", "[A-Za-z_][A-Za-z0-9_]*", _WS, _DOT)
+# AUDIT FIX (round 28): the lookbehind forbade a dot before the receiver, so a
+# CHAINED receiver matched neither as the first segment (it sees the second) nor
+# as the second (preceded by a dot). A dotted PATH now matches, so both `x.y.`
+# and `self.p.` receivers are covered. (This comment shows no call form: the
+# self-scan runs over exactly this region.)
+_ALIAS = _f("(?<![", "0-9A-Za-z_", "])",
+            "(?:[A-Za-z_][A-Za-z0-9_]*", _WS, _DOT, ")*",
+            "[A-Za-z_][A-Za-z0-9_]*", _WS, _DOT)
 
 # TWO CONFIDENCE CLASSES (audit round 8). A regex cannot do the dataflow needed
 # to tell `pickle.loads` from `json.loads` when the receiver is an alias — the
@@ -336,10 +343,13 @@ for _n, _pat in list(_WRITE_NAMES):
             # low-level form, which has NO mode string — covered only by the
             # dotted `os.open(` rule. The bare form is added WITH the int-flags
             # shape, so the builtin's string-mode reads stay unflagged.
+            # AUDIT FIX (round 28): requiring `|` missed the SINGLE-flag writes
+            # (`open(p, O_WRONLY)` / `O_CREAT` / `O_RDWR`), which are valid
+            # os.open writes. Any `O_`-prefixed flag after the path qualifies.
             _WRITE_NAMES.append((_n + "-bare",
                                  _pat + "|"
-                                 + _f(_PRE, "open", _WS, "[(](?s:[^;\n]*?)[a-zA-Z_0-9]",
-                                      _WS, "[|]")))
+                                 + _f(_PRE, "open", _WS, "[(](?s:[^;]*?)",
+                                      _WS, "O_[A-Z_]+")))
             continue
         # AUDIT FIX (round 13): the first list omitted mkdir/makedirs/replace/
         # symlink/truncate, so `from os import mkdir; mkdir(p)` evaded the
@@ -490,4 +500,11 @@ def is_write_allowed(rel_path: str) -> bool:
 
 def _norm(p) -> str:
     """A repo-relative path in POSIX form, so the allowlist matches anywhere."""
-    return str(p).replace(chr(92), "/").lstrip("./")
+    # AUDIT FIX (round 28): `.lstrip("./")` strips ANY leading `.` or `/`, so
+    # `../report/report.py` normalized to the ALLOWLISTED `report/report.py` — an
+    # allowlist bypass. Only a literal `./` prefix is removed, and a path that
+    # escapes upward is left intact (and therefore not allowlisted).
+    _s = str(p).replace(chr(92), "/")
+    while _s.startswith("./"):
+        _s = _s[2:]
+    return _s

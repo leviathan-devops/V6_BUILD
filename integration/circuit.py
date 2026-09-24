@@ -164,10 +164,21 @@ class Circuit:
                 or abs(bars_by_tf[k]) == float("inf")]
         if not isinstance(bars_by_tf.get("direction"), str):
             _bad.append("direction")
+        # AUDIT FIX (round 28): confidence rejected only bool/non-numeric, so a
+        # NaN/Inf passed into the gates where comparisons misbehave.
         _conf = bars_by_tf.get("confidence")
         if _conf is not None and (isinstance(_conf, bool)
-                                  or not isinstance(_conf, (int, float))):
+                                  or not isinstance(_conf, (int, float))
+                                  or _conf != _conf or abs(_conf) == float("inf")):
             _bad.append("confidence")
+        # AUDIT FIX (round 28): zone_width_pips forwarded ANY caller value
+        # (str/bool/NaN/Inf/negative) straight into TradeCandidate.
+        _zw = bars_by_tf.get("zone_width_pips")
+        if _zw is not None and (isinstance(_zw, bool)
+                                or not isinstance(_zw, (int, float))
+                                or _zw != _zw or abs(_zw) == float("inf")
+                                or _zw <= 0):
+            _bad.append("zone_width_pips")
         for _b in ("cascade_valid", "chain_integrity"):
             if _b in bars_by_tf and not isinstance(bars_by_tf[_b], bool):
                 _bad.append(_b)

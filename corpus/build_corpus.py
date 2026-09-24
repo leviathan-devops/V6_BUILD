@@ -470,10 +470,15 @@ def _negative_variant(r, opts):
         # ("max N", "within N") stayed SATISFIED while being labelled `no` — a
         # false refusal. Branch (3) reads the bound direction; this sibling now
         # does too.
-        _fl = re.search(r"\b(at least|minimum|min\b|>=|no fewer than|"
-                        r"must exceed|greater than)\b", body, re.I)
-        _fu = re.search(r"\b(at most|maximum|max\b|<=|no more than|"
-                        r"must not exceed|fewer than|within)\b", body, re.I)
+        # AUDIT FIX (round 28): the VERIFY branch reads the direction from a
+        # 40-char WINDOW around the validated token; this sibling read the WHOLE
+        # body, so an unrelated bound word elsewhere selected raise-vs-zero
+        # wrongly. Same window here.
+        _bwin = body[max(0, _bs - 40): min(len(body), _be + 40)]
+        _fl = re.search(r"\b(at least|minimum|min\b|no fewer than|"
+                        r"must exceed|greater than)\b", _bwin, re.I)
+        _fu = re.search(r"\b(at most|maximum|max\b|no more than|"
+                        r"must not exceed|fewer than|within)\b", _bwin, re.I)
         if _fu and not _fl:
             try:
                 _new = str(float(_btok) * 10 + 1)
@@ -551,10 +556,21 @@ def build(out_path: Path) -> dict:
     # FORENSIC_ANALYSIS_38_TRADES.md or GOLDEN_CASCADE shipped a BIASED corpus
     # that still reported success. The expected shapes are named.
     _missing = []
-    if not forensic:
-        _missing.append("FORENSIC_ANALYSIS_38_TRADES.md (forensic laws)")
-    if not [r for r in golden if r.id.startswith("cascade-")]:
-        _missing.append("PLUTUS_GOLDEN_CASCADE_23.md (cascade rows)")
+    # AUDIT FIX (round 28): non-empty was too weak — ONE parsed law passed. The
+    # documented shapes are 7 forensic laws and 23 cascade rows, so a partial
+    # harvest now fails loudly instead of shipping a biased corpus.
+    # THE FLOORS ARE THE MEASURED YIELDS, not the document NAMES.
+    # AUDIT FIX (round 28b): my first version checked `cascade >= 23` from the
+    # FILENAME (`PLUTUS_GOLDEN_CASCADE_23.md`) — but that document is split into
+    # four TIERS and only TIER A carries per-trade E/SL/TP rows (8 rows, 6 with
+    # levels; the rest are axis labels, doctrine, and pixel-inferred assignments).
+    # The measured parseable yield is 6. A floor of 23 was a check that could
+    # never pass, which is its own kind of broken.
+    _n_cascade = len([r for r in golden if r.id.startswith("cascade-")])
+    if len(forensic) < 7:
+        _missing.append(f"forensic laws (got {len(forensic)}, documented 7)")
+    if _n_cascade < 6:
+        _missing.append(f"cascade rows (got {_n_cascade}, measured 6 of Tier A)")
     if not [r for r in golden if r.id.startswith("golden-")]:
         _missing.append("the golden-trade injector (golden rows)")
     if _missing:

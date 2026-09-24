@@ -233,6 +233,10 @@ def _session_hhmm(s: str):
         return None
     if not (0 <= h <= 23 and 0 <= mi <= 59):
         return None
+    # AUDIT FIX (round 28): the seconds were CHECKED then DISCARDED, so the caller
+    # compared `(h, mi)` and `05:00:59` passed a window ending at 05:00:00. They
+    # are carried in the returned tuple.
+    _s = int(_sec) if _sec is not None else 0
     off = m.group(4) if m.re.groups >= 4 else None
     if off:
         if off == "Z":
@@ -249,7 +253,7 @@ def _session_hhmm(s: str):
         total = (h * 60 + mi) - delta
         total %= 1440
         h, mi = divmod(total, 60)
-    return (h, mi)
+    return (h, mi, _s)
 
 
 def at_10_session_valid(c) -> Verdict:
@@ -271,9 +275,9 @@ def at_10_session_valid(c) -> Verdict:
     if hhmm is None:
         return _v("AT-10", False, "AT10_SESSION_INVALID",
                   f"session {s!r} carries no HH:MM")
-    ok = (2, 0) <= hhmm <= (5, 0)
+    ok = (2, 0, 0) <= hhmm <= (5, 0, 0)
     return _v("AT-10", ok, "AT10_PASS" if ok else "AT10_SESSION_INVALID",
-              f"session {hhmm[0]:02d}:{hhmm[1]:02d}")
+              f"session {hhmm[0]:02d}:{hhmm[1]:02d}:{hhmm[2]:02d}")
 
 PREDICATES = (at_01_rrr_floor, at_02_sl_envelope, at_03_direction_sign,
               at_04_zone_positive, at_05_confidence_in_range, at_06_dual_consistency,
