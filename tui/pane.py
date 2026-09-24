@@ -219,8 +219,13 @@ def has_probability_bars(text: str) -> bool:
         if ln.startswith(" DECIDER PROBABILITIES"):
             _in = True
             continue
+        # AUDIT FIX (round 35, twice): the first version required both
+        # `startswith(" ")` AND `not startswith(" ")` — always False, so the scan
+        # never terminated. The second exited on the `argmax=` row itself, which
+        # is ALSO at the one-space column. The section's own one-space rows are
+        # the `argmax=` headers; anything else at that column is a NEW section.
         if _in and ln.startswith(" ") and not ln.startswith("  ") \
-                and ln.strip() and not ln.startswith(" "):
+                and ln.strip() and "argmax=" not in ln:
             _in = False
             continue
         if not _in:

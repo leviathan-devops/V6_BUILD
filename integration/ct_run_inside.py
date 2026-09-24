@@ -110,7 +110,19 @@ def run(cmd: str, timeout: int = 900) -> tuple[int, str, float]:
 def main() -> int:
     results = []
     # THE ADVERSARIAL SCENARIOS RUN FIRST (the pin's ADVERSARIAL LOOP).
-    for sid, name, cmd_tpl, pass_tok, fail_tok in ADV:
+    for _entry in ADV:
+        # AUDIT FIX (round 35): a malformed authority entry (wrong arity) aborted
+        # main() before the capture was written, discarding every prior result.
+        try:
+            sid, name, cmd_tpl, pass_tok, fail_tok = _entry
+        except (TypeError, ValueError) as e:
+            results.append({"id": f"ADV-BAD-{len(results)}", "name": "malformed entry",
+                            "kind": "adversarial", "exitCode": -1,
+                            "passToken": "", "passTokenMatch": False,
+                            "failToken": "", "failTokenAbsent": False,
+                            "toolResultContext": f"ENTRY_MALFORMED: {e}",
+                            "durationMs": 0.0, "verdict": "FAIL"})
+            continue
         # AUDIT FIX (round 13): the % substitution sat OUTSIDE error handling, so
         # a stray '%' in a future heredoc would abort main() before the atomic
         # capture write — discarding every prior scenario AND leaving no capture.
@@ -133,7 +145,17 @@ def main() -> int:
             "toolResultContext": _evidence(out, pass_tok), "durationMs": ms,
             "verdict": "PASS" if (pm and fa and rc == 0) else "FAIL"})
     # THE HAPPY PATH RUNS LAST (the post-debug confirmation).
-    for sid, name, test in HAPPY:
+    for _entry in HAPPY:
+        try:
+            sid, name, test = _entry
+        except (TypeError, ValueError) as e:
+            results.append({"id": f"HAPPY-BAD-{len(results)}", "name": "malformed entry",
+                            "kind": "happy_path", "exitCode": -1,
+                            "passToken": "", "passTokenMatch": False,
+                            "failToken": "", "failTokenAbsent": False,
+                            "toolResultContext": f"ENTRY_MALFORMED: {e}",
+                            "durationMs": 0.0, "verdict": "FAIL"})
+            continue
         rc, out, ms = run(f"cd {CT_DIR} && PLUTUS_PY=python3 bash tests/run.sh {test}")
         # AUDIT FIX (round 15): the verdict was computed on the FULL output while
         # only `out[-1500:]` was persisted, and the host assembler requires the
@@ -181,6 +203,13 @@ def main() -> int:
         print(f"  {r['verdict']:4} {r['id']:9} {r['kind']:11} {r['name'][:52]}")
     # AUDIT FIX (round 11): main() always returned 0, so an exit-code caller saw
     # success while scenarios had FAILED. The verdict is now propagated.
+    # AUDIT FIX (round 35): an EMPTY suite made `n == len(results)` true (0 == 0)
+    # and returned success — masking a broken authority as a pass. The sibling
+    # assembler refuses an empty capture; the driver now refuses an empty suite.
+    if not results:
+        print("CT_SUITE_EMPTY: the authority produced no scenarios — refusing a "
+              "vacuous PASS")
+        return 2
     return 0 if n == len(results) else 1
 
 

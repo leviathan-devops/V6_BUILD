@@ -455,7 +455,18 @@ def trust(predicate: Callable, c: dict) -> TrustVerdict:
     # AUDIT FIX (round 34): an UNKNOWN predicate drew both witnesses even when
     # neither bears on its quantity, manufacturing a spurious DIVERGENT. An
     # unknown predicate abstains — CODE alone.
-    witnesses = PREDICATE_WITNESSES.get(v.name, ())
+    # AUDIT FIX (round 35, MY OWN r34 BUG): defaulting an UNKNOWN predicate to
+    # `()` made `votes == {"CODE": ...}` satisfy `all(voting)` -> TRUSTED from a
+    # SINGLE vote, contradicting the module's 3-way guarantee. TRUSTED now
+    # requires at least TWO independent votes; a one-witness panel is
+    # INCONCLUSIVE, which is the honest label for an unvetted predicate.
+    # `None` = the predicate is NOT in the map = UNVETTED; `()` = deliberately
+    # single-source. The distinction matters: an unvetted predicate must not earn
+    # TRUSTED from its own CODE vote alone.
+    witnesses = PREDICATE_WITNESSES.get(v.name, None)
+    if witnesses is None:
+        return TrustVerdict(INCONCLUSIVE, v.name, {"CODE": v.passed},
+                            f"{v.name} has no registered witness panel — unvetted")
     votes = {"CODE": code_ok}
     if "LIMITE" in witnesses:
         # AUDIT FIX (round 11): `limite_rrr` bypassed _missing's type guard (it is

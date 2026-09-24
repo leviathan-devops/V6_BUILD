@@ -348,7 +348,7 @@ class Circuit:
                            {"model": None, "code": rrr_code, "delta": None,
                             "pass": None, "note": "NO_INDEPENDENT_LIMITE_VALUE"})},
             latency_ms=total, stage_latency=stage, dual_verified=limite_verified,
-            dual_passed=(limite_verified and abs(limite_rrr - rrr_code) <= 0.02),
+            dual_passed=(limite_verified and abs(limite_rrr - rrr_code) <= _DUAL_EPS),
             rejections=[{"token": r.token, "detail": r.detail} for r in verdict.rejections])
 
     def _run_decider(self, state: str) -> dict:

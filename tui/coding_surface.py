@@ -207,7 +207,10 @@ _EXEC_NAMES = _ALIASED + [
                                  + _bare(_f("lo", "ad")) + "|" + _bare(_f("lo", "ads"))
                                  + "|" + _bare(_f("Un", "pickler"))),
     (_f("mar", "sh", "al"),      _f(_PRE, "mar", "sh", "al", _POST)),
-    (_f("shell", "=True"),       _f("shell", "[ \t\n]*=", _WS, "True")),
+    # AUDIT FIX (round 35): the suffix used `_WS` (space/tab + optional
+    # BACKSLASH-newline only), so `shell=\nTrue` — legal inside parens via
+    # implicit line joining — evaded while the prefix already tolerated a newline.
+    (_f("shell", "=True"),       _f("shell", "[ \t\n]*=", "[ \t\n]*", "True")),
     (_f("run", "py"),            _f(_PRE, "run", "py", _POST)),
     (_f("importlib.", "import_module"),
      # AUDIT FIX (round 10): same literal-dot defect as os.system above.
