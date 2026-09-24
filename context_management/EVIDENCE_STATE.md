@@ -190,3 +190,33 @@ WHY IT WAS INVISIBLE: no test anywhere runs `use_decider=True`.
 - I did NOT substitute the model — the pin reserves that for the operator
 - CONSEQUENCE: STOP 4 (<500ms with the model in the loop) is UNMET and
   UNMEASURABLE. `test_golden_week_e2e` passes on the OFFLINE path.
+
+
+## THE FIX-EFFECTIVENESS SUITE (HEAD 8b443f5, 2026-09-24)
+`tests/test_fix_effectiveness.py` — **26 behavioural invariants, each of which
+FAILS if its fix is INERT.**
+
+THE CLASS IT GUARDS (measured over 35 audit rounds): a fix that is written but
+1. **never applied** — a batch script aborted at its first anchor miss (round 24's
+   five fixes; round 25 "re-found" them because the code had never changed);
+2. **applied but inert** — a helper DEFINED but never CALLED (`_fail_capture`); an
+   attribute that EXISTS NOWHERE (`_at_id`); a list appended to but never read
+   (`SCAN_SKIPPED`); a sorted dict built but never READ (`_sorted_feeds`);
+3. **changed at one site, not both** — `_DUAL_EPS` in `limite['L3']` while
+   `dual_passed` kept the hardcoded `0.02`.
+
+Those three accounted for **5 of 8 findings in round 33** and **4 of 7 in round
+35**. A "present in the file" check cannot catch them — only an assertion on the
+OBSERVABLE BEHAVIOUR can.
+
+WHAT IT COVERS: AT-02's geometry recompute, negative distance and unknown pair; an
+unvetted predicate being INCONCLUSIVE rather than single-vote TRUSTED; the AT-XX
+token on the INCONCLUSIVE path; non-physical prices and swapped pip scales; the
+five determinism type tags plus a forged tag refused through BOTH `canonical` and
+`digest`, and a cycle as a NAMED refusal; the pinned determinism law; `simulate`
+refusing a NaN/negative rate with EMPTY decisions; `Portfolio` refusing a
+non-TradeResult; five scanner evasions caught and two false positives absent; and
+both pane predicates resisting a forged marker while still seeing a REAL pane.
+
+**THE STANDING RULE, now mechanical:** a fix that does not TAKE EFFECT fails the
+battery.

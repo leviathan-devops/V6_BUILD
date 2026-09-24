@@ -416,3 +416,13 @@ the LIVE pipeline            17 answers, 398ms warm (budget 500ms)
 ```
 **13 of 14 STOP conditions MET.** The only unmet one is the audit gate:
 **FAIL (0 critical, 8 high) — NOT reported as passing.**
+
+
+## THE FIX-EFFECTIVENESS SUITE (HEAD 8b443f5)
+Added `tests/test_fix_effectiveness.py`: **26 behavioural invariants that fail if
+a fix is INERT.** It exists because 35 audit rounds showed that the dominant
+remaining defect source was not the code — it was fixes that never applied, applied
+but were never called, or changed at one site while a sibling kept the old value
+(5 of 8 findings in round 33; 4 of 7 in round 35).
+
+The battery is now **30/30** with it.
