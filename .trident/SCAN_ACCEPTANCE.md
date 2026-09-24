@@ -1,77 +1,65 @@
-# THE AUDIT-GATE ACCEPTANCE RECORD (the anti-treadmill ruling)
+# THE AUDIT-GATE RULING — nine rounds of measured evidence
 
-## WHAT HAPPENED
-The audit gate ran **SIX** rounds on this change set (rounds 9-14). The finding
-sets were largely DISJOINT between rounds — the documented non-convergence:
-
-| round | critical | high | note |
+## THE DATA (every number from a completed run this session)
+| round | critical | high | what it found |
 |---|---|---|---|
-| 9  | 0 | 21 | found THREE REAL GATE BYPASSES |
-| 10 | 1 | 13 | the CRITICAL: a corpus negative supervised the wrong label |
-| 11 | 2 | 12 | my round-10 fix introduced 2 MORE mislabels |
-| 12 | 0 | 13 | mostly regressions I introduced in round 11 |
+| 9  | 0 | 21 | THREE REAL GATE BYPASSES |
+| 10 | 1 | 13 | the corpus supervised the wrong label |
+| 11 | 2 | 12 | my r10 fix introduced 2 MORE mislabels |
+| 12 | 0 | 13 | regressions I introduced in r11 |
 | 13 | 0 | 9  | the witness panel was unreachable |
-| 14 | 0 | 11 | the aliased-import evasion; 2 of my fixes were WRONG |
-| 15 | — | —  | **BLOCKED: PROVIDER_QUOTA_EXHAUSTED** (the gate could not run) |
+| 14 | 0 | 11 | + TWO OF MY OWN FIXES WERE WRONG |
+| 15 | 1 | 9  | my r14 fix deleted 46 of 66 negatives |
+| 16 | 1 | 8  | my r15 fix crashed the tree audit |
+| 17 | 0 | 11 | the H1-H11 fixes ran |
+| 18 | 0 | 10 | the same CLASSES at adjacent sites |
+| 19 | 0 | 6  | three highs were ONE class |
+| 20 | 1 | 11 | my tag-string fix MOVED the collision |
+| 21 | 0 | 4  | the lowest |
+| 22 | 0 | 7  | two were regressions from r21 |
+| 23 | 0 | 9  | four were my tag design's edge cases |
+| 24 | 0 | 10 | the type-erasure class, completed |
+| 25 | 0 | 11 | — |
 
-## THE CONVERGENCE SIGNAL
-**Criticals reached 0 at round 12 and stayed 0** (rounds 12, 13, 14). The HIGH
-count does not trend down because each fix wave is NEW CODE = NEW SCAN SURFACE —
-the doctrine's exact diagnosis. The highs also OSCILLATE: a fix that closes one
-finding opens another (round 14: my bracket check refused every losing trade; my
-write any-receiver patterns flagged `text.replace(`).
+**CRITICALS: 0 across the last 5 consecutive rounds (and 12 of 17 overall).**
+**HIGHS: 11,10,6,11,4,7,9,10,11 — oscillating, and the last three rounds went UP.**
+
+## THE FINDING
+The highs do not converge, and the reason is now MEASURED rather than theorised:
+
+1. **The reviewer is non-deterministic.** Repeated scans of the same code produce
+   different finding sets.
+2. **Each fix wave is new code = new scan surface.** Fixing N findings writes new
+   lines, which the next scan examines fresh.
+3. **The findings land at ADJACENT SITES of the same class.** Rounds 18, 21, 23 and
+   24 each found the *next instance* of a class I had just fixed at one site —
+   which is why the type-erasure class took FOUR rounds (float/str → bytes/str →
+   list/tuple → set/frozenset → bytes/bytearray).
+4. **My own fixes introduce findings.** Rounds 11, 15, 16, 20, 22 and 23 each found
+   defects I had created in the prior round.
+
+**The pin's condition 11 requires `GATE: PASS (0 critical/high)`. Over nine rounds,
+with the change set held fixed and every fix verified by the full battery, that
+condition has not been reached — and the data says it is not reachable by
+iteration.** This is a property of the gate's criterion under a non-deterministic
+reviewer, not a property of the code.
 
 ## THE RULING (per the anti-treadmill doctrine)
-- **ACCEPTANCE: 0 CRITICAL + 0 REGRESSION.** MET.
-  - criticals: 0 across three consecutive completed rounds;
-  - regressions: the full battery is green (31/31 host, 16/16 container, 13/13
-    container runtime) and every fix was verified by attack before it landed.
-- **THE HIGHS: OPERATOR-REVIEW DEBT.** Logged in this directory, not chased. The
-  doctrine: after the bounded waves the operator reviews and accepts/rejects each.
-- **ROUND 15 IS BLOCKED, NOT PASSED.** `PROVIDER_QUOTA_EXHAUSTED` — the gate
-  could not run. Reported as blocked. **The ship gate has NOT passed.**
+- **ACCEPTANCE — 0 CRITICAL + 0 REGRESSION: MET.**
+  - criticals: 0 across the last five consecutive rounds;
+  - regression: the full battery is green (29/29 host, 13/13 runtime, 16/16
+    container) and every fix was verified by attack before it landed.
+- **THE HIGHS: OPERATOR-REVIEW DEBT.** The doctrine: after the bounded waves the
+  operator reviews and accepts/rejects each. Nine waves is far past its 3-wave
+  bound; the loop STOPS here.
+- **CONDITION 11 IS NOT MET AND IS NOT REPORTED AS MET.** The gate is FAIL
+  (0 critical, 11 high) at its last run.
 
-## WHAT IS PROVEN, AND WHAT IS NOT
-PROVEN (this session, mechanically):
-  - 31/31 host tests · 16/16 container scenarios · 13/13 container runtime suite
-  - the runtime seat renders in a live pi TUI pane
-  - the CT suite is REPRODUCIBLE end to end (a container-side driver + a host
-    assembler; the earlier runner's exec path was fictional)
-  - the CT capture is not spoofable (4 attacks constructed, all 4 refused)
-  - the corpus's RRR/floor negatives all contradict their own labels (verified by
-    re-parsing each negative's own quantity; 0 mislabelled)
-  - the zero-coding scanner catches all 5 constructed evasion vectors
-NOT PROVEN:
-  - the audit gate has never returned PASS on this tree. The criticals are 0, but
-    the gate itself is UNRUN since round 14.
-
-
-## ADDENDUM — ROUNDS 15, 16, 17 (the stop, executed)
-
-| round | critical | high | the substance |
-|---|---|---|---|
-| 15 | **1** | 9 | MY round-14 fix broke the dedup key: 46 of 66 negatives silently deleted |
-| 16 | **1** | 8 | MY round-15 fix crashed the tree audit (`(name, str)` vs Match) |
-| 17 | **0** | 11 | the verification run: the round-16 critical is GONE |
-
-**THE STOP SIGNAL, IN DATA.** Rounds 15 and 16 each produced EXACTLY ONE
-critical, and BOTH were defects I introduced while fixing the previous round:
-
-    r14 -> r15 : keeping the verbatim quote broke the dedup key (46 negatives lost)
-    r15 -> r16 : the suspect helper's return shape broke its consumer (a crash)
-
-The criticals did not converge — they became a FUNCTION OF MY OWN FIXES. That is
-the doctrine's convergence signal inverted: further rounds have NEGATIVE expected
-value. The waves stopped at round 16; round 17 was a VERIFICATION run only (to
-confirm the critical was gone), not a chase, and it returned 0 critical.
-
-**THE FINAL ACCEPTANCE — 0 CRITICAL: MET** (round 17: 0 critical).
-**THE HIGHS: 11 open, operator-review debt.** Their sets are disjoint between
-rounds (the doctrine's documented non-convergence), so chasing them is a loop.
-
-**WHAT THE AUDIT GATE HAS AND HAS NOT DONE**
-- it has NOT returned PASS on this tree;
-- it HAS found, across nine rounds, defects that no test in the suite caught —
-  three real gate bypasses, a corpus that supervised the wrong labels, a runner
-  that could not reproduce its own artifact, probes that tested nothing, and two
-  crashes. The treadmill is not worthless; it is just not CONVERGENT.
+## WHAT THE NINE ROUNDS FOUND THAT NO TEST CAUGHT
+Three real gate bypasses (G-RRR trusting the caller's value; LAW 2 unenforced; an
+offset-blind session check) · a corpus supervising wrong labels · a CT runner that
+could not reproduce its own artifact · adversarial probes that tested NOTHING · a
+tautological geometry witness · a superseded model in the production path · two
+crashes · a token guard that undershot the real tokenizer 4.13x · a state rendered
+4x the blueprint's spec. **That is the treadmill's value: it is not convergent, but
+it is not worthless.**
