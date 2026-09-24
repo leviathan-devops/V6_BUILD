@@ -63,3 +63,43 @@ tautological geometry witness · a superseded model in the production path · tw
 crashes · a token guard that undershot the real tokenizer 4.13x · a state rendered
 4x the blueprint's spec. **That is the treadmill's value: it is not convergent, but
 it is not worthless.**
+
+
+---
+
+# CORRECTION (round 26) — MY NON-CONVERGENCE CLAIM WAS PARTLY WRONG
+
+The ruling above concluded the highs "oscillate and are not reachable by
+iteration". **Round 26 disproved part of that, and the reason matters.**
+
+## THE ROOT CAUSE I MISSED
+My batch-edit script **aborted at its first ANCHOR MISS** (`raise SystemExit`),
+silently killing **every subsequent edit in that batch**. I only saw the
+`applied: X` lines printed before the abort and assumed the rest had run.
+
+**Round 24's batch aborted early, so FIVE fixes were WRITTEN BUT NEVER APPLIED:**
+- the pane gate sanitizer (only the rejection path got `_safe`)
+- `count_tokens`' loud-fail on an encode error
+- the harvest-source raise
+- the digest trust-boundary fix
+- the Portfolio trades validation
+
+**Round 25 then "found" all five again — not because the reviewer is
+non-deterministic inventing new findings, but because the code had never changed.**
+
+## WHAT THIS MEANS FOR THE RULING
+- The evidence for "findings land at adjacent sites of the same class" STANDS
+  (the type-erasure class genuinely took four rounds).
+- The evidence for "my own fixes introduce findings" STANDS.
+- **The evidence for "the highs oscillate without converging" is CONTAMINATED** —
+  some of that oscillation was my own unapplied edits, not the reviewer.
+- **Therefore condition 11 may be reachable after all, and the earlier ruling was
+  premature.** Round 26 fixed the root cause (a non-aborting batch script + a
+  grep-verification after every batch) and applied all nine outstanding fixes.
+
+## THE RULING IS THEREFORE REOPENED
+- The loop RESUMES while a fix batch is outstanding and unapplied.
+- The stop criterion is again the pin's own: **0 critical AND 0 high.**
+- The next completed audit run decides.
+- **What does NOT change: the gate has never returned PASS, and is not reported as
+  having done so.**
