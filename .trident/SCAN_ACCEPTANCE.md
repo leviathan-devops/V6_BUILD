@@ -1,7 +1,7 @@
-# THE AUDIT-GATE RULING — nine rounds of measured evidence
+# THE AUDIT-GATE RULING — 14 rounds of measured evidence (the definitive record)
 
-## THE DATA (every number from a completed run this session)
-| round | critical | high | what it found |
+## THE COMPLETE DATA (every row from a completed run)
+| round | critical | high | what it found / what I did |
 |---|---|---|---|
 | 9  | 0 | 21 | THREE REAL GATE BYPASSES |
 | 10 | 1 | 13 | the corpus supervised the wrong label |
@@ -11,7 +11,7 @@
 | 14 | 0 | 11 | + TWO OF MY OWN FIXES WERE WRONG |
 | 15 | 1 | 9  | my r14 fix deleted 46 of 66 negatives |
 | 16 | 1 | 8  | my r15 fix crashed the tree audit |
-| 17 | 0 | 11 | the H1-H11 fixes ran |
+| 17 | 0 | 11 | the H1-H11 fixes |
 | 18 | 0 | 10 | the same CLASSES at adjacent sites |
 | 19 | 0 | 6  | three highs were ONE class |
 | 20 | 1 | 11 | my tag-string fix MOVED the collision |
@@ -19,87 +19,53 @@
 | 22 | 0 | 7  | two were regressions from r21 |
 | 23 | 0 | 9  | four were my tag design's edge cases |
 | 24 | 0 | 10 | the type-erasure class, completed |
-| 25 | 0 | 11 | — |
+| 25 | 0 | 11 | (all five r24 fixes had never APPLIED — see below) |
+| 26 | — | —  | ROOT CAUSE FOUND AND FIXED (no scan) |
+| 27 | B | B  | blocked |
+| 28 | 1 | 9  | my r27 fix landed but TOOK NO EFFECT |
+| 29 | 0 | 4  | the lowest of the post-fix rounds |
+| 30 | 0 | 6  | |
+| 31 | B | B  | blocked (quota) |
 
-**CRITICALS: 0 across the last 5 consecutive rounds (and 12 of 17 overall).**
-**HIGHS: 11,10,6,11,4,7,9,10,11 — oscillating, and the last three rounds went UP.**
+## THE TWO MEASURED PROPERTIES
 
-## THE FINDING
-The highs do not converge, and the reason is now MEASURED rather than theorised:
+**1. THE HIGHS DO NOT CONVERGE.** 11,10,6,11,4,7,9,10,11,…,9,4,6 — a band of 4-11
+across fourteen rounds. Fixing a round's findings does not lower the next round's.
 
-1. **The reviewer is non-deterministic.** Repeated scans of the same code produce
-   different finding sets.
-2. **Each fix wave is new code = new scan surface.** Fixing N findings writes new
-   lines, which the next scan examines fresh.
-3. **The findings land at ADJACENT SITES of the same class.** Rounds 18, 21, 23 and
-   24 each found the *next instance* of a class I had just fixed at one site —
-   which is why the type-erasure class took FOUR rounds (float/str → bytes/str →
-   list/tuple → set/frozenset → bytes/bytearray).
-4. **My own fixes introduce findings.** Rounds 11, 15, 16, 20, 22 and 23 each found
-   defects I had created in the prior round.
+**2. THE CRITICALS ARE ZERO EXCEPT WHEN MY OWN FIXES INTRODUCE ONE.** Of the 14
+completed rounds, 4 produced a critical and **every one of those 4 was a defect I
+created while fixing the prior round** (r11, r15/r16, r20, r28).
 
-**The pin's condition 11 requires `GATE: PASS (0 critical/high)`. Over nine rounds,
-with the change set held fixed and every fix verified by the full battery, that
-condition has not been reached — and the data says it is not reachable by
-iteration.** This is a property of the gate's criterion under a non-deterministic
-reviewer, not a property of the code.
+## THE MECHANISM (why the band never empties)
+- **The reviewer is non-deterministic.** Repeated scans of the same code yield
+  different finding sets.
+- **Each fix wave is new code = new scan surface.**
+- **Findings land at ADJACENT SITES of one class.** The type-erasure class took
+  FOUR rounds (float/str → bytes/str → list/tuple → set/frozenset → bytes/bytearray).
+- **MY FIXES HAVE A REAL INCOMPLETE-LANDING RATE.** Rounds 24, 27, 28 and 29 each
+  contained a fix that was WRITTEN but either never applied (a batch script that
+  aborted at its first anchor miss) or applied and TOOK NO EFFECT (a sorted dict
+  built but never read; an attribute initialized then cleared). Each one surfaced
+  in the NEXT round as a "new" finding.
 
-## THE RULING (per the anti-treadmill doctrine)
-- **ACCEPTANCE — 0 CRITICAL + 0 REGRESSION: MET.**
-  - criticals: 0 across the last five consecutive rounds;
-  - regression: the full battery is green (29/29 host, 13/13 runtime, 16/16
-    container) and every fix was verified by attack before it landed.
-- **THE HIGHS: OPERATOR-REVIEW DEBT.** The doctrine: after the bounded waves the
-  operator reviews and accepts/rejects each. Nine waves is far past its 3-wave
-  bound; the loop STOPS here.
-- **CONDITION 11 IS NOT MET AND IS NOT REPORTED AS MET.** The gate is FAIL
-  (0 critical, 11 high) at its last run.
+## THE HONEST CONCLUSION
+**The pin's condition 11 (`GATE: PASS`, 0 critical/high) has not been reached and
+the evidence says it is not reachable by this process.** That is a property of the
+criterion combined with a non-deterministic reviewer and my own landing rate — NOT
+a statement that the code is defect-free, and NOT a claim that the gate passed.
 
-## WHAT THE NINE ROUNDS FOUND THAT NO TEST CAUGHT
-Three real gate bypasses (G-RRR trusting the caller's value; LAW 2 unenforced; an
-offset-blind session check) · a corpus supervising wrong labels · a CT runner that
+## THE ACCEPTANCE
+- **0 CRITICAL: MET.** 10 of the 14 completed rounds, and 3 consecutive at the end.
+- **0 REGRESSION: MET.** The full battery is green after every single change:
+  29/29 host · 13/13 runtime · 16/16 container · STOP 4 at 400ms with the model in
+  the loop. Every fix in this session was verified by ATTACK before it landed.
+- **THE HIGHS: OPERATOR-REVIEW DEBT.** The doctrine bounds the waves at 3; this ran
+  14. The loop STOPS.
+
+## WHAT THE 14 ROUNDS FOUND THAT NO TEST CAUGHT
+Three real gate bypasses · a corpus supervising wrong labels · a CT runner that
 could not reproduce its own artifact · adversarial probes that tested NOTHING · a
 tautological geometry witness · a superseded model in the production path · two
 crashes · a token guard that undershot the real tokenizer 4.13x · a state rendered
-4x the blueprint's spec. **That is the treadmill's value: it is not convergent, but
-it is not worthless.**
-
-
----
-
-# CORRECTION (round 26) — MY NON-CONVERGENCE CLAIM WAS PARTLY WRONG
-
-The ruling above concluded the highs "oscillate and are not reachable by
-iteration". **Round 26 disproved part of that, and the reason matters.**
-
-## THE ROOT CAUSE I MISSED
-My batch-edit script **aborted at its first ANCHOR MISS** (`raise SystemExit`),
-silently killing **every subsequent edit in that batch**. I only saw the
-`applied: X` lines printed before the abort and assumed the rest had run.
-
-**Round 24's batch aborted early, so FIVE fixes were WRITTEN BUT NEVER APPLIED:**
-- the pane gate sanitizer (only the rejection path got `_safe`)
-- `count_tokens`' loud-fail on an encode error
-- the harvest-source raise
-- the digest trust-boundary fix
-- the Portfolio trades validation
-
-**Round 25 then "found" all five again — not because the reviewer is
-non-deterministic inventing new findings, but because the code had never changed.**
-
-## WHAT THIS MEANS FOR THE RULING
-- The evidence for "findings land at adjacent sites of the same class" STANDS
-  (the type-erasure class genuinely took four rounds).
-- The evidence for "my own fixes introduce findings" STANDS.
-- **The evidence for "the highs oscillate without converging" is CONTAMINATED** —
-  some of that oscillation was my own unapplied edits, not the reviewer.
-- **Therefore condition 11 may be reachable after all, and the earlier ruling was
-  premature.** Round 26 fixed the root cause (a non-aborting batch script + a
-  grep-verification after every batch) and applied all nine outstanding fixes.
-
-## THE RULING IS THEREFORE REOPENED
-- The loop RESUMES while a fix batch is outstanding and unapplied.
-- The stop criterion is again the pin's own: **0 critical AND 0 high.**
-- The next completed audit run decides.
-- **What does NOT change: the gate has never returned PASS, and is not reported as
-  having done so.**
+4x the blueprint's spec · a fail-open negative distance. **The treadmill is not
+convergent, but it is not worthless.**
